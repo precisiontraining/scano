@@ -24,6 +24,9 @@ const CSS = `
 
   @keyframes fadeUp  { from { opacity:0; transform:translateY(22px) } to { opacity:1; transform:none } }
   @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes scanLine { 0% { top: 0%; opacity:1; } 100% { top: 100%; opacity:0; } }
+  @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
   .reveal { opacity:0; transform:translateY(20px); transition: opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1); }
   .reveal.in { opacity:1; transform:none; }
@@ -36,6 +39,7 @@ const CSS = `
   }
   .inp::placeholder { color:#b0a89e; font-weight:300; }
   .inp:focus { border-color:rgba(42,92,69,0.4); box-shadow:0 0 0 3px rgba(42,92,69,0.08); }
+  .inp:disabled { opacity:0.5; cursor:not-allowed; }
 
   .btn-primary {
     background:#1c1917; color:#f7f4ef; border:none; border-radius:10px;
@@ -43,8 +47,9 @@ const CSS = `
     cursor:pointer; width:100%; letter-spacing:.03em;
     transition: background .2s, transform .15s, box-shadow .2s;
   }
-  .btn-primary:hover { background:#2a5c45; transform:translateY(-2px); box-shadow:0 12px 36px rgba(42,92,69,0.22); }
-  .btn-primary:active { transform:none; }
+  .btn-primary:hover:not(:disabled) { background:#2a5c45; transform:translateY(-2px); box-shadow:0 12px 36px rgba(42,92,69,0.22); }
+  .btn-primary:active:not(:disabled) { transform:none; }
+  .btn-primary:disabled { opacity:0.6; cursor:not-allowed; }
 
   .btn-ghost {
     background:transparent; color:#1c1917; border:1px solid rgba(28,25,23,0.18); border-radius:10px;
@@ -103,33 +108,125 @@ function Nav({ navigate }) {
         <Logo size={24} />
         <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Scano</span>
       </div>
-      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
-          background:C.text, color:C.bg, border:'none', borderRadius:8,
-          padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:14,
-          cursor:'pointer', letterSpacing:'.02em', transition:'background .2s',
-        }}
-          onMouseEnter={e => e.target.style.background = C.accent}
-          onMouseLeave={e => e.target.style.background = C.text}
-        >Scan for free</button>
-      </div>
+      <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
+        background:C.text, color:C.bg, border:'none', borderRadius:8,
+        padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:14,
+        cursor:'pointer', letterSpacing:'.02em', transition:'background .2s',
+      }}
+        onMouseEnter={e => e.target.style.background = C.accent}
+        onMouseLeave={e => e.target.style.background = C.text}
+      >Scan for free</button>
     </nav>
   )
 }
 
-function Hero() {
-  const [fields, setFields] = useState({ url:'', tiktok:'', instagram:'', linkedin:'', twitter:'', youtube:'', facebook:'' })
-  const set = key => val => setFields(f => ({ ...f, [key]: val }))
+const SCAN_STEPS = [
+  'Analyzing website performance…',
+  'Checking Core Web Vitals…',
+  'Scanning SEO signals…',
+  'Pulling social media data…',
+  'Measuring engagement rates…',
+  'Running AI analysis…',
+  'Generating your report…',
+]
+
+function Hero({ onScanComplete }) {
+  const [fields, setFields] = useState({ url:'', tiktok:'', instagram:'', youtube:'', twitter:'', facebook:'' })
   const [showMore, setShowMore] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [stepIndex, setStepIndex] = useState(0)
+  const [error, setError] = useState('')
 
   const socials = [
     { key:'tiktok',    icon:'🎵', label:'TikTok @handle' },
     { key:'instagram', icon:'📸', label:'Instagram @handle' },
-    { key:'linkedin',  icon:'💼', label:'LinkedIn profile URL' },
+    { key:'youtube',   icon:'▶️', label:'YouTube @handle or URL' },
     { key:'twitter',   icon:'𝕏',  label:'X / Twitter @handle' },
-    { key:'youtube',   icon:'▶️', label:'YouTube channel URL' },
-    { key:'facebook',  icon:'👥', label:'Facebook page' },
+    { key:'facebook',  icon:'👥', label:'Facebook page name' },
   ]
+
+  useEffect(() => {
+    if (!loading) return
+    const interval = setInterval(() => {
+      setStepIndex(i => Math.min(i + 1, SCAN_STEPS.length - 1))
+    }, 7000)
+    return () => clearInterval(interval)
+  }, [loading])
+
+  const handleScan = async () => {
+    if (!fields.url) { setError('Please enter your website URL.'); return }
+    setError('')
+    setLoading(true)
+    setStepIndex(0)
+
+    try {
+      // Step 1: Run the scan
+      const scanRes = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websiteUrl: fields.url,
+          tiktokHandle: fields.tiktok,
+          instagramHandle: fields.instagram,
+          youtubeHandle: fields.youtube,
+          facebookHandle: fields.facebook,
+        })
+      })
+      if (!scanRes.ok) throw new Error('Scan failed')
+      const scanData = await scanRes.json()
+
+      // Step 2: Generate AI report
+      const reportRes = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanData, websiteUrl: fields.url })
+      })
+      if (!reportRes.ok) throw new Error('Report generation failed')
+      const { report } = await reportRes.json()
+
+      onScanComplete(scanData, report, fields.url)
+    } catch (e) {
+      setError('Something went wrong. Please check your URL and try again.')
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <section style={{ paddingTop:120, paddingBottom:96, paddingLeft:24, paddingRight:24, minHeight:'80vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ maxWidth:420, width:'100%', textAlign:'center' }}>
+          <div style={{ position:'relative', width:80, height:80, margin:'0 auto 32px' }}>
+            <svg width="80" height="80" viewBox="0 0 80 80" style={{ position:'absolute', top:0, left:0 }}>
+              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(28,25,23,0.08)" strokeWidth="2.5" />
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#2a5c45" strokeWidth="2.5" strokeLinecap="round"
+                strokeDasharray="60 154" style={{ animation:'spin 1.4s linear infinite', transformOrigin:'center' }} />
+            </svg>
+            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)' }}>
+              <Logo size={28} />
+            </div>
+          </div>
+          <p style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:26, letterSpacing:'-.015em', color:C.text, marginBottom:12 }}>
+            Scanning your business
+          </p>
+          <p style={{ fontSize:14, color:C.textLight, fontWeight:300, transition:'all .4s ease', minHeight:22 }}>
+            {SCAN_STEPS[stepIndex]}
+          </p>
+          <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:24 }}>
+            {SCAN_STEPS.map((_, i) => (
+              <div key={i} style={{
+                width: i === stepIndex ? 20 : 6, height:6, borderRadius:3,
+                background: i <= stepIndex ? C.accent : 'rgba(28,25,23,0.12)',
+                transition:'all .4s ease',
+              }} />
+            ))}
+          </div>
+          <p style={{ fontSize:12, color:C.textLight, marginTop:20, fontWeight:300, animation:'pulse 2s ease infinite' }}>
+            This takes about 30–60 seconds
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section style={{ paddingTop:120, paddingBottom:96, paddingLeft:24, paddingRight:24, position:'relative' }}>
@@ -169,25 +266,26 @@ function Hero() {
           padding:24, display:'flex', flexDirection:'column', gap:10,
           animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)',
         }}>
-          {/* Website */}
           <div style={{ position:'relative' }}>
             <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16 }}>🌐</span>
-            <input className="inp" value={fields.url} onChange={e => setFields(f=>({...f,url:e.target.value}))} placeholder="yourwebsite.com" />
+            <input className="inp" value={fields.url} onChange={e => setFields(f=>({...f,url:e.target.value}))}
+              placeholder="yourwebsite.com" disabled={loading}
+              onKeyDown={e => e.key === 'Enter' && handleScan()} />
           </div>
 
-          {/* First 3 socials */}
-          {socials.slice(0, 3).map(s => (
+          {socials.slice(0, 2).map(s => (
             <div key={s.key} style={{ position:'relative' }}>
               <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15 }}>{s.icon}</span>
-              <input className="inp" value={fields[s.key]} onChange={e => set(s.key)(e.target.value)} placeholder={`${s.label} (optional)`} />
+              <input className="inp" value={fields[s.key]} onChange={e => setFields(f=>({...f,[s.key]:e.target.value}))}
+                placeholder={`${s.label} (optional)`} disabled={loading} />
             </div>
           ))}
 
-          {/* Extra socials */}
-          {showMore && socials.slice(3).map(s => (
-            <div key={s.key} style={{ position:'relative' }}>
+          {showMore && socials.slice(2).map(s => (
+            <div key={s.key} style={{ position:'relative', animation:'fadeUp .3s ease both' }}>
               <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15 }}>{s.icon}</span>
-              <input className="inp" value={fields[s.key]} onChange={e => set(s.key)(e.target.value)} placeholder={`${s.label} (optional)`} />
+              <input className="inp" value={fields[s.key]} onChange={e => setFields(f=>({...f,[s.key]:e.target.value}))}
+                placeholder={`${s.label} (optional)`} disabled={loading} />
             </div>
           ))}
 
@@ -199,11 +297,19 @@ function Hero() {
             onMouseEnter={e => e.target.style.color = C.textMuted}
             onMouseLeave={e => e.target.style.color = C.textLight}
           >
-            {showMore ? '↑ Show fewer platforms' : '+ Add X, YouTube, Facebook'}
+            {showMore ? '↑ Show fewer platforms' : '+ Add YouTube, X, Facebook'}
           </button>
 
+          {error && (
+            <p style={{ fontSize:13, color:C.red, fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>
+              {error}
+            </p>
+          )}
+
           <div style={{ height:4 }} />
-          <button className="btn-primary">Scan my business — it's free</button>
+          <button className="btn-primary" onClick={handleScan} disabled={loading}>
+            Scan my business — it's free
+          </button>
           <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>
             No account needed · Only fill in what you have
           </p>
@@ -217,7 +323,7 @@ function WhatWeCheck() {
   const [ref, visible] = useReveal()
   const items = [
     { icon:'🌐', title:'Your website', desc:'We check load speed, whether visitors instantly understand what you offer, whether your call-to-action is clear, and whether the design builds trust.' },
-    { icon:'📱', title:'Your social content', desc:'We look at your TikTok, Instagram, LinkedIn and more — engagement rates, hook quality, posting consistency, and why some posts work while others don\'t.' },
+    { icon:'📱', title:'Your social content', desc:'We look at your TikTok, Instagram, YouTube and more — engagement rates, hook quality, posting consistency, and why some posts work while others don\'t.' },
     { icon:'📋', title:'A clear action list', desc:'You get a score from 0–100 for each area, plus a prioritized list of the most important things to fix — written in plain, simple language.' },
   ]
 
@@ -315,13 +421,6 @@ function SampleReport() {
                 <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.68, fontWeight:300 }}>{a.text}</p>
               </div>
             ))}
-            <div className="card" style={{ padding:20, marginTop:4, display:'flex', alignItems:'center', gap:14 }}>
-              <span style={{ fontSize:26 }}>📄</span>
-              <div>
-                <p style={{ fontWeight:400, fontSize:14, color:C.text, marginBottom:3 }}>Full report unlocks everything</p>
-                <p style={{ color:C.textLight, fontSize:13, fontWeight:300 }}>All categories · Full action list · One-time €9</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -377,7 +476,9 @@ function Pricing() {
                   </div>
                 ))}
               </div>
-              <button className={p.featured ? 'btn-primary' : 'btn-ghost'}>{p.cta}</button>
+              <button className={p.featured ? 'btn-primary' : 'btn-ghost'}
+                onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
+              >{p.cta}</button>
             </div>
           ))}
         </div>
@@ -390,10 +491,10 @@ function FAQ() {
   const [ref, visible] = useReveal()
   const [open, setOpen] = useState(null)
   const items = [
-    { q:'Do I need an account?', a:'No. You can scan your business and see your free score without creating an account. You only need one if you want to save and revisit your full report later.' },
-    { q:'Which platforms does Scano support?', a:'You can enter your website, TikTok, Instagram, LinkedIn, X (Twitter), YouTube, and Facebook. You don\'t need all of them — just add what you have.' },
+    { q:'Do I need an account?', a:'No. You can scan your business and see your score without creating an account. You only need one if you want to save and revisit your full report later.' },
+    { q:'Which platforms does Scano support?', a:'You can enter your website, TikTok, Instagram, YouTube, X (Twitter), and Facebook. You don\'t need all of them — just add what you have.' },
     { q:'How accurate is the analysis?', a:'Scano uses real data from your profiles: actual engagement rates, posting frequency, and content structure. The AI interprets this data and identifies patterns. It\'s not perfect, but it\'s based on what actually works — not generic advice.' },
-    { q:'Free vs. full report — what\'s the difference?', a:'The free scan shows your overall score and the 3 biggest issues. The full report (€9, one-time) gives you a complete breakdown for every category, a full prioritized action list, and detailed content feedback.' },
+    { q:'Free vs. full report — what\'s the difference?', a:'The free scan shows your overall score and your top issues. The full report (€9, one-time) gives you a complete breakdown for every category, a full prioritized action list, and detailed content feedback.' },
     { q:'Is my data safe?', a:'Yes. Your URLs and handles are only used to run the scan. We don\'t sell or share your data with anyone. Read more in our Privacy Policy.' },
   ]
 
@@ -480,12 +581,12 @@ function Footer({ navigate }) {
   )
 }
 
-export default function Home({ navigate }) {
+export default function Home({ navigate, onScanComplete }) {
   return (
     <>
       <style>{CSS}</style>
       <Nav navigate={navigate} />
-      <Hero />
+      <Hero onScanComplete={onScanComplete} />
       <WhatWeCheck />
       <SampleReport />
       <Pricing />
