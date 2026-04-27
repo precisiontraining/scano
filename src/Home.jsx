@@ -193,38 +193,69 @@ function Hero({ onScanComplete }) {
 
   if (loading) {
     return (
-      <section style={{ paddingTop:120, paddingBottom:96, paddingLeft:24, paddingRight:24, minHeight:'80vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        <div style={{ maxWidth:420, width:'100%', textAlign:'center' }}>
-          <div style={{ position:'relative', width:80, height:80, margin:'0 auto 32px' }}>
-            <svg width="80" height="80" viewBox="0 0 80 80" style={{ position:'absolute', top:0, left:0 }}>
-              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(28,25,23,0.08)" strokeWidth="2.5" />
-              <circle cx="40" cy="40" r="34" fill="none" stroke="#2a5c45" strokeWidth="2.5" strokeLinecap="round"
-                strokeDasharray="60 154" style={{ animation:'spin 1.4s linear infinite', transformOrigin:'center' }} />
+      <>
+        <style>{`
+          @keyframes drawPath { from { stroke-dashoffset: 900; } to { stroke-dashoffset: 0; } }
+          @keyframes fadeStep { from { opacity:0; transform:translateX(6px); } to { opacity:1; transform:none; } }
+          @keyframes markerIn { from { opacity:0; transform:scaleY(0); } to { opacity:1; transform:scaleY(1); } }
+          @keyframes endGlow { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
+        `}</style>
+        <section style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f7f4ef', padding:'0 32px' }}>
+          <div style={{ width:'100%', maxWidth:560, display:'flex', flexDirection:'column', alignItems:'center' }}>
+            <svg viewBox="0 0 500 200" style={{ width:'100%', maxWidth:500, marginBottom:44, overflow:'visible' }}>
+              {[50,100,150].map(y => <line key={y} x1="20" y1={y} x2="480" y2={y} stroke="rgba(28,25,23,0.035)" strokeWidth="1"/>)}
+              <path d="M 30,100 C 80,100 90,45 140,45 C 190,45 190,155 240,155 C 290,155 290,60 340,60 C 390,60 400,110 460,100"
+                fill="none" stroke="rgba(42,92,69,0.1)" strokeWidth="1.2"/>
+              <path d="M 30,100 C 80,100 90,45 140,45 C 190,45 190,155 240,155 C 290,155 290,60 340,60 C 390,60 400,110 460,100"
+                fill="none" stroke="#2a5c45" strokeWidth="1.4" strokeLinecap="round"
+                strokeDasharray="900" strokeDashoffset="900"
+                style={{ animation:'drawPath 50s cubic-bezier(0.4,0,0.6,1) forwards' }}/>
+              {[{x:140,y:45},{x:240,y:155},{x:340,y:60}].map(({x,y},i) => (
+                <g key={x} style={{ animation:`markerIn .4s ease ${2+i*3}s both`, opacity:0 }}>
+                  <line x1={x} y1={y-28} x2={x} y2={y+28} stroke="rgba(42,92,69,0.2)" strokeWidth="1" strokeDasharray="2 3"/>
+                  <circle cx={x} cy={y} r="2.5" fill="none" stroke="rgba(42,92,69,0.45)" strokeWidth="1"/>
+                  <circle cx={x} cy={y} r="1" fill="#2a5c45" opacity="0.6"/>
+                </g>
+              ))}
+              <circle cx="30" cy="100" r="4" fill="none" stroke="rgba(42,92,69,0.4)" strokeWidth="1.2"/>
+              <circle cx="30" cy="100" r="1.8" fill="#2a5c45"/>
+              <circle cx="460" cy="100" r="5" fill="none" stroke="#2a5c45" strokeWidth="1"
+                style={{ animation:'endGlow 2s ease-in-out infinite' }}/>
+              <circle cx="460" cy="100" r="2" fill="#2a5c45" opacity="0.5"/>
+              {[{x:90,y:32,label:'Website'},{x:215,y:172,label:'Social'},{x:355,y:47,label:'AI Analysis'}].map(({x,y,label},i) => (
+                <text key={label} x={x} y={y} textAnchor="middle"
+                  fontFamily="Jost, sans-serif" fontSize="9" fontWeight="300"
+                  fill="rgba(42,92,69,0.5)" letterSpacing="1"
+                  style={{ animation:`markerIn .4s ease ${1.5+i*3}s both`, opacity:0 }}>
+                  {label.toUpperCase()}
+                </text>
+              ))}
             </svg>
-            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)' }}>
-              <Logo size={28} />
+            <p style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(22px,4vw,30px)', letterSpacing:'-.02em', color:'#1c1917', marginBottom:10, textAlign:'center' }}>
+              Scanning your business
+            </p>
+            <div style={{ height:22, overflow:'hidden', marginBottom:20 }}>
+              <p key={stepIndex} style={{ fontSize:13, color:'#2a5c45', fontWeight:300, letterSpacing:'.03em', textAlign:'center', animation:'fadeStep .35s ease both' }}>
+                {SCAN_STEPS[stepIndex]}
+              </p>
             </div>
+            <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+              {SCAN_STEPS.map((_, i) => (
+                <div key={i} style={{
+                  height:4, borderRadius:2,
+                  width: i === stepIndex ? 20 : 5,
+                  background: i < stepIndex ? '#2a5c45' : i === stepIndex ? '#2a5c45' : 'rgba(28,25,23,0.1)',
+                  opacity: i < stepIndex ? 0.35 : 1,
+                  transition:'all .4s cubic-bezier(0.4,0,0.2,1)',
+                }}/>
+              ))}
+            </div>
+            <p style={{ fontSize:11, color:'#a09890', marginTop:18, fontWeight:300, letterSpacing:'.04em', textTransform:'uppercase' }}>
+              30 – 60 seconds
+            </p>
           </div>
-          <p style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:26, letterSpacing:'-.015em', color:C.text, marginBottom:12 }}>
-            Scanning your business
-          </p>
-          <p style={{ fontSize:14, color:C.textLight, fontWeight:300, transition:'all .4s ease', minHeight:22 }}>
-            {SCAN_STEPS[stepIndex]}
-          </p>
-          <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:24 }}>
-            {SCAN_STEPS.map((_, i) => (
-              <div key={i} style={{
-                width: i === stepIndex ? 20 : 6, height:6, borderRadius:3,
-                background: i <= stepIndex ? C.accent : 'rgba(28,25,23,0.12)',
-                transition:'all .4s ease',
-              }} />
-            ))}
-          </div>
-          <p style={{ fontSize:12, color:C.textLight, marginTop:20, fontWeight:300, animation:'pulse 2s ease infinite' }}>
-            This takes about 30–60 seconds
-          </p>
-        </div>
-      </section>
+        </section>
+      </>
     )
   }
 
