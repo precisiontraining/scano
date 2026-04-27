@@ -55,18 +55,21 @@ async function analyzeTikTok(handle) {
     const cleanHandle = handle.replace('@', '')
     const apifyToken = process.env.APIFY_TOKEN
 
-    const runRes = await fetch(`https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=30`, {
+    console.log('TikTok scan starting for:', cleanHandle)
+    const runRes = await fetch(`https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=45&memory=512`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         profiles: [cleanHandle],
-        resultsPerPage: 20,
+        resultsPerPage: 10,
         shouldDownloadVideos: false,
         shouldDownloadCovers: false,
       })
     })
 
+    console.log('TikTok response status:', runRes.status)
     const items = await runRes.json()
+    console.log('TikTok items count:', Array.isArray(items) ? items.length : 'not array', typeof items === 'object' ? JSON.stringify(items).slice(0,200) : '')
     if (!items || !Array.isArray(items) || items.length === 0) return null
 
     const profile = items.find(i => i.authorMeta) || items[0]
@@ -113,16 +116,19 @@ async function analyzeInstagram(handle) {
     const cleanHandle = handle.replace('@', '')
     const apifyToken = process.env.APIFY_TOKEN
 
-    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=30`, {
+    console.log('Instagram scan starting for:', cleanHandle)
+    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=45&memory=512`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         usernames: [cleanHandle],
-        resultsLimit: 20,
+        resultsLimit: 10,
       })
     })
 
+    console.log('Instagram response status:', runRes.status)
     const items = await runRes.json()
+    console.log('Instagram items count:', Array.isArray(items) ? items.length : 'not array', typeof items === 'object' ? JSON.stringify(items).slice(0,200) : '')
     if (!items || !Array.isArray(items) || items.length === 0) return null
 
     const profile = items[0]

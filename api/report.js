@@ -81,12 +81,35 @@ Write the report in this exact JSON structure (respond ONLY with valid JSON, no 
     })
 
     const data = await response.json()
+
+    if (!response.ok) {
+      console.error('OpenRouter error:', JSON.stringify(data))
+      return res.status(500).json({ error: 'OpenRouter API error', details: data })
+    }
+
     const text = data.choices?.[0]?.message?.content || ''
-    const clean = text.replace(/```json|```/g, '').trim()
-    const report = JSON.parse(clean)
+    console.log('Raw AI response:', text.slice(0, 200))
+
+    // Extract JSON robustly — find first { and last }
+    const jsonStart = text.indexOf('{')
+    const jsonEnd = text.lastIndexOf('}')
+    if (jsonStart === -1 || jsonEnd === -1) {
+      console.error('No JSON found in response:', text)
+      return res.status(500).json({ error: 'No JSON in AI response', raw: text })
+    }
+
+    const jsonStr = text.slice(jsonStart, jsonEnd + 1)
+    let report
+    try {
+      report = JSON.parse(jsonStr)
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr.message, 'String:', jsonStr.slice(0, 300))
+      return res.status(500).json({ error: 'JSON parse failed', details: parseErr.message })
+    }
 
     res.status(200).json({ report })
   } catch (e) {
+    console.error('Report function error:', e.message)
     res.status(500).json({ error: 'Failed to generate report', details: e.message })
   }
 }
