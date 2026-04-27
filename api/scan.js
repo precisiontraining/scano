@@ -3,7 +3,7 @@ export const config = { maxDuration: 60 }
 async function analyzeWebsite(url) {
   try {
     const apiKey = process.env.PAGESPEED_API_KEY
-    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&key=${apiKey}`
+    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance&category=seo&category=accessibility&category=best-practices&key=${apiKey}`
     const res = await fetch(apiUrl)
     const data = await res.json()
 
