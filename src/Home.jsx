@@ -354,7 +354,7 @@ function WhatWeCheck() {
   const [ref, visible] = useReveal()
   const items = [
     { icon:'🌐', title:'Your website', desc:'We check load speed, whether visitors instantly understand what you offer, whether your call-to-action is clear, and whether the design builds trust.' },
-    { icon:'📱', title:'Your social content', desc:'We look at your TikTok, Instagram, YouTube and more — engagement rates, hook quality, posting consistency, and why some posts work while others don\'t.' },
+    { icon:'📱', title:'Your social content', desc:'We look at your TikTok, Instagram, YouTube, X, and Facebook — engagement rates, posting consistency, and what your best performing content has in common.' },
     { icon:'📋', title:'A clear action list', desc:'You get a score from 0–100 for each area, plus a prioritized list of the most important things to fix — written in plain, simple language.' },
   ]
 
@@ -465,13 +465,13 @@ function Pricing() {
     {
       name:'Free', price:'€0', note:'no account required',
       desc:'See where you stand.',
-      features:['Overall score from 0–100','Your 3 biggest issues','Website overview','Instant results'],
+      features:['Overall score from 0–100','Full website analysis (performance, SEO, accessibility)','Social media stats & engagement rates','Your 2 most critical issues to fix','No account needed'],
       cta:'Start for free', featured:false,
     },
     {
       name:'Full Report', price:'€9', note:'one-time · no subscription',
       desc:'Everything you need to actually improve.',
-      features:['Full score per category','Complete priority action list','In-depth content analysis','Hook & copy feedback','Engagement benchmarks','Permanent access to your report'],
+      features:['Everything in the free scan','All 5 priority actions with exact fixes','Hook quality analysis — post by post','Engagement benchmarks vs. similar accounts','Caption & CTA feedback','Brand clarity score breakdown'],
       cta:'Get full report', featured:true,
     },
   ]
@@ -525,7 +525,7 @@ function FAQ() {
     { q:'Do I need an account?', a:'No. You can scan your business and see your score without creating an account. You only need one if you want to save and revisit your full report later.' },
     { q:'Which platforms does Scano support?', a:'You can enter your website, TikTok, Instagram, YouTube, X (Twitter), and Facebook. You don\'t need all of them — just add what you have.' },
     { q:'How accurate is the analysis?', a:'Scano uses real data from your profiles: actual engagement rates, posting frequency, and content structure. The AI interprets this data and identifies patterns. It\'s not perfect, but it\'s based on what actually works — not generic advice.' },
-    { q:'Free vs. full report — what\'s the difference?', a:'The free scan shows your overall score and your top issues. The full report (€9, one-time) gives you a complete breakdown for every category, a full prioritized action list, and detailed content feedback.' },
+    { q:'Free vs. full report — what\'s the difference?', a:'The free scan gives you your full score, website analysis, social media stats, and your 2 most critical issues. The full report (€9, one-time) unlocks all 5 priority actions with exact fixes, hook-by-hook content analysis, engagement benchmarks, and brand clarity feedback.' },
     { q:'Is my data safe?', a:'Yes. Your URLs and handles are only used to run the scan. We don\'t sell or share your data with anyone. Read more in our Privacy Policy.' },
   ]
 
