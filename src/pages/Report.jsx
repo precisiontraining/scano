@@ -294,6 +294,11 @@ export default function Report({ navigate, scanData, reportData, websiteUrl }) {
                 <StatChip label="Copy Score" value={content.copy.score} sub="out of 100" />
                 <StatChip label="Word count" value={content.copy.wordCount} sub="on page" />
               </div>
+              {content.copy.isSPA && (
+                <div style={{ background:'rgba(42,92,69,0.05)', borderRadius:8, padding:'10px 14px', marginBottom:14, border:'1px solid rgba(42,92,69,0.12)' }}>
+                  <p style={{ fontSize:13, color:'#2a5c45', fontWeight:300 }}>ℹ️ This site uses JavaScript rendering — copy analysis is based on available page data.</p>
+                </div>
+              )}
               {content.copy.heroHeadline && (
                 <div style={{ background: content.copy.isOutcomeFocused ? 'rgba(42,92,69,0.05)' : 'rgba(192,57,43,0.05)', borderRadius:8, padding:'14px 16px', marginBottom:16, border:`1px solid ${content.copy.isOutcomeFocused ? 'rgba(42,92,69,0.15)' : 'rgba(192,57,43,0.15)'}` }}>
                   <p style={{ fontSize:11, color:C.light, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6 }}>

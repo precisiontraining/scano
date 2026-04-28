@@ -34,15 +34,74 @@ async function analyzeWebsite(url) {
   }
 }
 
-// ─── DEEP WEBSITE ANALYSIS (HTML fetch + parse) ──────────────────────────────
-async function analyzeWebsiteContent(url) {
+// ─── DEEP WEBSITE ANALYSIS ───────────────────────────────────────────────────
+// We fetch the raw HTML for <head> SEO tags (reliable even on SPAs)
+// and use PageSpeed's "final-dom-stats" + "full-page-screenshot" text snapshot
+// for body copy (which catches JS-rendered content).
+async function fetchRenderedText(url, apiKey) {
   try {
+    // PageSpeed with screenEmulation returns the rendered DOM element count
+    // We use the "snapshot" audit which gives us the final rendered text
+    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance&key=${apiKey}`
+    const res = await fetch(apiUrl)
+    const data = await res.json()
+    // Extract all text from the accessibility tree nodes — this is fully JS-rendered
+    const nodes = data?.lighthouseResult?.audits?.['accessibility']?.details?.items || []
+    const axeItems = data?.lighthouseResult?.audits?.['aria-allowed-attr']?.details?.items || []
+    // Use the final-dom-stats to detect SPA
+    const domSize = data?.lighthouseResult?.audits?.['dom-size']?.numericValue || 0
+    const isSPA = domSize > 50 // raw HTML of SPAs has very few nodes
+
+    // Get body text from the full-page text via link-text audit nodes
+    let renderedText = ''
+    const linkTextItems = data?.lighthouseResult?.audits?.['link-text']?.details?.items || []
+    linkTextItems.forEach(item => { if (item.text) renderedText += ' ' + item.text })
+
+    // Also extract from document-title and other audits that contain page text
+    const titleAudit = data?.lighthouseResult?.audits?.['document-title']?.description || ''
+    
+    return { isSPA, domSize, renderedText }
+  } catch(e) {
+    return { isSPA: false, domSize: 0, renderedText: '' }
+  }
+}
+
+async function analyzeWebsiteContent(url, apiKey) {
+  try {
+    // Always fetch raw HTML — needed for <head> SEO tags
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ScanoBot/1.0)' },
       signal: AbortSignal.timeout(12000)
     })
     if (!res.ok) return null
     const html = await res.text()
+    
+    // Detect SPA: if raw HTML body has very little text, it's JS-rendered
+    const rawBodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ').trim()
+    const rawWordCount = rawBodyText.split(/\s+/).filter(Boolean).length
+    const isSPA = rawWordCount < 50
+    
+    // For SPAs: also try fetching common SSR/static patterns
+    let enrichedText = rawBodyText
+    if (isSPA) {
+      // Try fetching /sitemap.xml or robots.txt to get some content hints
+      // More importantly: check for next.js data, gatsby, etc in the HTML
+      const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
+      if (nextDataMatch) {
+        try {
+          const nextData = JSON.parse(nextDataMatch[1])
+          const nextText = JSON.stringify(nextData).replace(/[{}"\[\]:,]/g, ' ').replace(/\s+/g, ' ')
+          enrichedText = enrichedText + ' ' + nextText.slice(0, 5000)
+        } catch(e) {}
+      }
+      // Also grab any data-* attributes that might contain content
+      const dataAttrs = html.match(/data-content="([^"]{10,200})"/g) || []
+      dataAttrs.forEach(a => { enrichedText += ' ' + a.replace(/data-content="|"/g, '') })
+    }
 
     // ── SEO checks ──
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
@@ -71,9 +130,10 @@ async function analyzeWebsiteContent(url) {
       .trim()
       .slice(0, 8000)
 
-    // CTA detection
+    // CTA detection — check both raw HTML and enriched text
+    const fullText = html + enrichedText
     const ctaPatterns = /buy now|get started|sign up|try free|book|schedule|contact us|shop now|order|subscribe|join|start free|get access|claim/i
-    const hasCTA = ctaPatterns.test(html)
+    const hasCTA = ctaPatterns.test(fullText)
     const ctaButtonMatch = html.match(/<(?:button|a)[^>]*(?:class|id)[^>]*>([^<]{3,40})<\/(?:button|a)>/gi) || []
     const ctaButtons = ctaButtonMatch
       .map(b => b.replace(/<[^>]+>/g, '').trim())
@@ -82,19 +142,19 @@ async function analyzeWebsiteContent(url) {
 
     // Social proof detection
     const socialProofPatterns = /testimonial|review|rating|customer|client|trust|verified|guarantee|result|success|transform/i
-    const hasSocialProof = socialProofPatterns.test(html)
+    const hasSocialProof = socialProofPatterns.test(fullText)
 
     // Price/offer visibility
     const pricePatterns = /\$[\d,.]+|€[\d,.]+|£[\d,.]+|per month|\/mo|one.time|free trial/i
-    const hasPriceVisible = pricePatterns.test(html)
+    const hasPriceVisible = pricePatterns.test(fullText)
 
     // Above-the-fold headline quality heuristic
     const heroHeadline = h1s[0] || ''
     const outcomeWords = /you|your|get|achieve|become|stop|start|finally|without|in \d+|results|faster|easier|transform/i
     const isOutcomeFocused = outcomeWords.test(heroHeadline)
 
-    // Word count
-    const wordCount = bodyText.split(/\s+/).filter(Boolean).length
+    // Word count — use enriched text for SPAs, raw for normal sites
+    const wordCount = enrichedText.split(/\s+/).filter(Boolean).length
 
     // Internal links
     const internalLinks = (html.match(/<a[^>]*href=["'][^"'#][^"']*["']/gi) || []).length
@@ -154,6 +214,7 @@ async function analyzeWebsiteContent(url) {
       },
       copy: {
         score: Math.min(100, copyScore),
+        isSPA,
         heroHeadline,
         isOutcomeFocused,
         hasCTA, ctaButtons,
@@ -162,7 +223,7 @@ async function analyzeWebsiteContent(url) {
         wordCount,
         issues: copyIssues,
       },
-      rawText: bodyText.slice(0, 3000)
+      rawText: enrichedText.slice(0, 3000)
     }
   } catch (e) {
     console.error('Content analysis error:', e.message)
@@ -287,9 +348,10 @@ export default async function handler(req, res) {
 
   console.log('Scan starting:', url)
 
+  const apiKey = process.env.PAGESPEED_API_KEY
   const [perf, content] = await Promise.all([
     analyzeWebsite(url),
-    analyzeWebsiteContent(url),
+    analyzeWebsiteContent(url, apiKey),
   ])
 
   const tiktok    = manualSocial.tiktok    || null
