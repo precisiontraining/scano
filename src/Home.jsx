@@ -518,10 +518,10 @@ function SampleReport() {
     { label:'Brand clarity',   score:58, color:'#8c7355' },
   ]
   const actions = [
-    { bad:true,  text:'14 of your last 20 TikToks open with "In this video I will..." — most viewers scroll away in the first 3 seconds. Start with the problem or the result instead.' },
-    { bad:true,  text:'Your website headline explains what your product is, not what the visitor gets out of it. Rewrite it from the visitor\'s point of view.' },
-    { bad:false, text:'Your best TikTok (48k views) started with a direct problem statement. That format works — use it every time.' },
-    { bad:true,  text:'No reviews or real results are visible on your homepage. One real quote from a customer builds more trust than any design change.' },
+    { bad:true,  text:'Your hero headline "Premium Online Coaching" describes the product, not the result. Visitors decide in 5 seconds. Rewrite it to answer: what does the customer's life look like after buying?' },
+    { bad:true,  text:'Your TikTok engagement rate is 1.8% — the fitness average is 4.8%. Your hooks are likely too slow. Your top-performing video had 3x the average views — analyze what made it different.' },
+    { bad:false, text:'SEO foundation is solid: meta title and description are good length, H1 is present. Canonical tag is missing — add it to avoid duplicate content penalties.' },
+    { bad:true,  text:'No social proof visible above the fold. One real testimonial with a specific result ("Lost 12kg in 8 weeks") converts better than any design change.' },
   ]
 
   return (
@@ -530,7 +530,7 @@ function SampleReport() {
         <div ref={ref} className={`reveal ${visible ? 'in' : ''}`} style={{ marginBottom:60 }}>
           <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Sample output</p>
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(32px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>This is what your report looks like.</h2>
-          <p style={{ color:C.textMuted, marginTop:12, fontSize:16, fontWeight:300 }}>No vague advice. Every point is specific and tells you exactly what to do.</p>
+          <p style={{ color:C.textMuted, marginTop:12, fontSize:16, fontWeight:300 }}>Real data. Industry benchmarks. Specific fixes. No generic advice.</p>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1.5fr', gap:20 }}>
           <div className="card" style={{ padding:36 }}>
@@ -576,7 +576,7 @@ function Pricing() {
     {
       name:'Full Report', price:'€9', note:'one-time · no subscription',
       desc:'Everything you need to actually improve.',
-      features:['Everything in the free scan','All 5 priority actions with exact fixes','Hook quality analysis — post by post','Engagement benchmarks vs. similar accounts','Caption & CTA feedback','Brand clarity score breakdown'],
+      features:['Everything in the free scan','All 5 priority actions with exact fixes','Automatic social media data pull','Competitor comparison scan','Score history — track your progress','Priority email support'],
       cta:'Get full report', featured:true,
     },
   ]

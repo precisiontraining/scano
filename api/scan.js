@@ -1,5 +1,6 @@
 export const config = { maxDuration: 60 }
 
+// ─── WEBSITE PERFORMANCE ────────────────────────────────────────────────────
 async function analyzeWebsite(url) {
   try {
     const apiKey = process.env.PAGESPEED_API_KEY
@@ -8,95 +9,306 @@ async function analyzeWebsite(url) {
     const data = await res.json()
     if (!data.lighthouseResult) return null
     const lhr = data.lighthouseResult
-    const categories = lhr.categories
+    const cats = lhr.categories
     const audits = lhr.audits
-    const performanceScore = Math.round((categories.performance?.score || 0) * 100)
-    const seoScore = Math.round((categories.seo?.score || 0) * 100)
-    const accessibilityScore = Math.round((categories.accessibility?.score || 0) * 100)
-    const fcp = audits['first-contentful-paint']?.displayValue || 'N/A'
-    const lcp = audits['largest-contentful-paint']?.displayValue || 'N/A'
-    const tbt = audits['total-blocking-time']?.displayValue || 'N/A'
-    const cls = audits['cumulative-layout-shift']?.displayValue || 'N/A'
-    const metaTitle = audits['document-title']?.score === 1
-    const metaDescription = audits['meta-description']?.score === 1
-    const hasHttps = url.startsWith('https')
-    const mobileOptimized = audits['viewport']?.score === 1
-    const issues = []
-    if (!metaTitle) issues.push('Missing or poor meta title')
-    if (!metaDescription) issues.push('Missing meta description')
-    if (!hasHttps) issues.push('Not using HTTPS')
-    if (!mobileOptimized) issues.push('Not mobile optimized')
-    if (performanceScore < 50) issues.push('Very slow load time')
-    else if (performanceScore < 70) issues.push('Performance needs improvement')
     return {
-      performanceScore, seoScore, accessibilityScore,
-      coreWebVitals: { fcp, lcp, tbt, cls },
-      technical: { metaTitle, metaDescription, hasHttps, mobileOptimized },
-      issues
+      performanceScore: Math.round((cats.performance?.score || 0) * 100),
+      accessibilityScore: Math.round((cats.accessibility?.score || 0) * 100),
+      coreWebVitals: {
+        fcp: audits['first-contentful-paint']?.displayValue || 'N/A',
+        lcp: audits['largest-contentful-paint']?.displayValue || 'N/A',
+        tbt: audits['total-blocking-time']?.displayValue || 'N/A',
+        cls: audits['cumulative-layout-shift']?.displayValue || 'N/A',
+      },
+      technical: {
+        hasHttps: url.startsWith('https'),
+        mobileOptimized: audits['viewport']?.score === 1,
+        noIntrusive: audits['intrusive-interstitials']?.score === 1,
+        fontSizeOk: audits['font-size']?.score === 1,
+        tapTargetsOk: audits['tap-targets']?.score === 1,
+      }
     }
   } catch (e) {
-    console.error('Website analysis error:', e.message)
+    console.error('PageSpeed error:', e.message)
     return null
   }
 }
 
-function calcScore(website, tiktok, instagram, youtube) {
+// ─── DEEP WEBSITE ANALYSIS (HTML fetch + parse) ──────────────────────────────
+async function analyzeWebsiteContent(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ScanoBot/1.0)' },
+      signal: AbortSignal.timeout(12000)
+    })
+    if (!res.ok) return null
+    const html = await res.text()
+
+    // ── SEO checks ──
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    const title = titleMatch ? titleMatch[1].trim() : ''
+    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i)
+    const metaDesc = descMatch ? descMatch[1].trim() : ''
+    const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/gi) || []
+    const h1s = h1Match.map(h => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean)
+    const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi) || []
+    const h2s = h2Match.map(h => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 5)
+    const imgTags = html.match(/<img[^>]+>/gi) || []
+    const imgsWithoutAlt = imgTags.filter(t => !t.match(/alt=["'][^"']+["']/i)).length
+    const imgAltScore = imgTags.length > 0 ? Math.round(((imgTags.length - imgsWithoutAlt) / imgTags.length) * 100) : 100
+    const canonicalPresent = /<link[^>]*rel=["']canonical["']/i.test(html)
+    const ogTitlePresent = /<meta[^>]*property=["']og:title["']/i.test(html)
+    const ogDescPresent = /<meta[^>]*property=["']og:description["']/i.test(html)
+    const structuredData = html.includes('"@context"') || html.includes("'@context'")
+
+    // ── Copy / UX analysis ──
+    const bodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000)
+
+    // CTA detection
+    const ctaPatterns = /buy now|get started|sign up|try free|book|schedule|contact us|shop now|order|subscribe|join|start free|get access|claim/i
+    const hasCTA = ctaPatterns.test(html)
+    const ctaButtonMatch = html.match(/<(?:button|a)[^>]*(?:class|id)[^>]*>([^<]{3,40})<\/(?:button|a)>/gi) || []
+    const ctaButtons = ctaButtonMatch
+      .map(b => b.replace(/<[^>]+>/g, '').trim())
+      .filter(t => t.length > 2 && t.length < 50)
+      .slice(0, 5)
+
+    // Social proof detection
+    const socialProofPatterns = /testimonial|review|rating|customer|client|trust|verified|guarantee|result|success|transform/i
+    const hasSocialProof = socialProofPatterns.test(html)
+
+    // Price/offer visibility
+    const pricePatterns = /\$[\d,.]+|€[\d,.]+|£[\d,.]+|per month|\/mo|one.time|free trial/i
+    const hasPriceVisible = pricePatterns.test(html)
+
+    // Above-the-fold headline quality heuristic
+    const heroHeadline = h1s[0] || ''
+    const outcomeWords = /you|your|get|achieve|become|stop|start|finally|without|in \d+|results|faster|easier|transform/i
+    const isOutcomeFocused = outcomeWords.test(heroHeadline)
+
+    // Word count
+    const wordCount = bodyText.split(/\s+/).filter(Boolean).length
+
+    // Internal links
+    const internalLinks = (html.match(/<a[^>]*href=["'][^"'#][^"']*["']/gi) || []).length
+
+    // SEO scoring (our own, not PageSpeed)
+    let seoScore = 0
+    if (title && title.length >= 30 && title.length <= 65) seoScore += 18
+    else if (title) seoScore += 9
+    if (metaDesc && metaDesc.length >= 120 && metaDesc.length <= 160) seoScore += 18
+    else if (metaDesc) seoScore += 9
+    if (h1s.length === 1) seoScore += 15
+    else if (h1s.length > 1) seoScore += 7
+    if (h2s.length >= 2) seoScore += 10
+    if (imgAltScore >= 80) seoScore += 12
+    else if (imgAltScore >= 50) seoScore += 6
+    if (canonicalPresent) seoScore += 8
+    if (ogTitlePresent && ogDescPresent) seoScore += 10
+    if (structuredData) seoScore += 9
+
+    // UX/Copy scoring
+    let copyScore = 0
+    if (isOutcomeFocused) copyScore += 25
+    if (hasCTA) copyScore += 25
+    if (hasSocialProof) copyScore += 20
+    if (hasPriceVisible) copyScore += 15
+    if (wordCount > 300) copyScore += 10
+    if (heroHeadline.length > 10) copyScore += 5
+
+    const seoIssues = []
+    if (!title) seoIssues.push('No page title found')
+    else if (title.length < 30) seoIssues.push(`Page title too short (${title.length} chars, aim for 30–65)`)
+    else if (title.length > 65) seoIssues.push(`Page title too long (${title.length} chars, aim for 30–65)`)
+    if (!metaDesc) seoIssues.push('No meta description found')
+    else if (metaDesc.length < 120) seoIssues.push(`Meta description too short (${metaDesc.length} chars, aim for 120–160)`)
+    else if (metaDesc.length > 160) seoIssues.push(`Meta description too long (${metaDesc.length} chars)`)
+    if (h1s.length === 0) seoIssues.push('No H1 heading found on page')
+    if (h1s.length > 1) seoIssues.push(`${h1s.length} H1 tags found — should be exactly one`)
+    if (imgAltScore < 80) seoIssues.push(`${imgsWithoutAlt} image(s) missing alt text`)
+    if (!canonicalPresent) seoIssues.push('No canonical tag — duplicate content risk')
+    if (!ogTitlePresent) seoIssues.push('Missing Open Graph tags (social sharing preview broken)')
+
+    const copyIssues = []
+    if (!isOutcomeFocused && heroHeadline) copyIssues.push(`Headline "${heroHeadline.slice(0,60)}" is product-focused, not outcome-focused`)
+    if (!hasCTA) copyIssues.push('No clear call-to-action detected above the fold')
+    if (!hasSocialProof) copyIssues.push('No social proof visible (testimonials, reviews, results)')
+    if (!hasPriceVisible) copyIssues.push('Pricing or offer not visible — visitors may leave without knowing the cost')
+
+    return {
+      seo: {
+        score: Math.min(100, seoScore),
+        title, titleLength: title.length,
+        metaDesc, metaDescLength: metaDesc.length,
+        h1s, h2s,
+        imgAltScore, imgsWithoutAlt,
+        canonicalPresent, ogTitlePresent, ogDescPresent, structuredData,
+        issues: seoIssues,
+      },
+      copy: {
+        score: Math.min(100, copyScore),
+        heroHeadline,
+        isOutcomeFocused,
+        hasCTA, ctaButtons,
+        hasSocialProof,
+        hasPriceVisible,
+        wordCount,
+        issues: copyIssues,
+      },
+      rawText: bodyText.slice(0, 3000)
+    }
+  } catch (e) {
+    console.error('Content analysis error:', e.message)
+    return null
+  }
+}
+
+// ─── INDUSTRY BENCHMARKS ─────────────────────────────────────────────────────
+const BENCHMARKS = {
+  fitness:     { tiktokEng: 4.8, igEng: 3.2, ytEng: 2.1, avgViews: 15000, label: 'Fitness & Health' },
+  coaching:    { tiktokEng: 3.9, igEng: 2.8, ytEng: 1.8, avgViews: 8000,  label: 'Coaching & Education' },
+  ecommerce:   { tiktokEng: 2.1, igEng: 1.9, ytEng: 0.9, avgViews: 5000,  label: 'E-Commerce' },
+  saas:        { tiktokEng: 1.8, igEng: 1.4, ytEng: 1.2, avgViews: 3000,  label: 'SaaS / Tech' },
+  creator:     { tiktokEng: 5.2, igEng: 3.8, ytEng: 2.4, avgViews: 25000, label: 'Content Creator' },
+  food:        { tiktokEng: 6.1, igEng: 4.2, ytEng: 2.8, avgViews: 20000, label: 'Food & Lifestyle' },
+  beauty:      { tiktokEng: 5.5, igEng: 4.0, ytEng: 2.2, avgViews: 18000, label: 'Beauty & Fashion' },
+  default:     { tiktokEng: 3.5, igEng: 2.5, ytEng: 1.5, avgViews: 8000,  label: 'General Business' },
+}
+
+function detectIndustry(url, copy) {
+  const text = (url + ' ' + (copy?.heroHeadline || '') + ' ' + (copy?.rawText || '')).toLowerCase()
+  if (/fitness|workout|gym|train|sport|health|weight|muscle/.test(text)) return 'fitness'
+  if (/coach|mentor|course|learn|teach|educat|program/.test(text)) return 'coaching'
+  if (/shop|store|product|buy|cart|order|shipping/.test(text)) return 'ecommerce'
+  if (/saas|software|app|dashboard|api|platform|tool/.test(text)) return 'saas'
+  if (/creator|content|video|podcast|newsletter/.test(text)) return 'creator'
+  if (/food|recipe|restaurant|cafe|cook|eat/.test(text)) return 'food'
+  if (/beauty|makeup|fashion|style|skincare|hair/.test(text)) return 'beauty'
+  return 'default'
+}
+
+function buildBenchmarkInsights(industry, tiktok, instagram) {
+  const bench = BENCHMARKS[industry] || BENCHMARKS.default
+  const insights = []
+
+  if (tiktok && tiktok.engagementRate) {
+    const er = parseFloat(tiktok.engagementRate)
+    const diff = ((er - bench.tiktokEng) / bench.tiktokEng * 100).toFixed(0)
+    const direction = er >= bench.tiktokEng ? 'above' : 'below'
+    insights.push({
+      platform: 'TikTok',
+      metric: 'Engagement Rate',
+      yours: `${er}%`,
+      benchmark: `${bench.tiktokEng}%`,
+      diff: Math.abs(diff) + '%',
+      direction,
+      label: bench.label,
+    })
+    if (tiktok.avgViews) {
+      const vDiff = ((tiktok.avgViews - bench.avgViews) / bench.avgViews * 100).toFixed(0)
+      insights.push({
+        platform: 'TikTok',
+        metric: 'Avg. Views',
+        yours: tiktok.avgViews.toLocaleString(),
+        benchmark: bench.avgViews.toLocaleString(),
+        diff: Math.abs(vDiff) + '%',
+        direction: tiktok.avgViews >= bench.avgViews ? 'above' : 'below',
+        label: bench.label,
+      })
+    }
+  }
+  if (instagram && instagram.engagementRate) {
+    const er = parseFloat(instagram.engagementRate)
+    const diff = ((er - bench.igEng) / bench.igEng * 100).toFixed(0)
+    insights.push({
+      platform: 'Instagram',
+      metric: 'Engagement Rate',
+      yours: `${er}%`,
+      benchmark: `${bench.igEng}%`,
+      diff: Math.abs(diff) + '%',
+      direction: er >= bench.igEng ? 'above' : 'below',
+      label: bench.label,
+    })
+  }
+  return { benchmarks: insights, industry, industryLabel: bench.label }
+}
+
+// ─── SCORE CALCULATION ───────────────────────────────────────────────────────
+function calcScore(perf, content, social) {
   let score = 0, factors = 0
-  if (website) {
-    const ws = Math.round((website.performanceScore * 0.4) + (website.seoScore * 0.35) + (website.accessibilityScore * 0.25))
-    score += ws * 0.35; factors += 0.35
+
+  // Website performance (20%)
+  if (perf) {
+    const ws = Math.round((perf.performanceScore * 0.6) + (perf.accessibilityScore * 0.4))
+    score += ws * 0.20; factors += 0.20
   }
-  if (tiktok) {
-    const er = parseFloat(tiktok.engagementRate) || 0
+  // SEO (20%)
+  if (content?.seo) {
+    score += content.seo.score * 0.20; factors += 0.20
+  }
+  // Copy/UX (20%)
+  if (content?.copy) {
+    score += content.copy.score * 0.20; factors += 0.20
+  }
+  // Social (40% split)
+  if (social.tiktok) {
+    const er = parseFloat(social.tiktok.engagementRate) || 0
     const ts = Math.min(100, Math.round(
-      (tiktok.hasLink !== false ? 15 : 0) +
-      (er > 5 ? 45 : er > 3 ? 35 : er > 1 ? 22 : 10) +
-      (tiktok.avgViews > 50000 ? 40 : tiktok.avgViews > 10000 ? 30 : tiktok.avgViews > 1000 ? 18 : 5)
+      (er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) +
+      (social.tiktok.avgViews > 50000 ? 50 : social.tiktok.avgViews > 10000 ? 35 : social.tiktok.avgViews > 1000 ? 20 : 5)
     ))
-    score += ts * 0.25; factors += 0.25
+    score += ts * 0.20; factors += 0.20
   }
-  if (instagram) {
-    const er = parseFloat(instagram.engagementRate) || 0
+  if (social.instagram) {
+    const er = parseFloat(social.instagram.engagementRate) || 0
     const is = Math.min(100, Math.round(
-      (instagram.hasLink !== false ? 15 : 0) +
-      (er > 5 ? 45 : er > 3 ? 35 : er > 1 ? 22 : 10) +
-      (instagram.followers > 50000 ? 40 : instagram.followers > 10000 ? 30 : instagram.followers > 1000 ? 18 : 5)
+      (er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) +
+      (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)
     ))
-    score += is * 0.25; factors += 0.25
+    score += is * 0.20; factors += 0.20
   }
-  if (youtube) {
-    const ys = Math.min(100, Math.round(
-      (youtube.subscribers > 50000 ? 55 : youtube.subscribers > 10000 ? 40 : youtube.subscribers > 1000 ? 25 : 8) +
-      (youtube.videoCount > 100 ? 30 : youtube.videoCount > 20 ? 20 : youtube.videoCount > 5 ? 12 : 5) +
-      15
-    ))
-    score += ys * 0.15; factors += 0.15
-  }
+
   return factors > 0 ? Math.round(score / factors) : 0
 }
 
+// ─── HANDLER ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { websiteUrl, manualSocial = {} } = req.body
   if (!websiteUrl) return res.status(400).json({ error: 'Website URL is required' })
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
 
-  console.log('Scan starting:', url, 'social platforms:', Object.keys(manualSocial))
+  console.log('Scan starting:', url)
 
-  const website = await analyzeWebsite(url)
+  const [perf, content] = await Promise.all([
+    analyzeWebsite(url),
+    analyzeWebsiteContent(url),
+  ])
 
   const tiktok    = manualSocial.tiktok    || null
   const instagram = manualSocial.instagram || null
   const youtube   = manualSocial.youtube   || null
   const twitter   = manualSocial.twitter   || null
 
-  const finalScore = calcScore(website, tiktok, instagram, youtube)
+  const industry = detectIndustry(url, content?.copy)
+  const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram)
+  const finalScore = calcScore(perf, content, { tiktok, instagram })
 
-  console.log('Scan done. Score:', finalScore, { website: !!website, tiktok: !!tiktok, instagram: !!instagram, youtube: !!youtube })
+  console.log('Scan done. Score:', finalScore, 'Industry:', industry, 'SEO:', content?.seo?.score, 'Copy:', content?.copy?.score)
 
   res.status(200).json({
     score: finalScore,
-    website, tiktok, instagram, youtube, twitter,
+    website: perf,
+    content,
+    tiktok, instagram, youtube, twitter,
+    benchmarkData,
     scannedAt: new Date().toISOString(),
   })
 }

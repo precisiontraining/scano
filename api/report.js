@@ -2,68 +2,76 @@ export const config = { maxDuration: 60 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
   const { scanData, websiteUrl } = req.body
-
   if (!scanData) return res.status(400).json({ error: 'Scan data required' })
 
-  const prompt = `You are a brutally honest but constructive business mentor analyzing a founder's digital presence. You've reviewed their data below. Write a direct, specific audit report — no fluff, no generic advice. Be like a smart friend who actually knows marketing.
+  const { website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
+
+  const prompt = `You are a brutally honest but constructive business mentor. You have real data below. Write a specific, direct audit. No fluff. No generic advice. Every sentence must reference actual numbers or specific observations from the data.
 
 Website: ${websiteUrl}
 Overall Score: ${scanData.score}/100
+Detected Industry: ${benchmarkData?.industryLabel || 'General Business'}
 
-WEBSITE DATA:
-${scanData.website ? `
-- Performance Score: ${scanData.website.performanceScore}/100
-- SEO Score: ${scanData.website.seoScore}/100
-- Accessibility: ${scanData.website.accessibilityScore}/100
-- Core Web Vitals: FCP ${scanData.website.coreWebVitals.fcp}, LCP ${scanData.website.coreWebVitals.lcp}, CLS ${scanData.website.coreWebVitals.cls}
-- Has HTTPS: ${scanData.website.technical.hasHttps}
-- Has Meta Title: ${scanData.website.technical.metaTitle}
-- Has Meta Description: ${scanData.website.technical.metaDescription}
-- Mobile Optimized: ${scanData.website.technical.mobileOptimized}
-- Issues found: ${scanData.website.issues.join(', ') || 'none'}
-` : 'No website data available'}
+WEBSITE PERFORMANCE:
+${website ? `
+- Mobile Performance: ${website.performanceScore}/100
+- Accessibility: ${website.accessibilityScore}/100  
+- LCP: ${website.coreWebVitals?.lcp} | FCP: ${website.coreWebVitals?.fcp} | CLS: ${website.coreWebVitals?.cls}
+- HTTPS: ${website.technical?.hasHttps} | Mobile optimized: ${website.technical?.mobileOptimized}
+` : 'Not available'}
 
-TIKTOK DATA:
-${scanData.tiktok ? `
-- Followers: ${scanData.tiktok.followers?.toLocaleString()}
-- Average Views per video: ${scanData.tiktok.avgViews?.toLocaleString()}
-- Engagement Rate: ${scanData.tiktok.engagementRate}%
-` : 'Not provided — do not mention TikTok in your analysis'}
+SEO ANALYSIS (deep scan):
+${content?.seo ? `
+- SEO Score: ${content.seo.score}/100
+- Page Title: "${content.seo.title}" (${content.seo.titleLength} chars${content.seo.titleLength < 30 ? ' — TOO SHORT' : content.seo.titleLength > 65 ? ' — TOO LONG' : ' — good length'})
+- Meta Description: ${content.seo.metaDesc ? `"${content.seo.metaDesc.slice(0,100)}..." (${content.seo.metaDescLength} chars)` : 'MISSING'}
+- H1 tags: ${content.seo.h1s.length} found${content.seo.h1s.length > 0 ? `: "${content.seo.h1s[0]}"` : ''}
+- H2 tags: ${content.seo.h2s.length} found${content.seo.h2s.length > 0 ? `: ${content.seo.h2s.slice(0,3).map(h => `"${h}"`).join(', ')}` : ''}
+- Images without alt text: ${content.seo.imgsWithoutAlt} (alt coverage: ${content.seo.imgAltScore}%)
+- Canonical tag: ${content.seo.canonicalPresent ? 'present' : 'MISSING'}
+- Open Graph tags: ${content.seo.ogTitlePresent ? 'present' : 'MISSING'}
+- Structured data: ${content.seo.structuredData ? 'present' : 'not found'}
+- SEO issues: ${content.seo.issues.join('; ') || 'none'}
+` : 'Not available'}
 
-INSTAGRAM DATA:
-${scanData.instagram ? `
-- Followers: ${scanData.instagram.followers?.toLocaleString()}
-- Engagement Rate: ${scanData.instagram.engagementRate}%
-- Avg Likes per Post: ${scanData.instagram.avgLikes?.toLocaleString()}
-` : 'Not provided — do not mention Instagram in your analysis'}
+WEBSITE COPY & UX ANALYSIS:
+${content?.copy ? `
+- Copy Score: ${content.copy.score}/100
+- Hero Headline: "${content.copy.heroHeadline}"
+- Headline outcome-focused: ${content.copy.isOutcomeFocused ? 'YES' : 'NO — currently product/feature focused'}
+- Clear CTA present: ${content.copy.hasCTA ? 'YES' : 'NO'}
+- CTA button text found: ${content.copy.ctaButtons.length > 0 ? content.copy.ctaButtons.join(', ') : 'none detected'}
+- Social proof visible: ${content.copy.hasSocialProof ? 'YES' : 'NO'}
+- Pricing visible: ${content.copy.hasPriceVisible ? 'YES' : 'NO'}
+- Page word count: ${content.copy.wordCount}
+- Copy issues: ${content.copy.issues.join('; ') || 'none'}
+` : 'Not available'}
 
-YOUTUBE DATA:
-${scanData.youtube ? `
-- Subscribers: ${scanData.youtube.subscribers?.toLocaleString()}
-- Avg Views per video: ${scanData.youtube.totalViews?.toLocaleString()}
-` : 'Not provided — do not mention YouTube in your analysis'}
+SOCIAL MEDIA DATA (user-provided):
+${tiktok ? `TikTok: ${tiktok.followers?.toLocaleString()} followers | ${tiktok.avgViews?.toLocaleString()} avg views | ${tiktok.engagementRate}% engagement` : 'TikTok: not provided'}
+${instagram ? `Instagram: ${instagram.followers?.toLocaleString()} followers | ${instagram.avgLikes?.toLocaleString()} avg likes | ${instagram.engagementRate}% engagement` : 'Instagram: not provided'}
+${youtube ? `YouTube: ${youtube.subscribers?.toLocaleString()} subscribers | ${youtube.totalViews?.toLocaleString()} avg views` : 'YouTube: not provided'}
+${twitter ? `X/Twitter: ${twitter.followers?.toLocaleString()} followers` : 'Twitter: not provided'}
 
-TWITTER/X DATA:
-${scanData.twitter ? `
-- Followers: ${scanData.twitter.followers?.toLocaleString()}
-` : 'Not provided — do not mention Twitter/X in your analysis'}
+INDUSTRY BENCHMARKS (${benchmarkData?.industryLabel}):
+${benchmarkData?.benchmarks?.length > 0 ? benchmarkData.benchmarks.map(b =>
+  `${b.platform} ${b.metric}: yours ${b.yours} vs benchmark ${b.benchmark} — ${b.diff} ${b.direction} average`
+).join('\n') : 'No benchmark comparison available (no social data provided)'}
 
-IMPORTANT: Only analyze platforms where data was provided. If no social data was provided at all, focus entirely on the website and recommend building a social media presence.
-
-Write the report in this exact JSON structure (respond ONLY with valid JSON, no markdown):
+Write the report in this EXACT JSON structure. Respond ONLY with valid JSON, no markdown, no extra text:
 {
-  "headline": "One punchy sentence summarizing their biggest problem or strength (max 12 words)",
-  "summary": "2-3 sentences. Be direct. What's working, what's broken, what's the pattern.",
-  "websiteAnalysis": "3-4 sentences specific to their website data. Mention actual numbers.",
-  "socialAnalysis": "3-4 sentences about their social presence. Mention actual numbers and patterns.",
+  "headline": "One punchy sentence — max 12 words. Reference a specific number or finding.",
+  "summary": "3 sentences. Be direct and specific. Reference actual numbers from the data. Mention the industry benchmark if relevant.",
+  "websiteAnalysis": "3-4 sentences. Reference specific scores and numbers. Call out the headline copy specifically if it's weak. Mention SEO issues by name.",
+  "copyAnalysis": "2-3 sentences specifically about their copy and UX. Quote their actual headline. Be direct about whether it works or not.",
+  "socialAnalysis": "${(tiktok || instagram || youtube) ? '3-4 sentences about social presence. Compare to benchmarks where available. Mention specific numbers.' : 'null — write null here since no social data was provided'}",
   "topIssues": [
-    {"severity": "critical", "title": "Short title", "description": "1-2 sentences. Specific fix."},
-    {"severity": "critical", "title": "Short title", "description": "1-2 sentences. Specific fix."},
-    {"severity": "important", "title": "Short title", "description": "1-2 sentences. Specific fix."},
-    {"severity": "important", "title": "Short title", "description": "1-2 sentences. Specific fix."},
-    {"severity": "quickwin", "title": "Short title", "description": "1-2 sentences. Can be done in 10 minutes."}
+    {"severity": "critical", "title": "Short specific title", "description": "1-2 sentences. Name the exact problem and exact fix. Reference actual data."},
+    {"severity": "critical", "title": "Short specific title", "description": "1-2 sentences. Name the exact problem and exact fix."},
+    {"severity": "important", "title": "Short specific title", "description": "1-2 sentences. Specific and actionable."},
+    {"severity": "important", "title": "Short specific title", "description": "1-2 sentences. Specific and actionable."},
+    {"severity": "quickwin", "title": "Short specific title", "description": "Can be done in under 15 minutes. Very specific instruction."}
   ]
 }`
 
@@ -77,7 +85,7 @@ Write the report in this exact JSON structure (respond ONLY with valid JSON, no 
       },
       body: JSON.stringify({
         model: 'anthropic/claude-3.5-haiku',
-        max_tokens: 1200,
+        max_tokens: 1400,
         messages: [{ role: 'user', content: prompt }]
       })
     })
@@ -90,22 +98,19 @@ Write the report in this exact JSON structure (respond ONLY with valid JSON, no 
     }
 
     const text = data.choices?.[0]?.message?.content || ''
-    console.log('Raw AI response:', text.slice(0, 200))
+    console.log('Raw AI response (first 200):', text.slice(0, 200))
 
-    // Extract JSON robustly — find first { and last }
     const jsonStart = text.indexOf('{')
     const jsonEnd = text.lastIndexOf('}')
     if (jsonStart === -1 || jsonEnd === -1) {
-      console.error('No JSON found in response:', text)
       return res.status(500).json({ error: 'No JSON in AI response', raw: text })
     }
 
-    const jsonStr = text.slice(jsonStart, jsonEnd + 1)
     let report
     try {
-      report = JSON.parse(jsonStr)
+      report = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
     } catch (parseErr) {
-      console.error('JSON parse error:', parseErr.message, 'String:', jsonStr.slice(0, 300))
+      console.error('JSON parse error:', parseErr.message)
       return res.status(500).json({ error: 'JSON parse failed', details: parseErr.message })
     }
 

@@ -6,12 +6,14 @@ const CSS = `
   body { background: #f7f4ef; color: #1c1917; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
   @keyframes spin   { to { transform:rotate(360deg); } }
+  @keyframes barIn  { from { width:0 } }
   .unlock-blur { filter:blur(5px); user-select:none; pointer-events:none; opacity:0.45; }
 `
 
 const C = {
   bg:'#f7f4ef', text:'#1c1917', muted:'#6b6460', light:'#a09890',
   border:'rgba(28,25,23,0.08)', accent:'#2a5c45', white:'#ffffff',
+  red:'#c0392b', yellow:'#d68910', green:'#1e8449',
 }
 
 const sev = {
@@ -35,9 +37,9 @@ function ScoreRing({ score }) {
   )
 }
 
-function MetricBar({ label, value }) {
-  const pct = Math.round(value)
-  const color = pct >= 70 ? '#2a5c45' : pct >= 40 ? '#d68910' : '#c0392b'
+function MetricBar({ label, value, max=100 }) {
+  const pct = Math.min(100, Math.round(value))
+  const color = pct >= 70 ? C.green : pct >= 40 ? C.yellow : C.red
   return (
     <div style={{ marginBottom:14 }}>
       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
@@ -45,17 +47,59 @@ function MetricBar({ label, value }) {
         <span style={{ fontSize:13, color, fontWeight:400 }}>{pct}%</span>
       </div>
       <div style={{ height:4, background:'rgba(28,25,23,0.08)', borderRadius:2, overflow:'hidden' }}>
-        <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:2, transition:'width 1s cubic-bezier(0.4,0,0.2,1)' }}/>
+        <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:2, transition:'width 1.1s cubic-bezier(0.4,0,0.2,1)' }}/>
       </div>
     </div>
   )
 }
 
-function StatChip({ label, value }) {
+function StatChip({ label, value, sub }) {
   return (
-    <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 18px', flex:1, minWidth:100 }}>
+    <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 18px', flex:1, minWidth:110 }}>
       <div style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.light, marginBottom:6, fontWeight:400 }}>{label}</div>
       <div style={{ fontSize:20, fontFamily:'Cormorant Garant, serif', fontWeight:400, color:C.text }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:C.light, marginTop:3, fontWeight:300 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function CheckTag({ label, ok }) {
+  return (
+    <span style={{ fontSize:12, padding:'4px 10px', borderRadius:6, background:ok?'#f2fdf5':'#fdf2f2', color:ok?C.green:C.red, border:`1px solid ${ok?'#a9dfbf':'#f5c6c6'}` }}>
+      {ok?'✓':'✗'} {label}
+    </span>
+  )
+}
+
+function IssueTag({ text }) {
+  return (
+    <div style={{ display:'flex', gap:8, alignItems:'flex-start', padding:'10px 14px', background:'#fdf2f2', borderRadius:8, border:'1px solid #f5c6c6' }}>
+      <span style={{ color:C.red, flexShrink:0, fontSize:12, marginTop:1 }}>✗</span>
+      <span style={{ fontSize:13, color:C.muted, fontWeight:300, lineHeight:1.5 }}>{text}</span>
+    </div>
+  )
+}
+
+function BenchmarkRow({ b }) {
+  const isAbove = b.direction === 'above'
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0', borderBottom:'1px solid rgba(28,25,23,0.06)' }}>
+      <div style={{ flex:1 }}>
+        <span style={{ fontSize:13, color:C.muted, fontWeight:300 }}>{b.platform} · {b.metric}</span>
+      </div>
+      <div style={{ textAlign:'right', minWidth:60 }}>
+        <span style={{ fontSize:14, fontWeight:400, color:C.text }}>{b.yours}</span>
+        <div style={{ fontSize:11, color:C.light }}>yours</div>
+      </div>
+      <div style={{ textAlign:'center', minWidth:40 }}>
+        <span style={{ fontSize:11, padding:'2px 8px', borderRadius:4, background:isAbove?'rgba(42,92,69,0.1)':'rgba(192,57,43,0.08)', color:isAbove?C.accent:C.red, fontWeight:400 }}>
+          {isAbove?'↑':'↓'} {b.diff}
+        </span>
+      </div>
+      <div style={{ textAlign:'right', minWidth:60 }}>
+        <span style={{ fontSize:14, fontWeight:300, color:C.light }}>{b.benchmark}</span>
+        <div style={{ fontSize:11, color:C.light }}>avg</div>
+      </div>
     </div>
   )
 }
@@ -80,7 +124,7 @@ function UnlockBlock() {
           3 more actions in your full report
         </h3>
         <p style={{ fontSize:15, color:C.muted, lineHeight:1.72, fontWeight:300, maxWidth:400, margin:'0 auto 28px' }}>
-          The full report includes every priority action, hook-by-hook content feedback, engagement benchmarks compared to accounts your size, and a complete brand clarity breakdown.
+          The full report includes every priority action with exact fixes, hook-by-hook content feedback, and a complete brand clarity breakdown.
         </p>
         <div style={{ display:'flex', flexDirection:'column', gap:9, maxWidth:360, margin:'0 auto 32px', textAlign:'left' }}>
           {[
@@ -100,16 +144,23 @@ function UnlockBlock() {
           background:C.text, color:C.bg, border:'none', borderRadius:10,
           padding:'15px 36px', fontSize:15, fontFamily:'Jost, sans-serif',
           fontWeight:500, cursor:'pointer', letterSpacing:'.02em',
-          transition:'background .2s, transform .15s',
           width:'100%', maxWidth:320, display:'block', margin:'0 auto 12px',
+          transition:'background .2s',
         }}
           onMouseEnter={e => e.currentTarget.style.background = C.accent}
           onMouseLeave={e => e.currentTarget.style.background = C.text}
-        >
-          Unlock full report — €9
-        </button>
-        <p style={{ fontSize:12, color:C.light, fontWeight:300 }}>One-time payment · No subscription · Instant access</p>
+        >Unlock full report — €9</button>
+        <p style={{ fontSize:12, color:C.light, fontWeight:300 }}>One-time · No subscription · Instant access</p>
       </div>
+    </div>
+  )
+}
+
+function Section({ title, children, delay, visible }) {
+  return (
+    <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:'32px', marginBottom:20, opacity:0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none' }}>
+      <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.light, marginBottom:20, fontWeight:400 }}>{title}</p>
+      {children}
     </div>
   )
 }
@@ -130,13 +181,14 @@ export default function Report({ navigate, scanData, reportData, websiteUrl }) {
     )
   }
 
-  const { score, website, tiktok, instagram, youtube } = scanData
-  const { headline, summary, websiteAnalysis, socialAnalysis, topIssues } = reportData
-  const scoreColor = score >= 70 ? '#2a5c45' : score >= 40 ? '#d68910' : '#c0392b'
+  const { score, website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
+  const { headline, summary, websiteAnalysis, copyAnalysis, socialAnalysis, topIssues } = reportData
+  const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
   const visibleActions = topIssues?.slice(0, 2) || []
   const lockedActions  = topIssues?.slice(2)    || []
-  const a = (d) => ({ animation: visible ? `fadeUp 0.6s ease ${d}s forwards` : 'none', opacity:0 })
+  const hasSocial = tiktok || instagram || youtube || twitter
+  const hasBenchmarks = benchmarkData?.benchmarks?.length > 0
 
   return (
     <>
@@ -151,14 +203,17 @@ export default function Report({ navigate, scanData, reportData, websiteUrl }) {
 
         <div style={{ maxWidth:760, margin:'0 auto', padding:'56px 24px 96px' }}>
 
-          <div style={{ marginBottom:48, ...a(0) }}>
-            <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:C.accent, marginBottom:12, fontWeight:400 }}>Free Audit Report</p>
-            <h1 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(24px,4vw,42px)', letterSpacing:'-.02em', lineHeight:1.1, marginBottom:8 }}>{websiteUrl}</h1>
+          {/* Header */}
+          <div style={{ marginBottom:48, opacity:0, animation: visible ? 'fadeUp 0.6s ease 0s forwards' : 'none' }}>
+            <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:C.accent, marginBottom:12, fontWeight:400 }}>
+              Free Audit Report {benchmarkData?.industryLabel && `· ${benchmarkData.industryLabel}`}
+            </p>
+            <h1 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(22px,4vw,40px)', letterSpacing:'-.02em', lineHeight:1.1, marginBottom:8 }}>{websiteUrl}</h1>
             <p style={{ fontSize:13, color:C.light }}>{new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })}</p>
           </div>
 
           {/* Score */}
-          <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:'40px', marginBottom:20, display:'flex', gap:40, alignItems:'center', flexWrap:'wrap', ...a(0.1) }}>
+          <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:'40px', marginBottom:20, display:'flex', gap:40, alignItems:'center', flexWrap:'wrap', opacity:0, animation: visible ? 'fadeUp 0.6s ease 0.1s forwards' : 'none' }}>
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
               <ScoreRing score={score} />
               <span style={{ fontSize:12, letterSpacing:'.08em', textTransform:'uppercase', color:scoreColor, fontWeight:400 }}>{scoreLabel}</span>
@@ -169,47 +224,123 @@ export default function Report({ navigate, scanData, reportData, websiteUrl }) {
             </div>
           </div>
 
-          {/* Website */}
-          {website && (
-            <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:'32px', marginBottom:20, ...a(0.2) }}>
-              <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.light, marginBottom:20, fontWeight:400 }}>Website</p>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:24 }}>
-                <StatChip label="Performance" value={`${website.performanceScore}`} />
-                <StatChip label="SEO" value={`${website.seoScore}`} />
-                <StatChip label="Accessibility" value={`${website.accessibilityScore}`} />
-                <StatChip label="LCP" value={website.coreWebVitals.lcp} />
-              </div>
-              <MetricBar label="Performance" value={website.performanceScore} />
-              <MetricBar label="SEO" value={website.seoScore} />
-              <MetricBar label="Accessibility" value={website.accessibilityScore} />
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', margin:'20px 0' }}>
-                {[{label:'HTTPS',ok:website.technical.hasHttps},{label:'Meta Title',ok:website.technical.metaTitle},{label:'Meta Desc',ok:website.technical.metaDescription},{label:'Mobile',ok:website.technical.mobileOptimized}].map(({label,ok}) => (
-                  <span key={label} style={{ fontSize:12, padding:'4px 10px', borderRadius:6, background:ok?'#f2fdf5':'#fdf2f2', color:ok?'#1e8449':'#c0392b', border:`1px solid ${ok?'#a9dfbf':'#f5c6c6'}` }}>
-                    {ok?'✓':'✗'} {label}
-                  </span>
-                ))}
-              </div>
-              <p style={{ fontSize:14, color:C.muted, lineHeight:1.75, fontWeight:300 }}>{websiteAnalysis}</p>
-            </div>
+          {/* Score breakdown */}
+          {(website || content) && (
+            <Section title="Score Breakdown" delay={0.15} visible={visible}>
+              {website && <MetricBar label="Website Performance" value={website.performanceScore} />}
+              {content?.seo && <MetricBar label="SEO" value={content.seo.score} />}
+              {content?.copy && <MetricBar label="Copy & UX" value={content.copy.score} />}
+              {website && <MetricBar label="Accessibility" value={website.accessibilityScore} />}
+            </Section>
           )}
 
-          {/* Social */}
-          {(tiktok || instagram || youtube) && (
-            <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:'32px', marginBottom:20, ...a(0.3) }}>
-              <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.light, marginBottom:20, fontWeight:400 }}>Social Media</p>
+          {/* Website Performance */}
+          {website && (
+            <Section title="Website Performance" delay={0.2} visible={visible}>
               <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:24 }}>
-                {tiktok    && <StatChip label="TikTok Followers" value={tiktok.followers.toLocaleString()} />}
-                {tiktok    && <StatChip label="Avg Views"        value={tiktok.avgViews.toLocaleString()} />}
-                {instagram && <StatChip label="IG Followers"     value={instagram.followers.toLocaleString()} />}
-                {instagram && <StatChip label="IG Engagement"    value={`${instagram.engagementRate}%`} />}
-                {youtube   && <StatChip label="YT Subscribers"   value={youtube.subscribers.toLocaleString()} />}
+                <StatChip label="Performance" value={website.performanceScore} sub="mobile" />
+                <StatChip label="Accessibility" value={website.accessibilityScore} />
+                <StatChip label="LCP" value={website.coreWebVitals.lcp} />
+                <StatChip label="FCP" value={website.coreWebVitals.fcp} />
               </div>
-              <p style={{ fontSize:14, color:C.muted, lineHeight:1.75, fontWeight:300 }}>{socialAnalysis}</p>
-            </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
+                <CheckTag label="HTTPS"  ok={website.technical.hasHttps} />
+                <CheckTag label="Mobile" ok={website.technical.mobileOptimized} />
+                <CheckTag label="No popups" ok={website.technical.noIntrusive} />
+                <CheckTag label="Font size" ok={website.technical.fontSizeOk} />
+              </div>
+              <p style={{ fontSize:14, color:C.muted, lineHeight:1.75, fontWeight:300 }}>{websiteAnalysis}</p>
+            </Section>
+          )}
+
+          {/* SEO */}
+          {content?.seo && (
+            <Section title="SEO Analysis" delay={0.25} visible={visible}>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:20 }}>
+                <StatChip label="SEO Score" value={content.seo.score} sub="our deep scan" />
+                <StatChip label="Title length" value={`${content.seo.titleLength}c`} sub={content.seo.titleLength >= 30 && content.seo.titleLength <= 65 ? '✓ good' : '✗ off'} />
+                <StatChip label="Alt coverage" value={`${content.seo.imgAltScore}%`} sub="images" />
+              </div>
+              {content.seo.title && (
+                <div style={{ background:'rgba(28,25,23,0.03)', borderRadius:8, padding:'12px 14px', marginBottom:16, border:'1px solid rgba(28,25,23,0.07)' }}>
+                  <p style={{ fontSize:11, color:C.light, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:4 }}>Page title</p>
+                  <p style={{ fontSize:14, color:C.text, fontWeight:300 }}>"{content.seo.title}"</p>
+                </div>
+              )}
+              {content.seo.metaDesc && (
+                <div style={{ background:'rgba(28,25,23,0.03)', borderRadius:8, padding:'12px 14px', marginBottom:16, border:'1px solid rgba(28,25,23,0.07)' }}>
+                  <p style={{ fontSize:11, color:C.light, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:4 }}>Meta description</p>
+                  <p style={{ fontSize:14, color:C.text, fontWeight:300 }}>"{content.seo.metaDesc.slice(0,120)}{content.seo.metaDesc.length > 120 ? '…' : ''}"</p>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom: content.seo.issues.length > 0 ? 16 : 0 }}>
+                <CheckTag label="Canonical"   ok={content.seo.canonicalPresent} />
+                <CheckTag label="Open Graph"  ok={content.seo.ogTitlePresent} />
+                <CheckTag label="Schema.org"  ok={content.seo.structuredData} />
+                <CheckTag label={`${content.seo.h1s.length} H1`} ok={content.seo.h1s.length === 1} />
+              </div>
+              {content.seo.issues.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:16 }}>
+                  {content.seo.issues.map((issue, i) => <IssueTag key={i} text={issue} />)}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {/* Copy & UX */}
+          {content?.copy && (
+            <Section title="Copy & UX Analysis" delay={0.3} visible={visible}>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:20 }}>
+                <StatChip label="Copy Score" value={content.copy.score} sub="out of 100" />
+                <StatChip label="Word count" value={content.copy.wordCount} sub="on page" />
+              </div>
+              {content.copy.heroHeadline && (
+                <div style={{ background: content.copy.isOutcomeFocused ? 'rgba(42,92,69,0.05)' : 'rgba(192,57,43,0.05)', borderRadius:8, padding:'14px 16px', marginBottom:16, border:`1px solid ${content.copy.isOutcomeFocused ? 'rgba(42,92,69,0.15)' : 'rgba(192,57,43,0.15)'}` }}>
+                  <p style={{ fontSize:11, color:C.light, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6 }}>
+                    Hero headline — {content.copy.isOutcomeFocused ? '✓ outcome-focused' : '✗ not outcome-focused'}
+                  </p>
+                  <p style={{ fontSize:15, color:C.text, fontWeight:300, fontStyle:'italic' }}>"{content.copy.heroHeadline}"</p>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+                <CheckTag label="Clear CTA"      ok={content.copy.hasCTA} />
+                <CheckTag label="Social proof"   ok={content.copy.hasSocialProof} />
+                <CheckTag label="Price visible"  ok={content.copy.hasPriceVisible} />
+                <CheckTag label="Outcome-focused headline" ok={content.copy.isOutcomeFocused} />
+              </div>
+              {copyAnalysis && <p style={{ fontSize:14, color:C.muted, lineHeight:1.75, fontWeight:300 }}>{copyAnalysis}</p>}
+              {content.copy.issues.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:16 }}>
+                  {content.copy.issues.map((issue, i) => <IssueTag key={i} text={issue} />)}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {/* Social + Benchmarks */}
+          {hasSocial && (
+            <Section title={`Social Media${benchmarkData?.industryLabel ? ` · vs ${benchmarkData.industryLabel} average` : ''}`} delay={0.35} visible={visible}>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:24 }}>
+                {tiktok    && <StatChip label="TikTok" value={tiktok.followers?.toLocaleString()} sub={`${tiktok.engagementRate}% eng`} />}
+                {tiktok    && <StatChip label="Avg Views" value={tiktok.avgViews?.toLocaleString()} sub="per video" />}
+                {instagram && <StatChip label="Instagram" value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate}% eng`} />}
+                {youtube   && <StatChip label="YouTube" value={youtube.subscribers?.toLocaleString()} sub="subscribers" />}
+                {twitter   && <StatChip label="X / Twitter" value={twitter.followers?.toLocaleString()} sub="followers" />}
+              </div>
+              {hasBenchmarks && (
+                <div style={{ marginBottom:20 }}>
+                  <p style={{ fontSize:12, color:C.light, marginBottom:12, fontWeight:300 }}>Compared to {benchmarkData.industryLabel} accounts</p>
+                  {benchmarkData.benchmarks.map((b, i) => <BenchmarkRow key={i} b={b} />)}
+                </div>
+              )}
+              {socialAnalysis && socialAnalysis !== 'null' && (
+                <p style={{ fontSize:14, color:C.muted, lineHeight:1.75, fontWeight:300, marginTop:16 }}>{socialAnalysis}</p>
+              )}
+            </Section>
           )}
 
           {/* Priority Actions */}
-          <div style={{ ...a(0.4) }}>
+          <div style={{ opacity:0, animation: visible ? 'fadeUp 0.6s ease 0.4s forwards' : 'none' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
               <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.light, fontWeight:400 }}>Priority Actions</p>
               <p style={{ fontSize:12, color:C.light, fontWeight:300 }}>2 of {topIssues?.length || 5} shown</p>
@@ -227,7 +358,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl }) {
             )}
           </div>
 
-          <div style={{ marginTop:56, textAlign:'center', ...a(0.5) }}>
+          <div style={{ marginTop:56, textAlign:'center', opacity:0, animation: visible ? 'fadeUp 0.6s ease 0.5s forwards' : 'none' }}>
             <button onClick={() => navigate('/')}
               style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:10, padding:'12px 28px', fontSize:13, fontFamily:'Jost, sans-serif', fontWeight:300, cursor:'pointer', color:C.muted, transition:'all .2s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(28,25,23,0.3)'; e.currentTarget.style.color=C.text }}
