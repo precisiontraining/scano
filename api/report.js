@@ -27,28 +27,30 @@ ${scanData.website ? `
 
 TIKTOK DATA:
 ${scanData.tiktok ? `
-- Followers: ${scanData.tiktok.followers}
-- Average Views: ${scanData.tiktok.avgViews}
+- Followers: ${scanData.tiktok.followers?.toLocaleString()}
+- Average Views per video: ${scanData.tiktok.avgViews?.toLocaleString()}
 - Engagement Rate: ${scanData.tiktok.engagementRate}%
-- Has Link in Bio: ${scanData.tiktok.hasLink}
-- Bio: "${scanData.tiktok.bio}"
-- Top video: "${scanData.tiktok.topVideos?.[0]?.desc}" (${scanData.tiktok.topVideos?.[0]?.views} views)
-` : 'No TikTok data provided'}
+` : 'Not provided — do not mention TikTok in your analysis'}
 
 INSTAGRAM DATA:
 ${scanData.instagram ? `
-- Followers: ${scanData.instagram.followers}
+- Followers: ${scanData.instagram.followers?.toLocaleString()}
 - Engagement Rate: ${scanData.instagram.engagementRate}%
-- Has Link in Bio: ${scanData.instagram.hasLink}
-- Bio: "${scanData.instagram.bio}"
-- Avg Likes per Post: ${scanData.instagram.avgLikes}
-` : 'No Instagram data provided'}
+- Avg Likes per Post: ${scanData.instagram.avgLikes?.toLocaleString()}
+` : 'Not provided — do not mention Instagram in your analysis'}
 
 YOUTUBE DATA:
 ${scanData.youtube ? `
-- Subscribers: ${scanData.youtube.subscribers}
-- Total Videos: ${scanData.youtube.videoCount}
-` : 'No YouTube data provided'}
+- Subscribers: ${scanData.youtube.subscribers?.toLocaleString()}
+- Avg Views per video: ${scanData.youtube.totalViews?.toLocaleString()}
+` : 'Not provided — do not mention YouTube in your analysis'}
+
+TWITTER/X DATA:
+${scanData.twitter ? `
+- Followers: ${scanData.twitter.followers?.toLocaleString()}
+` : 'Not provided — do not mention Twitter/X in your analysis'}
+
+IMPORTANT: Only analyze platforms where data was provided. If no social data was provided at all, focus entirely on the website and recommend building a social media presence.
 
 Write the report in this exact JSON structure (respond ONLY with valid JSON, no markdown):
 {

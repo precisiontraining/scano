@@ -131,19 +131,36 @@ const SCAN_STEPS = [
 ]
 
 function Hero({ onScanComplete }) {
-  const [fields, setFields] = useState({ url:'', tiktok:'', instagram:'', youtube:'', twitter:'', facebook:'' })
-  const [showMore, setShowMore] = useState(false)
+  const [step, setStep] = useState(1) // 1=url, 2=social stats
+  const [url, setUrl] = useState('')
+  const [social, setSocial] = useState({
+    tiktokFollowers:'', tiktokAvgViews:'', tiktokEngagement:'',
+    igFollowers:'', igAvgLikes:'', igEngagement:'',
+    ytSubscribers:'', ytAvgViews:'',
+    twFollowers:'',
+  })
+  const [activePlatforms, setActivePlatforms] = useState([])
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
 
-  const socials = [
-    { key:'tiktok',    icon:'🎵', label:'TikTok @handle' },
-    { key:'instagram', icon:'📸', label:'Instagram @handle' },
-    { key:'youtube',   icon:'▶️', label:'YouTube @handle or URL' },
-    { key:'twitter',   icon:'𝕏',  label:'X / Twitter @handle' },
-    { key:'facebook',  icon:'👥', label:'Facebook page name' },
+  const platforms = [
+    { key:'tiktok',    icon:'🎵', label:'TikTok' },
+    { key:'instagram', icon:'📸', label:'Instagram' },
+    { key:'youtube',   icon:'▶️', label:'YouTube' },
+    { key:'twitter',   icon:'𝕏',  label:'X / Twitter' },
   ]
+
+  const platformFields = {
+    tiktok:    [{ key:'tiktokFollowers', label:'Followers', placeholder:'e.g. 12400' }, { key:'tiktokAvgViews', label:'Avg. Views per video', placeholder:'e.g. 8500' }, { key:'tiktokEngagement', label:'Engagement rate %', placeholder:'e.g. 4.2' }],
+    instagram: [{ key:'igFollowers', label:'Followers', placeholder:'e.g. 3200' }, { key:'igAvgLikes', label:'Avg. Likes per post', placeholder:'e.g. 180' }, { key:'igEngagement', label:'Engagement rate %', placeholder:'e.g. 3.1' }],
+    youtube:   [{ key:'ytSubscribers', label:'Subscribers', placeholder:'e.g. 5100' }, { key:'ytAvgViews', label:'Avg. Views per video', placeholder:'e.g. 2200' }],
+    twitter:   [{ key:'twFollowers', label:'Followers', placeholder:'e.g. 1800' }],
+  }
+
+  const togglePlatform = (key) => {
+    setActivePlatforms(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key])
+  }
 
   useEffect(() => {
     if (!loading) return
@@ -153,41 +170,73 @@ function Hero({ onScanComplete }) {
     return () => clearInterval(interval)
   }, [loading])
 
+  const handleNext = () => {
+    if (!url) { setError('Please enter your website URL.'); return }
+    setError('')
+    setStep(2)
+  }
+
   const handleScan = async () => {
-    if (!fields.url) { setError('Please enter your website URL.'); return }
     setError('')
     setLoading(true)
     setStepIndex(0)
 
+    // Build manual social data from inputs
+    const manualSocial = {}
+    if (activePlatforms.includes('tiktok') && social.tiktokFollowers) {
+      manualSocial.tiktok = {
+        followers: parseInt(social.tiktokFollowers) || 0,
+        avgViews: parseInt(social.tiktokAvgViews) || 0,
+        engagementRate: social.tiktokEngagement || '0',
+        hasLink: true, bio: '', videoCount: 0, topVideos: [],
+      }
+    }
+    if (activePlatforms.includes('instagram') && social.igFollowers) {
+      manualSocial.instagram = {
+        followers: parseInt(social.igFollowers) || 0,
+        avgLikes: parseInt(social.igAvgLikes) || 0,
+        engagementRate: social.igEngagement || '0',
+        hasLink: true, bio: '', postsCount: 0,
+      }
+    }
+    if (activePlatforms.includes('youtube') && social.ytSubscribers) {
+      manualSocial.youtube = {
+        subscribers: parseInt(social.ytSubscribers) || 0,
+        totalViews: parseInt(social.ytAvgViews) || 0,
+        videoCount: 0,
+      }
+    }
+    if (activePlatforms.includes('twitter') && social.twFollowers) {
+      manualSocial.twitter = {
+        followers: parseInt(social.twFollowers) || 0,
+      }
+    }
+
     try {
-      // Step 1: Run the scan
       const scanRes = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          websiteUrl: fields.url,
-          tiktokHandle: fields.tiktok,
-          instagramHandle: fields.instagram,
-          youtubeHandle: fields.youtube,
-          facebookHandle: fields.facebook,
+          websiteUrl: url,
+          manualSocial,
         })
       })
       if (!scanRes.ok) throw new Error('Scan failed')
       const scanData = await scanRes.json()
 
-      // Step 2: Generate AI report
       const reportRes = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scanData, websiteUrl: fields.url })
+        body: JSON.stringify({ scanData, websiteUrl: url })
       })
       if (!reportRes.ok) throw new Error('Report generation failed')
       const { report } = await reportRes.json()
 
-      onScanComplete(scanData, report, fields.url)
+      onScanComplete(scanData, report, url)
     } catch (e) {
       setError('Something went wrong. Please check your URL and try again.')
       setLoading(false)
+      setStep(1)
     }
   }
 
@@ -289,61 +338,117 @@ function Hero({ onScanComplete }) {
           fontSize:17, color:C.textMuted, lineHeight:1.72, marginBottom:48,
           animation:'fadeUp .6s .16s ease both', fontWeight:300, maxWidth:460,
         }}>
-          Enter your website and social handles. We check everything and give you a clear score with specific things to fix — in under a minute.
+          Enter your website and social numbers. We analyze everything and give you a clear score with specific things to fix — in under a minute.
         </p>
 
         <div id="scan-form" style={{
           background:'#fff', border:'1px solid rgba(28,25,23,0.1)', borderRadius:18,
-          padding:24, display:'flex', flexDirection:'column', gap:10,
+          padding:28, display:'flex', flexDirection:'column', gap:0,
           animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)',
         }}>
-          <div style={{ position:'relative' }}>
-            <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16 }}>🌐</span>
-            <input className="inp" value={fields.url} onChange={e => setFields(f=>({...f,url:e.target.value}))}
-              placeholder="yourwebsite.com" disabled={loading}
-              onKeyDown={e => e.key === 'Enter' && handleScan()} />
+
+          {/* Step indicator */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24 }}>
+            {[{n:1,label:'Website'},{n:2,label:'Social'}].map(({n,label}) => (
+              <div key={n} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <div style={{
+                  width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                  background: step >= n ? C.accent : 'transparent',
+                  border: `1px solid ${step >= n ? C.accent : 'rgba(28,25,23,0.15)'}`,
+                  fontSize:11, fontWeight:500, color: step >= n ? '#fff' : C.textLight,
+                  transition:'all .3s ease',
+                }}>{n}</div>
+                <span style={{ fontSize:12, color: step >= n ? C.text : C.textLight, fontWeight:300, transition:'color .3s' }}>{label}</span>
+                {n < 2 && <div style={{ width:24, height:1, background:'rgba(28,25,23,0.12)', margin:'0 4px' }}/>}
+              </div>
+            ))}
           </div>
 
-          {socials.slice(0, 2).map(s => (
-            <div key={s.key} style={{ position:'relative' }}>
-              <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15 }}>{s.icon}</span>
-              <input className="inp" value={fields[s.key]} onChange={e => setFields(f=>({...f,[s.key]:e.target.value}))}
-                placeholder={`${s.label} (optional)`} disabled={loading} />
+          {step === 1 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ position:'relative' }}>
+                <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16 }}>🌐</span>
+                <input className="inp" value={url} onChange={e => setUrl(e.target.value)}
+                  placeholder="yourwebsite.com"
+                  onKeyDown={e => e.key === 'Enter' && handleNext()} />
+              </div>
+              {error && <p style={{ fontSize:13, color:'#c0392b', fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
+              <div style={{ height:4 }} />
+              <button className="btn-primary" onClick={handleNext}>
+                Continue → Add social numbers
+              </button>
+              <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>
+                No account needed · Free forever
+              </p>
             </div>
-          ))}
-
-          {showMore && socials.slice(2).map(s => (
-            <div key={s.key} style={{ position:'relative', animation:'fadeUp .3s ease both' }}>
-              <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:15 }}>{s.icon}</span>
-              <input className="inp" value={fields[s.key]} onChange={e => setFields(f=>({...f,[s.key]:e.target.value}))}
-                placeholder={`${s.label} (optional)`} disabled={loading} />
-            </div>
-          ))}
-
-          <button onClick={() => setShowMore(m => !m)} style={{
-            background:'none', border:'none', color:C.textLight, fontSize:13,
-            fontFamily:'Jost,sans-serif', cursor:'pointer', textAlign:'left',
-            padding:'2px 0', transition:'color .2s',
-          }}
-            onMouseEnter={e => e.target.style.color = C.textMuted}
-            onMouseLeave={e => e.target.style.color = C.textLight}
-          >
-            {showMore ? '↑ Show fewer platforms' : '+ Add YouTube, X, Facebook'}
-          </button>
-
-          {error && (
-            <p style={{ fontSize:13, color:C.red, fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>
-              {error}
-            </p>
           )}
 
-          <div style={{ height:4 }} />
-          <button className="btn-primary" onClick={handleScan} disabled={loading}>
-            Scan my business — it's free
-          </button>
-          <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>
-            No account needed · Only fill in what you have
-          </p>
+          {step === 2 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <p style={{ fontSize:13, color:C.textMuted, fontWeight:300, lineHeight:1.6 }}>
+                Select the platforms you're active on and enter your numbers. You can find these in your app's analytics.
+              </p>
+
+              {/* Platform selector */}
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {platforms.map(p => (
+                  <button key={p.key} onClick={() => togglePlatform(p.key)} style={{
+                    background: activePlatforms.includes(p.key) ? 'rgba(42,92,69,0.08)' : 'transparent',
+                    border: `1px solid ${activePlatforms.includes(p.key) ? 'rgba(42,92,69,0.35)' : 'rgba(28,25,23,0.12)'}`,
+                    borderRadius:8, padding:'7px 14px', fontSize:13, cursor:'pointer',
+                    fontFamily:'Jost,sans-serif', fontWeight:300,
+                    color: activePlatforms.includes(p.key) ? C.accent : C.textMuted,
+                    display:'flex', alignItems:'center', gap:6, transition:'all .2s',
+                  }}>
+                    <span>{p.icon}</span> {p.label}
+                    {activePlatforms.includes(p.key) && <span style={{ fontSize:10, marginLeft:2 }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+
+              {/* Fields per active platform */}
+              {activePlatforms.map(pKey => (
+                <div key={pKey} style={{ background:'rgba(28,25,23,0.02)', border:'1px solid rgba(28,25,23,0.07)', borderRadius:12, padding:'16px' }}>
+                  <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, marginBottom:12, fontWeight:400 }}>
+                    {platforms.find(p=>p.key===pKey)?.icon} {platforms.find(p=>p.key===pKey)?.label}
+                  </p>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:8 }}>
+                    {platformFields[pKey].map(f => (
+                      <div key={f.key}>
+                        <label style={{ fontSize:11, color:C.textLight, fontWeight:300, display:'block', marginBottom:5 }}>{f.label}</label>
+                        <input className="inp" style={{ paddingLeft:12 }} value={social[f.key]}
+                          onChange={e => setSocial(s=>({...s,[f.key]:e.target.value}))}
+                          placeholder={f.placeholder} type="text" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {activePlatforms.length === 0 && (
+                <p style={{ fontSize:13, color:C.textLight, fontWeight:300, textAlign:'center', padding:'8px 0', fontStyle:'italic' }}>
+                  No social media? No problem — we'll analyze your website only.
+                </p>
+              )}
+
+              {error && <p style={{ fontSize:13, color:'#c0392b', fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
+
+              <div style={{ display:'flex', gap:10, marginTop:4 }}>
+                <button onClick={() => setStep(1)} style={{
+                  background:'none', border:'1px solid rgba(28,25,23,0.12)', borderRadius:10,
+                  padding:'14px 20px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:300,
+                  cursor:'pointer', color:C.textMuted, transition:'all .2s', flexShrink:0,
+                }}>← Back</button>
+                <button className="btn-primary" onClick={handleScan} style={{ flex:1 }}>
+                  Scan my business — it's free
+                </button>
+              </div>
+              <p style={{ fontSize:12, color:C.textLight, textAlign:'center' }}>
+                No account needed · Only fill in what you have
+              </p>
+            </div>
+          )}
+
         </div>
       </div>
     </section>
