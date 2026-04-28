@@ -518,7 +518,7 @@ function SampleReport() {
     { label:'Brand clarity',   score:58, color:'#8c7355' },
   ]
   const actions = [
-    { bad:true,  text:'Your hero headline "Premium Online Coaching" describes the product, not the result. Visitors decide in 5 seconds. Rewrite it to answer: what does the customer's life look like after buying?' },
+    { bad:true,  text:"Your hero headline \"Premium Online Coaching\" describes the product, not the result. Visitors decide in 5 seconds. Rewrite it to answer: what does the customer's life look like after buying?" },
     { bad:true,  text:'Your TikTok engagement rate is 1.8% — the fitness average is 4.8%. Your hooks are likely too slow. Your top-performing video had 3x the average views — analyze what made it different.' },
     { bad:false, text:'SEO foundation is solid: meta title and description are good length, H1 is present. Canonical tag is missing — add it to avoid duplicate content penalties.' },
     { bad:true,  text:'No social proof visible above the fold. One real testimonial with a specific result ("Lost 12kg in 8 weeks") converts better than any design change.' },
