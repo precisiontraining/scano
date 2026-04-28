@@ -8,9 +8,8 @@ const CSS = `
   @keyframes spin   { to { transform:rotate(360deg); } }
   @keyframes barIn  { from { width:0 } }
   .unlock-blur { filter:blur(5px); user-select:none; pointer-events:none; opacity:0.45; }
-  .email-input:focus { border-color: #2a5c45 !important; box-shadow: 0 0 0 3px rgba(42,92,69,0.08); }
+  .email-input:focus { border-color: #2a5c45 !important; box-shadow: 0 0 0 3px rgba(42,92,69,0.08); outline: none; }
   .share-btn:hover { background: #1c1917 !important; border-color: #1c1917 !important; color: #f7f4ef !important; }
-  .share-btn:hover span { color: #f7f4ef !important; }
 `
 
 const C = {
@@ -177,7 +176,7 @@ function Section({ title, children, delay, visible }) {
   )
 }
 
-// ─── Email Capture Block ─────────────────────────────────────────────────────
+// ─── Email Capture ────────────────────────────────────────────────────────────
 
 function EmailCapture({ reportId, visible }) {
   const [email, setEmail]               = useState('')
@@ -227,24 +226,22 @@ function EmailCapture({ reportId, visible }) {
       alignItems: 'center',
       flexWrap: 'wrap',
     }}>
-      {/* Left: label + description */}
+
+      {/* Left */}
       <div style={{ flex: 1, minWidth: 200 }}>
         <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.light, fontWeight: 400, marginBottom: 6 }}>
-          Save your report
+          Get your report by email
         </p>
         <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.65, fontWeight: 300 }}>
-          Get this report in your inbox — and a heads up when it's time to re-audit.
+          We'll send you this report and occasional tips to improve your score.
         </p>
       </div>
 
-      {/* Right: input or confirmation */}
+      {/* Right */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 260 }}>
         {emailSent ? (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            fontSize: 14, color: C.accent, fontWeight: 400, padding: '10px 0',
-          }}>
-            <span style={{ fontSize: 16 }}>✓</span> Done — check your inbox.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: C.accent, fontWeight: 400, padding: '10px 0' }}>
+            <span style={{ fontSize: 16 }}>✓</span> Sent — check your inbox.
           </div>
         ) : (
           <>
@@ -295,7 +292,7 @@ function EmailCapture({ reportId, visible }) {
               <p style={{ fontSize: 12, color: C.red, fontWeight: 300, margin: 0 }}>{emailError}</p>
             )}
             <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0 }}>
-              No spam. Unsubscribe anytime.
+              By submitting you agree to receive this report and tips from Scano.
             </p>
           </>
         )}
@@ -304,7 +301,7 @@ function EmailCapture({ reportId, visible }) {
   )
 }
 
-// ─── Share Button ────────────────────────────────────────────────────────────
+// ─── Share Button ─────────────────────────────────────────────────────────────
 
 function ShareButton({ reportId }) {
   const [copied, setCopied] = useState(false)
@@ -317,7 +314,6 @@ function ShareButton({ reportId }) {
     try {
       await navigator.clipboard.writeText(shareUrl)
     } catch {
-      // Safari fallback
       const ta = document.createElement('textarea')
       ta.value = shareUrl
       document.body.appendChild(ta)
@@ -361,13 +357,12 @@ function ShareButton({ reportId }) {
   )
 }
 
-// ─── Main Report Component ───────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Report({ navigate, scanData, reportData, websiteUrl, reportId }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => { setTimeout(() => setVisible(true), 100) }, [])
 
-  // Loading / error state
   if (!scanData || !reportData) {
     return (
       <>
@@ -381,16 +376,15 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
   }
 
   const { score, website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
-  const { headline, summary, websiteAnalysis, copyAnalysis, socialAnalysis, topIssues } = reportData
+  const { headline, summary, websiteAnalysis, copyAnalysis, socialAnalysis, topIssues }  = reportData
 
   const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
 
   const visibleActions = topIssues?.slice(0, 2) || []
-  const lockedActions  = topIssues?.slice(2) || []
-
-  const hasSocial     = tiktok || instagram || youtube || twitter
-  const hasBenchmarks = benchmarkData?.benchmarks?.length > 0
+  const lockedActions  = topIssues?.slice(2)    || []
+  const hasSocial      = tiktok || instagram || youtube || twitter
+  const hasBenchmarks  = benchmarkData?.benchmarks?.length > 0
 
   return (
     <>
@@ -409,7 +403,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
 
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px 96px' }}>
 
-          {/* ── Header ── */}
+          {/* Header */}
           <div style={{ marginBottom: 48, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0s forwards' : 'none' }}>
             <p style={{ fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>
               Free Audit Report{benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}
@@ -420,12 +414,10 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             <p style={{ fontSize: 13, color: C.light }}>
               {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
-
-            {/* Share button */}
             <ShareButton reportId={reportId} />
           </div>
 
-          {/* ── Score card ── */}
+          {/* Score */}
           <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '40px', marginBottom: 20, display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.1s forwards' : 'none' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <ScoreRing score={score} />
@@ -437,24 +429,24 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </div>
           </div>
 
-          {/* ── Email capture (directly below score) ── */}
+          {/* Email capture — directly below score */}
           <EmailCapture reportId={reportId} visible={visible} />
 
-          {/* ── Score breakdown ── */}
+          {/* Score breakdown */}
           {(website || content) && (
             <Section title="Score Breakdown" delay={0.15} visible={visible}>
-              {website && <MetricBar label="Website Performance" value={website.performanceScore} />}
-              {content?.seo  && <MetricBar label="SEO"           value={content.seo.score} />}
-              {content?.copy && <MetricBar label="Copy & UX"     value={content.copy.score} />}
-              {website       && <MetricBar label="Accessibility" value={website.accessibilityScore} />}
+              {website        && <MetricBar label="Website Performance" value={website.performanceScore} />}
+              {content?.seo   && <MetricBar label="SEO"                 value={content.seo.score} />}
+              {content?.copy  && <MetricBar label="Copy & UX"           value={content.copy.score} />}
+              {website        && <MetricBar label="Accessibility"       value={website.accessibilityScore} />}
             </Section>
           )}
 
-          {/* ── Website Performance ── */}
+          {/* Website Performance */}
           {website && (
             <Section title="Website Performance" delay={0.2} visible={visible}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-                <StatChip label="Performance"  value={website.performanceScore}      sub="mobile" />
+                <StatChip label="Performance"   value={website.performanceScore}      sub="mobile" />
                 <StatChip label="Accessibility" value={website.accessibilityScore} />
                 <StatChip label="LCP"           value={website.coreWebVitals.lcp} />
                 <StatChip label="FCP"           value={website.coreWebVitals.fcp} />
@@ -469,11 +461,11 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── SEO ── */}
+          {/* SEO */}
           {content?.seo && (
             <Section title="SEO Analysis" delay={0.25} visible={visible}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-                <StatChip label="SEO Score"    value={content.seo.score}       sub="our deep scan" />
+                <StatChip label="SEO Score"    value={content.seo.score}            sub="our deep scan" />
                 <StatChip label="Title length" value={`${content.seo.titleLength}c`} sub={content.seo.titleLength >= 30 && content.seo.titleLength <= 65 ? '✓ good' : '✗ off'} />
                 <StatChip label="Alt coverage" value={`${content.seo.imgAltScore}%`} sub="images" />
               </div>
@@ -503,7 +495,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Copy & UX ── */}
+          {/* Copy & UX */}
           {content?.copy && (
             <Section title="Copy & UX Analysis" delay={0.3} visible={visible}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -524,9 +516,9 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                <CheckTag label="Clear CTA"               ok={content.copy.hasCTA} />
-                <CheckTag label="Social proof"            ok={content.copy.hasSocialProof} />
-                <CheckTag label="Price visible"           ok={content.copy.hasPriceVisible} />
+                <CheckTag label="Clear CTA"                ok={content.copy.hasCTA} />
+                <CheckTag label="Social proof"             ok={content.copy.hasSocialProof} />
+                <CheckTag label="Price visible"            ok={content.copy.hasPriceVisible} />
                 <CheckTag label="Outcome-focused headline" ok={content.copy.isOutcomeFocused} />
               </div>
               {copyAnalysis && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.75, fontWeight: 300 }}>{copyAnalysis}</p>}
@@ -538,15 +530,15 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Social + Benchmarks ── */}
+          {/* Social + Benchmarks */}
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · vs ${benchmarkData.industryLabel} average` : ''}`} delay={0.35} visible={visible}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-                {tiktok    && <StatChip label="TikTok"      value={tiktok.followers?.toLocaleString()}     sub={`${tiktok.engagementRate}% eng`} />}
-                {tiktok    && <StatChip label="Avg Views"   value={tiktok.avgViews?.toLocaleString()}      sub="per video" />}
-                {instagram && <StatChip label="Instagram"   value={instagram.followers?.toLocaleString()}  sub={`${instagram.engagementRate}% eng`} />}
-                {youtube   && <StatChip label="YouTube"     value={youtube.subscribers?.toLocaleString()}  sub="subscribers" />}
-                {twitter   && <StatChip label="X / Twitter" value={twitter.followers?.toLocaleString()}    sub="followers" />}
+                {tiktok    && <StatChip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate}% eng`} />}
+                {tiktok    && <StatChip label="Avg Views"   value={tiktok.avgViews?.toLocaleString()}     sub="per video" />}
+                {instagram && <StatChip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate}% eng`} />}
+                {youtube   && <StatChip label="YouTube"     value={youtube.subscribers?.toLocaleString()} sub="subscribers" />}
+                {twitter   && <StatChip label="X / Twitter" value={twitter.followers?.toLocaleString()}   sub="followers" />}
               </div>
               {hasBenchmarks && (
                 <div style={{ marginBottom: 20 }}>
@@ -560,7 +552,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Priority Actions ── */}
+          {/* Priority Actions */}
           <div style={{ opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.4s forwards' : 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
               <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.light, fontWeight: 400 }}>Priority Actions</p>
@@ -579,7 +571,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             )}
           </div>
 
-          {/* ── Footer button ── */}
+          {/* Footer button */}
           <div style={{ marginTop: 56, textAlign: 'center', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.5s forwards' : 'none' }}>
             <button onClick={() => navigate('/')}
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 28px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 300, cursor: 'pointer', color: C.muted, transition: 'all .2s' }}
@@ -589,7 +581,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           </div>
         </div>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Scano</span>
           <div style={{ display: 'flex', gap: 20 }}>
