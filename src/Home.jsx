@@ -130,8 +130,24 @@ const SCAN_STEPS = [
   'Generating your report…',
 ]
 
-function Hero({ onScanComplete }) {
-  const [step, setStep] = useState(1) // 1=url, 2=social stats
+// Maps API error responses to user-facing error codes for Report.jsx ErrorScreen
+function classifyError(scanRes, scanData, reportRes) {
+  if (!scanRes.ok) {
+    if (scanData?.error === 'unreachable') return { code: 'unreachable' }
+    if (scanRes.status === 504 || scanRes.status === 524) return { code: 'timeout' }
+    return { code: 'generic' }
+  }
+  if (!reportRes?.ok) {
+    return { code: 'generic' }
+  }
+  if (!scanData || (!scanData.website && !scanData.content)) {
+    return { code: 'no_data' }
+  }
+  return null
+}
+
+function Hero({ onScanComplete, onScanError }) {
+  const [step, setStep] = useState(1)
   const [url, setUrl] = useState('')
   const [social, setSocial] = useState({
     tiktokFollowers:'', tiktokAvgViews:'', tiktokEngagement:'',
@@ -143,6 +159,8 @@ function Hero({ onScanComplete }) {
   const [loading, setLoading] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
+  // Stores the built manualSocial payload so onRetry can reuse it
+  const lastScanPayload = useRef(null)
 
   const platforms = [
     { key:'tiktok',    icon:'🎵', label:'TikTok' },
@@ -176,12 +194,7 @@ function Hero({ onScanComplete }) {
     setStep(2)
   }
 
-  const handleScan = async () => {
-    setError('')
-    setLoading(true)
-    setStepIndex(0)
-
-    // Build manual social data from inputs
+  const buildManualSocial = () => {
     const manualSocial = {}
     if (activePlatforms.includes('tiktok') && social.tiktokFollowers) {
       manualSocial.tiktok = {
@@ -207,37 +220,67 @@ function Hero({ onScanComplete }) {
       }
     }
     if (activePlatforms.includes('twitter') && social.twFollowers) {
-      manualSocial.twitter = {
-        followers: parseInt(social.twFollowers) || 0,
-      }
+      manualSocial.twitter = { followers: parseInt(social.twFollowers) || 0 }
+    }
+    return manualSocial
+  }
+
+  const runScan = async (websiteUrl, manualSocial) => {
+    setLoading(true)
+    setStepIndex(0)
+
+    let scanRes, scanData, reportRes, reportData
+
+    try {
+      scanRes = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteUrl, manualSocial }),
+      })
+      scanData = await scanRes.json()
+    } catch {
+      // Network failure / Vercel timeout (fetch itself threw)
+      setLoading(false)
+      onScanError({ code: 'timeout' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
+      return
+    }
+
+    // Scan API returned an error
+    if (!scanRes.ok) {
+      setLoading(false)
+      const errorCode = classifyError(scanRes, scanData, null)
+      onScanError(errorCode, websiteUrl, () => runScan(websiteUrl, manualSocial))
+      return
     }
 
     try {
-      const scanRes = await fetch('/api/scan', {
+      reportRes = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          websiteUrl: url,
-          manualSocial,
-        })
+        body: JSON.stringify({ scanData, websiteUrl }),
       })
-      if (!scanRes.ok) throw new Error('Scan failed')
-      const scanData = await scanRes.json()
-
-      const reportRes = await fetch('/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scanData, websiteUrl: url })
-      })
-      if (!reportRes.ok) throw new Error('Report generation failed')
-      const { report } = await reportRes.json()
-
-      onScanComplete(scanData, report, url)
-    } catch (e) {
-      setError('Something went wrong. Please check your URL and try again.')
+      reportData = await reportRes.json()
+    } catch {
       setLoading(false)
-      setStep(1)
+      onScanError({ code: 'generic' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
+      return
     }
+
+    if (!reportRes.ok || !reportData?.report) {
+      setLoading(false)
+      onScanError({ code: 'generic' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
+      return
+    }
+
+    // All good — hand off to App
+    onScanComplete(scanData, reportData.report, websiteUrl)
+  }
+
+  const handleScan = async () => {
+    setError('')
+    const manualSocial = buildManualSocial()
+    lastScanPayload.current = { websiteUrl: url, manualSocial }
+    await runScan(url, manualSocial)
   }
 
   if (loading) {
@@ -389,7 +432,6 @@ function Hero({ onScanComplete }) {
                 Select the platforms you're active on and enter your numbers. You can find these in your app's analytics.
               </p>
 
-              {/* Platform selector */}
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 {platforms.map(p => (
                   <button key={p.key} onClick={() => togglePlatform(p.key)} style={{
@@ -406,7 +448,6 @@ function Hero({ onScanComplete }) {
                 ))}
               </div>
 
-              {/* Fields per active platform */}
               {activePlatforms.map(pKey => (
                 <div key={pKey} style={{ background:'rgba(28,25,23,0.02)', border:'1px solid rgba(28,25,23,0.07)', borderRadius:12, padding:'16px' }}>
                   <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, marginBottom:12, fontWeight:400 }}>
@@ -717,12 +758,12 @@ function Footer({ navigate }) {
   )
 }
 
-export default function Home({ navigate, onScanComplete }) {
+export default function Home({ navigate, onScanComplete, onScanError }) {
   return (
     <>
       <style>{CSS}</style>
       <Nav navigate={navigate} />
-      <Hero onScanComplete={onScanComplete} />
+      <Hero onScanComplete={onScanComplete} onScanError={onScanError} />
       <WhatWeCheck />
       <SampleReport />
       <Pricing />

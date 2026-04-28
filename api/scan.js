@@ -1,11 +1,19 @@
 export const config = { maxDuration: 60 }
 
-// ─── WEBSITE PERFORMANCE ────────────────────────────────────────────────────
+// ─── TIMEOUT WRAPPER ─────────────────────────────────────────────────────────
+function withTimeout(promise, ms, fallback = null) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms))
+  ])
+}
+
+// ─── WEBSITE PERFORMANCE ─────────────────────────────────────────────────────
 async function analyzeWebsite(url) {
   try {
     const apiKey = process.env.PAGESPEED_API_KEY
     const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance&category=seo&category=accessibility&category=best-practices&key=${apiKey}`
-    const res = await fetch(apiUrl)
+    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(25000) })
     const data = await res.json()
     if (!data.lighthouseResult) return null
     const lhr = data.lighthouseResult
@@ -35,48 +43,15 @@ async function analyzeWebsite(url) {
 }
 
 // ─── DEEP WEBSITE ANALYSIS ───────────────────────────────────────────────────
-// We fetch the raw HTML for <head> SEO tags (reliable even on SPAs)
-// and use PageSpeed's "final-dom-stats" + "full-page-screenshot" text snapshot
-// for body copy (which catches JS-rendered content).
-async function fetchRenderedText(url, apiKey) {
+async function analyzeWebsiteContent(url) {
   try {
-    // PageSpeed with screenEmulation returns the rendered DOM element count
-    // We use the "snapshot" audit which gives us the final rendered text
-    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance&key=${apiKey}`
-    const res = await fetch(apiUrl)
-    const data = await res.json()
-    // Extract all text from the accessibility tree nodes — this is fully JS-rendered
-    const nodes = data?.lighthouseResult?.audits?.['accessibility']?.details?.items || []
-    const axeItems = data?.lighthouseResult?.audits?.['aria-allowed-attr']?.details?.items || []
-    // Use the final-dom-stats to detect SPA
-    const domSize = data?.lighthouseResult?.audits?.['dom-size']?.numericValue || 0
-    const isSPA = domSize > 50 // raw HTML of SPAs has very few nodes
-
-    // Get body text from the full-page text via link-text audit nodes
-    let renderedText = ''
-    const linkTextItems = data?.lighthouseResult?.audits?.['link-text']?.details?.items || []
-    linkTextItems.forEach(item => { if (item.text) renderedText += ' ' + item.text })
-
-    // Also extract from document-title and other audits that contain page text
-    const titleAudit = data?.lighthouseResult?.audits?.['document-title']?.description || ''
-    
-    return { isSPA, domSize, renderedText }
-  } catch(e) {
-    return { isSPA: false, domSize: 0, renderedText: '' }
-  }
-}
-
-async function analyzeWebsiteContent(url, apiKey) {
-  try {
-    // Always fetch raw HTML — needed for <head> SEO tags
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ScanoBot/1.0)' },
-      signal: AbortSignal.timeout(12000)
+      signal: AbortSignal.timeout(10000)
     })
     if (!res.ok) return null
     const html = await res.text()
-    
-    // Detect SPA: if raw HTML body has very little text, it's JS-rendered
+
     const rawBodyText = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -84,12 +59,9 @@ async function analyzeWebsiteContent(url, apiKey) {
       .replace(/\s+/g, ' ').trim()
     const rawWordCount = rawBodyText.split(/\s+/).filter(Boolean).length
     const isSPA = rawWordCount < 50
-    
-    // For SPAs: also try fetching common SSR/static patterns
+
     let enrichedText = rawBodyText
     if (isSPA) {
-      // Try fetching /sitemap.xml or robots.txt to get some content hints
-      // More importantly: check for next.js data, gatsby, etc in the HTML
       const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
       if (nextDataMatch) {
         try {
@@ -98,7 +70,6 @@ async function analyzeWebsiteContent(url, apiKey) {
           enrichedText = enrichedText + ' ' + nextText.slice(0, 5000)
         } catch(e) {}
       }
-      // Also grab any data-* attributes that might contain content
       const dataAttrs = html.match(/data-content="([^"]{10,200})"/g) || []
       dataAttrs.forEach(a => { enrichedText += ' ' + a.replace(/data-content="|"/g, '') })
     }
@@ -121,16 +92,6 @@ async function analyzeWebsiteContent(url, apiKey) {
     const ogDescPresent = /<meta[^>]*property=["']og:description["']/i.test(html)
     const structuredData = html.includes('"@context"') || html.includes("'@context'")
 
-    // ── Copy / UX analysis ──
-    const bodyText = html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 8000)
-
-    // CTA detection — check both raw HTML and enriched text
     const fullText = html + enrichedText
     const ctaPatterns = /buy now|get started|sign up|try free|book|schedule|contact us|shop now|order|subscribe|join|start free|get access|claim/i
     const hasCTA = ctaPatterns.test(fullText)
@@ -140,26 +101,19 @@ async function analyzeWebsiteContent(url, apiKey) {
       .filter(t => t.length > 2 && t.length < 50)
       .slice(0, 5)
 
-    // Social proof detection
     const socialProofPatterns = /testimonial|review|rating|customer|client|trust|verified|guarantee|result|success|transform/i
     const hasSocialProof = socialProofPatterns.test(fullText)
 
-    // Price/offer visibility
     const pricePatterns = /\$[\d,.]+|€[\d,.]+|£[\d,.]+|per month|\/mo|one.time|free trial/i
     const hasPriceVisible = pricePatterns.test(fullText)
 
-    // Above-the-fold headline quality heuristic
     const heroHeadline = h1s[0] || ''
     const outcomeWords = /you|your|get|achieve|become|stop|start|finally|without|in \d+|results|faster|easier|transform/i
     const isOutcomeFocused = outcomeWords.test(heroHeadline)
 
-    // Word count — use enriched text for SPAs, raw for normal sites
     const wordCount = enrichedText.split(/\s+/).filter(Boolean).length
-
-    // Internal links
     const internalLinks = (html.match(/<a[^>]*href=["'][^"'#][^"']*["']/gi) || []).length
 
-    // SEO scoring (our own, not PageSpeed)
     let seoScore = 0
     if (title && title.length >= 30 && title.length <= 65) seoScore += 18
     else if (title) seoScore += 9
@@ -174,7 +128,6 @@ async function analyzeWebsiteContent(url, apiKey) {
     if (ogTitlePresent && ogDescPresent) seoScore += 10
     if (structuredData) seoScore += 9
 
-    // UX/Copy scoring
     let copyScore = 0
     if (isOutcomeFocused) copyScore += 25
     if (hasCTA) copyScore += 25
@@ -233,14 +186,14 @@ async function analyzeWebsiteContent(url, apiKey) {
 
 // ─── INDUSTRY BENCHMARKS ─────────────────────────────────────────────────────
 const BENCHMARKS = {
-  fitness:     { tiktokEng: 4.8, igEng: 3.2, ytEng: 2.1, avgViews: 15000, label: 'Fitness & Health' },
-  coaching:    { tiktokEng: 3.9, igEng: 2.8, ytEng: 1.8, avgViews: 8000,  label: 'Coaching & Education' },
-  ecommerce:   { tiktokEng: 2.1, igEng: 1.9, ytEng: 0.9, avgViews: 5000,  label: 'E-Commerce' },
-  saas:        { tiktokEng: 1.8, igEng: 1.4, ytEng: 1.2, avgViews: 3000,  label: 'SaaS / Tech' },
-  creator:     { tiktokEng: 5.2, igEng: 3.8, ytEng: 2.4, avgViews: 25000, label: 'Content Creator' },
-  food:        { tiktokEng: 6.1, igEng: 4.2, ytEng: 2.8, avgViews: 20000, label: 'Food & Lifestyle' },
-  beauty:      { tiktokEng: 5.5, igEng: 4.0, ytEng: 2.2, avgViews: 18000, label: 'Beauty & Fashion' },
-  default:     { tiktokEng: 3.5, igEng: 2.5, ytEng: 1.5, avgViews: 8000,  label: 'General Business' },
+  fitness:   { tiktokEng: 4.8, igEng: 3.2, ytEng: 2.1, avgViews: 15000, label: 'Fitness & Health' },
+  coaching:  { tiktokEng: 3.9, igEng: 2.8, ytEng: 1.8, avgViews: 8000,  label: 'Coaching & Education' },
+  ecommerce: { tiktokEng: 2.1, igEng: 1.9, ytEng: 0.9, avgViews: 5000,  label: 'E-Commerce' },
+  saas:      { tiktokEng: 1.8, igEng: 1.4, ytEng: 1.2, avgViews: 3000,  label: 'SaaS / Tech' },
+  creator:   { tiktokEng: 5.2, igEng: 3.8, ytEng: 2.4, avgViews: 25000, label: 'Content Creator' },
+  food:      { tiktokEng: 6.1, igEng: 4.2, ytEng: 2.8, avgViews: 20000, label: 'Food & Lifestyle' },
+  beauty:    { tiktokEng: 5.5, igEng: 4.0, ytEng: 2.2, avgViews: 18000, label: 'Beauty & Fashion' },
+  default:   { tiktokEng: 3.5, igEng: 2.5, ytEng: 1.5, avgViews: 8000,  label: 'General Business' },
 }
 
 function detectIndustry(url, copy) {
@@ -258,45 +211,19 @@ function detectIndustry(url, copy) {
 function buildBenchmarkInsights(industry, tiktok, instagram) {
   const bench = BENCHMARKS[industry] || BENCHMARKS.default
   const insights = []
-
-  if (tiktok && tiktok.engagementRate) {
+  if (tiktok?.engagementRate) {
     const er = parseFloat(tiktok.engagementRate)
     const diff = ((er - bench.tiktokEng) / bench.tiktokEng * 100).toFixed(0)
-    const direction = er >= bench.tiktokEng ? 'above' : 'below'
-    insights.push({
-      platform: 'TikTok',
-      metric: 'Engagement Rate',
-      yours: `${er}%`,
-      benchmark: `${bench.tiktokEng}%`,
-      diff: Math.abs(diff) + '%',
-      direction,
-      label: bench.label,
-    })
+    insights.push({ platform: 'TikTok', metric: 'Engagement Rate', yours: `${er}%`, benchmark: `${bench.tiktokEng}%`, diff: Math.abs(diff) + '%', direction: er >= bench.tiktokEng ? 'above' : 'below', label: bench.label })
     if (tiktok.avgViews) {
       const vDiff = ((tiktok.avgViews - bench.avgViews) / bench.avgViews * 100).toFixed(0)
-      insights.push({
-        platform: 'TikTok',
-        metric: 'Avg. Views',
-        yours: tiktok.avgViews.toLocaleString(),
-        benchmark: bench.avgViews.toLocaleString(),
-        diff: Math.abs(vDiff) + '%',
-        direction: tiktok.avgViews >= bench.avgViews ? 'above' : 'below',
-        label: bench.label,
-      })
+      insights.push({ platform: 'TikTok', metric: 'Avg. Views', yours: tiktok.avgViews.toLocaleString(), benchmark: bench.avgViews.toLocaleString(), diff: Math.abs(vDiff) + '%', direction: tiktok.avgViews >= bench.avgViews ? 'above' : 'below', label: bench.label })
     }
   }
-  if (instagram && instagram.engagementRate) {
+  if (instagram?.engagementRate) {
     const er = parseFloat(instagram.engagementRate)
     const diff = ((er - bench.igEng) / bench.igEng * 100).toFixed(0)
-    insights.push({
-      platform: 'Instagram',
-      metric: 'Engagement Rate',
-      yours: `${er}%`,
-      benchmark: `${bench.igEng}%`,
-      diff: Math.abs(diff) + '%',
-      direction: er >= bench.igEng ? 'above' : 'below',
-      label: bench.label,
-    })
+    insights.push({ platform: 'Instagram', metric: 'Engagement Rate', yours: `${er}%`, benchmark: `${bench.igEng}%`, diff: Math.abs(diff) + '%', direction: er >= bench.igEng ? 'above' : 'below', label: bench.label })
   }
   return { benchmarks: insights, industry, industryLabel: bench.label }
 }
@@ -304,38 +231,19 @@ function buildBenchmarkInsights(industry, tiktok, instagram) {
 // ─── SCORE CALCULATION ───────────────────────────────────────────────────────
 function calcScore(perf, content, social) {
   let score = 0, factors = 0
-
-  // Website performance (20%)
-  if (perf) {
-    const ws = Math.round((perf.performanceScore * 0.6) + (perf.accessibilityScore * 0.4))
-    score += ws * 0.20; factors += 0.20
-  }
-  // SEO (20%)
-  if (content?.seo) {
-    score += content.seo.score * 0.20; factors += 0.20
-  }
-  // Copy/UX (20%)
-  if (content?.copy) {
-    score += content.copy.score * 0.20; factors += 0.20
-  }
-  // Social (40% split)
+  if (perf) { const ws = Math.round((perf.performanceScore * 0.6) + (perf.accessibilityScore * 0.4)); score += ws * 0.20; factors += 0.20 }
+  if (content?.seo) { score += content.seo.score * 0.20; factors += 0.20 }
+  if (content?.copy) { score += content.copy.score * 0.20; factors += 0.20 }
   if (social.tiktok) {
     const er = parseFloat(social.tiktok.engagementRate) || 0
-    const ts = Math.min(100, Math.round(
-      (er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) +
-      (social.tiktok.avgViews > 50000 ? 50 : social.tiktok.avgViews > 10000 ? 35 : social.tiktok.avgViews > 1000 ? 20 : 5)
-    ))
+    const ts = Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.tiktok.avgViews > 50000 ? 50 : social.tiktok.avgViews > 10000 ? 35 : social.tiktok.avgViews > 1000 ? 20 : 5)))
     score += ts * 0.20; factors += 0.20
   }
   if (social.instagram) {
     const er = parseFloat(social.instagram.engagementRate) || 0
-    const is = Math.min(100, Math.round(
-      (er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) +
-      (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)
-    ))
+    const is = Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)))
     score += is * 0.20; factors += 0.20
   }
-
   return factors > 0 ? Math.round(score / factors) : 0
 }
 
@@ -344,24 +252,33 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const { websiteUrl, manualSocial = {} } = req.body
   if (!websiteUrl) return res.status(400).json({ error: 'Website URL is required' })
-  const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
 
+  const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
   console.log('Scan starting:', url)
 
-  const apiKey = process.env.PAGESPEED_API_KEY
+  // Run PageSpeed and HTML fetch in parallel, each with their own timeout.
+  // PageSpeed gets 25s, HTML fetch gets 10s — total stays well under 55s.
   const [perf, content] = await Promise.all([
-    analyzeWebsite(url),
-    analyzeWebsiteContent(url, apiKey),
+    withTimeout(analyzeWebsite(url), 25000, null),
+    withTimeout(analyzeWebsiteContent(url), 12000, null),
   ])
+
+  // If both failed, the URL is likely unreachable
+  if (!perf && !content) {
+    return res.status(422).json({
+      error: 'unreachable',
+      message: 'We couldn\'t reach this website. Please check the URL and try again.',
+    })
+  }
 
   const tiktok    = manualSocial.tiktok    || null
   const instagram = manualSocial.instagram || null
   const youtube   = manualSocial.youtube   || null
   const twitter   = manualSocial.twitter   || null
 
-  const industry = detectIndustry(url, content?.copy)
+  const industry      = detectIndustry(url, content?.copy)
   const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram)
-  const finalScore = calcScore(perf, content, { tiktok, instagram })
+  const finalScore    = calcScore(perf, content, { tiktok, instagram })
 
   console.log('Scan done. Score:', finalScore, 'Industry:', industry, 'SEO:', content?.seo?.score, 'Copy:', content?.copy?.score)
 

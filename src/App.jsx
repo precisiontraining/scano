@@ -30,12 +30,17 @@ const Spinner = () => (
 )
 
 export default function App() {
-  const [path, setPath]           = useState(window.location.pathname)
-  const [scanData, setScanData]   = useState(null)
+  const [path, setPath]             = useState(window.location.pathname)
+  const [scanData, setScanData]     = useState(null)
   const [reportData, setReportData] = useState(null)
   const [websiteUrl, setWebsiteUrl] = useState('')
-  const [reportId, setReportId]   = useState(null)
-  const [loading, setLoading]     = useState(false)
+  const [reportId, setReportId]     = useState(null)
+  const [loading, setLoading]       = useState(false)
+
+  // Error state: { code: 'unreachable' | 'timeout' | 'no_data' | 'generic' } | null
+  const [scanError, setScanError]   = useState(null)
+  // Retry function passed up from Home → stored here so Report can call it
+  const [retryFn, setRetryFn]       = useState(null)
 
   // Listen for browser back/forward
   useEffect(() => {
@@ -61,6 +66,7 @@ export default function App() {
         setReportData(data.report_data)
         setWebsiteUrl(data.website_url)
         setReportId(id)
+        setScanError(null)
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false))
@@ -77,8 +83,9 @@ export default function App() {
     setScanData(scan)
     setReportData(report)
     setWebsiteUrl(url)
+    setScanError(null)
+    setRetryFn(null)
 
-    // Persist to Supabase and navigate to the stable URL
     try {
       const res = await fetch('/api/save-report', {
         method: 'POST',
@@ -95,9 +102,30 @@ export default function App() {
       console.error('Save report failed, falling back to in-memory report:', e)
     }
 
-    // Fallback: show report without persistent URL
     setReportId(null)
     navigate('/report')
+  }
+
+  // Called by Home when the scan or report API returns an error.
+  // `retry` is a function that re-runs the exact same scan without
+  // requiring the user to re-enter their URL or social data.
+  const handleScanError = (error, url, retry) => {
+    setScanData(null)
+    setReportData(null)
+    setWebsiteUrl(url || websiteUrl)
+    setScanError(error)
+    // useState setter with a function value must be wrapped to avoid
+    // React treating the function itself as an updater.
+    setRetryFn(() => retry)
+    navigate('/report')
+  }
+
+  // Retry handler passed to Report — clears the error, goes back to
+  // Home's loading state, and re-runs the scan.
+  const handleRetry = () => {
+    setScanError(null)
+    setRetryFn(null)
+    if (retryFn) retryFn()
   }
 
   if (path === '/impressum') return <Impressum navigate={navigate} />
@@ -113,9 +141,17 @@ export default function App() {
         reportData={reportData}
         websiteUrl={websiteUrl}
         reportId={reportId}
+        scanError={scanError}
+        onRetry={handleRetry}
       />
     )
   }
 
-  return <Home navigate={navigate} onScanComplete={handleScanComplete} />
+  return (
+    <Home
+      navigate={navigate}
+      onScanComplete={handleScanComplete}
+      onScanError={handleScanError}
+    />
+  )
 }

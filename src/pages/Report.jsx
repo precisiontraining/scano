@@ -10,6 +10,29 @@ const CSS = `
   .unlock-blur { filter:blur(5px); user-select:none; pointer-events:none; opacity:0.45; }
   .email-input:focus { border-color: #2a5c45 !important; box-shadow: 0 0 0 3px rgba(42,92,69,0.08); outline: none; }
   .share-btn:hover { background: #1c1917 !important; border-color: #1c1917 !important; color: #f7f4ef !important; }
+
+  /* ── Mobile overrides ── */
+  @media (max-width: 600px) {
+    .report-page-pad   { padding: 32px 16px 72px !important; }
+    .report-nav        { padding: 0 16px !important; }
+    .report-footer     { padding: 20px 16px !important; }
+    .score-card        { flex-direction: column !important; align-items: center !important; gap: 24px !important; padding: 28px 20px !important; text-align: center; }
+    .score-card-text   { min-width: unset !important; }
+    .section-card      { padding: 22px 16px !important; }
+    .stat-chips-row    { gap: 8px !important; }
+    .stat-chip         { padding: 12px 12px !important; min-width: 0 !important; flex: 1 1 calc(50% - 4px) !important; max-width: calc(50% - 4px) !important; }
+    .stat-chip-value   { font-size: 17px !important; }
+    .benchmark-row     { gap: 8px !important; }
+    .benchmark-label   { font-size: 12px !important; }
+    .benchmark-val     { min-width: 44px !important; }
+    .benchmark-diff    { min-width: 32px !important; }
+    .email-capture     { flex-direction: column !important; gap: 16px !important; padding: 22px 16px !important; }
+    .email-right       { min-width: unset !important; width: 100% !important; }
+    .unlock-card       { padding: 32px 20px !important; }
+    .share-row         { flex-wrap: wrap !important; }
+    .check-tags        { gap: 6px !important; }
+    .action-card       { padding: 16px !important; }
+  }
 `
 
 const C = {
@@ -31,13 +54,13 @@ const sev = {
   quickwin:  { color: '#1e8449', bg: '#f2fdf5', label: '🟢 Quick Win', border: '#a9dfbf' },
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ScoreRing({ score }) {
   const r = 54, circ = 2 * Math.PI * r, dash = (score / 100) * circ
   const color = score >= 70 ? '#2a5c45' : score >= 40 ? '#d68910' : '#c0392b'
   return (
-    <svg width="140" height="140" viewBox="0 0 140 140" style={{ display: 'block' }}>
+    <svg width="140" height="140" viewBox="0 0 140 140" style={{ display: 'block', flexShrink: 0 }}>
       <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(28,25,23,0.08)" strokeWidth="8"/>
       <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
         strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ * 0.25}
@@ -66,9 +89,9 @@ function MetricBar({ label, value }) {
 
 function StatChip({ label, value, sub }) {
   return (
-    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', flex: 1, minWidth: 110 }}>
+    <div className="stat-chip" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', flex: 1, minWidth: 110 }}>
       <div style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: C.light, marginBottom: 6, fontWeight: 400 }}>{label}</div>
-      <div style={{ fontSize: 20, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{value}</div>
+      <div className="stat-chip-value" style={{ fontSize: 20, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: C.light, marginTop: 3, fontWeight: 300 }}>{sub}</div>}
     </div>
   )
@@ -94,20 +117,20 @@ function IssueTag({ text }) {
 function BenchmarkRow({ b }) {
   const isAbove = b.direction === 'above'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(28,25,23,0.06)' }}>
-      <div style={{ flex: 1 }}>
-        <span style={{ fontSize: 13, color: C.muted, fontWeight: 300 }}>{b.platform} · {b.metric}</span>
+    <div className="benchmark-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(28,25,23,0.06)' }}>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <span className="benchmark-label" style={{ fontSize: 13, color: C.muted, fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{b.platform} · {b.metric}</span>
       </div>
-      <div style={{ textAlign: 'right', minWidth: 60 }}>
+      <div className="benchmark-val" style={{ textAlign: 'right', minWidth: 60 }}>
         <span style={{ fontSize: 14, fontWeight: 400, color: C.text }}>{b.yours}</span>
         <div style={{ fontSize: 11, color: C.light }}>yours</div>
       </div>
-      <div style={{ textAlign: 'center', minWidth: 40 }}>
+      <div className="benchmark-diff" style={{ textAlign: 'center', minWidth: 40 }}>
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: isAbove ? 'rgba(42,92,69,0.1)' : 'rgba(192,57,43,0.08)', color: isAbove ? C.accent : C.red, fontWeight: 400 }}>
           {isAbove ? '↑' : '↓'} {b.diff}
         </span>
       </div>
-      <div style={{ textAlign: 'right', minWidth: 60 }}>
+      <div className="benchmark-val" style={{ textAlign: 'right', minWidth: 60 }}>
         <span style={{ fontSize: 14, fontWeight: 300, color: C.light }}>{b.benchmark}</span>
         <div style={{ fontSize: 11, color: C.light }}>avg</div>
       </div>
@@ -118,7 +141,7 @@ function BenchmarkRow({ b }) {
 function ActionCard({ issue }) {
   const cfg = sev[issue.severity] || sev.quickwin
   return (
-    <div style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '20px 24px' }}>
+    <div className="action-card" style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '20px 24px' }}>
       <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: cfg.color, fontWeight: 400, display: 'block', marginBottom: 6 }}>{cfg.label}</span>
       <p style={{ fontSize: 15, fontWeight: 400, color: C.text, marginBottom: 6 }}>{issue.title}</p>
       <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, fontWeight: 300 }}>{issue.description}</p>
@@ -129,7 +152,7 @@ function ActionCard({ issue }) {
 function UnlockBlock() {
   return (
     <div style={{ position: 'relative', marginTop: 8, background: 'linear-gradient(to bottom, rgba(247,244,239,0) 0%, #f7f4ef 38%)', padding: '80px 0 0', textAlign: 'center' }}>
-      <div style={{ background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '40px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)' }}>
+      <div className="unlock-card" style={{ background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '40px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)' }}>
         <div style={{ fontSize: 26, marginBottom: 14 }}>🔒</div>
         <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 26, letterSpacing: '-.015em', marginBottom: 10, color: C.text }}>
           3 more actions in your full report
@@ -169,14 +192,97 @@ function UnlockBlock() {
 
 function Section({ title, children, delay, visible }) {
   return (
-    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', marginBottom: 20, opacity: 0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none' }}>
+    <div className="section-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', marginBottom: 20, opacity: 0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none' }}>
       <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.light, marginBottom: 20, fontWeight: 400 }}>{title}</p>
       {children}
     </div>
   )
 }
 
-// ─── Email Capture ────────────────────────────────────────────────────────────
+// ─── Error Screen ─────────────────────────────────────────────────────────────
+
+function ErrorScreen({ navigate, error, onRetry }) {
+  // Map API error codes to human-readable messages
+  const errorInfo = (() => {
+    if (error?.code === 'unreachable') return {
+      icon: '🌐',
+      title: 'Website couldn\'t be reached',
+      message: 'We couldn\'t connect to this URL. Double-check the address and make sure the site is live.',
+      retry: true,
+    }
+    if (error?.code === 'timeout') return {
+      icon: '⏱',
+      title: 'Scan took too long',
+      message: 'The website took longer than expected to respond. This happens with very slow sites. Try again — it usually works on the second attempt.',
+      retry: true,
+    }
+    if (error?.code === 'no_data') return {
+      icon: '📭',
+      title: 'Not enough data to generate a report',
+      message: 'We scanned the site but couldn\'t extract enough information. This sometimes happens with heavily JavaScript-rendered pages.',
+      retry: false,
+    }
+    return {
+      icon: '⚠️',
+      title: 'Something went wrong',
+      message: 'An unexpected error occurred during the scan. Please try again — if the problem persists, the site may be blocking automated requests.',
+      retry: true,
+    }
+  })()
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</button>
+        </nav>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 24 }}>{errorInfo.icon}</div>
+          <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 28, letterSpacing: '-.02em', marginBottom: 16, color: C.text }}>
+            {errorInfo.title}
+          </h1>
+          <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.75, fontWeight: 300, marginBottom: 36 }}>
+            {errorInfo.message}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {errorInfo.retry && onRetry && (
+              <button
+                onClick={onRetry}
+                style={{
+                  background: C.accent, color: C.white, border: 'none',
+                  borderRadius: 10, padding: '13px 28px', fontSize: 14,
+                  fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer',
+                  transition: 'background .2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#1e4432'}
+                onMouseLeave={e => e.currentTarget.style.background = C.accent}
+              >
+                ↻ Try again
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: 'none', color: C.muted,
+                border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: '13px 28px', fontSize: 14,
+                fontFamily: 'Jost, sans-serif', fontWeight: 300, cursor: 'pointer',
+                transition: 'all .2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(28,25,23,0.25)'; e.currentTarget.style.color = C.text }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted }}
+            >
+              ← Scan a different URL
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Email Capture ─────────────────────────────────────────────────────────
 
 function EmailCapture({ reportId, visible }) {
   const [email, setEmail]               = useState('')
@@ -213,21 +319,12 @@ function EmailCapture({ reportId, visible }) {
   }
 
   return (
-    <div style={{
-      background: C.white,
-      border: `1px solid ${C.border}`,
-      borderRadius: 16,
-      padding: '28px 32px',
-      marginBottom: 20,
-      opacity: 0,
-      animation: visible ? 'fadeUp 0.6s ease 0.12s forwards' : 'none',
-      display: 'flex',
-      gap: 24,
-      alignItems: 'center',
-      flexWrap: 'wrap',
+    <div className="email-capture" style={{
+      background: C.white, border: `1px solid ${C.border}`, borderRadius: 16,
+      padding: '28px 32px', marginBottom: 20,
+      opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.12s forwards' : 'none',
+      display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap',
     }}>
-
-      {/* Left */}
       <div style={{ flex: 1, minWidth: 200 }}>
         <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.light, fontWeight: 400, marginBottom: 6 }}>
           Get your report by email
@@ -236,9 +333,7 @@ function EmailCapture({ reportId, visible }) {
           We'll send you this report and occasional tips to improve your score.
         </p>
       </div>
-
-      {/* Right */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 260 }}>
+      <div className="email-right" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 260 }}>
         {emailSent ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: C.accent, fontWeight: 400, padding: '10px 0' }}>
             <span style={{ fontSize: 16 }}>✓</span> Sent — check your inbox.
@@ -254,43 +349,29 @@ function EmailCapture({ reportId, visible }) {
                 onChange={e => { setEmail(e.target.value); setEmailError('') }}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 style={{
-                  flex: 1,
-                  border: `1px solid ${emailError ? C.red : C.border}`,
-                  borderRadius: 8,
-                  padding: '10px 14px',
-                  fontSize: 14,
-                  fontFamily: 'Jost, sans-serif',
-                  fontWeight: 300,
-                  color: C.text,
-                  background: C.bg,
-                  outline: 'none',
-                  transition: 'border-color .2s, box-shadow .2s',
+                  flex: 1, border: `1px solid ${emailError ? C.red : C.border}`,
+                  borderRadius: 8, padding: '10px 14px', fontSize: 14,
+                  fontFamily: 'Jost, sans-serif', fontWeight: 300, color: C.text,
+                  background: C.bg, outline: 'none', transition: 'border-color .2s, box-shadow .2s',
+                  minWidth: 0,
                 }}
               />
               <button
                 onClick={handleSubmit}
                 disabled={emailLoading}
                 style={{
-                  background: C.accent,
-                  color: C.white,
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '10px 18px',
-                  fontSize: 13,
-                  fontFamily: 'Jost, sans-serif',
-                  fontWeight: 500,
+                  background: C.accent, color: C.white, border: 'none',
+                  borderRadius: 8, padding: '10px 18px', fontSize: 13,
+                  fontFamily: 'Jost, sans-serif', fontWeight: 500,
                   cursor: emailLoading ? 'default' : 'pointer',
-                  opacity: emailLoading ? 0.7 : 1,
-                  transition: 'opacity .2s',
-                  whiteSpace: 'nowrap',
+                  opacity: emailLoading ? 0.7 : 1, transition: 'opacity .2s',
+                  whiteSpace: 'nowrap', flexShrink: 0,
                 }}
               >
                 {emailLoading ? '…' : 'Send me this'}
               </button>
             </div>
-            {emailError && (
-              <p style={{ fontSize: 12, color: C.red, fontWeight: 300, margin: 0 }}>{emailError}</p>
-            )}
+            {emailError && <p style={{ fontSize: 12, color: C.red, fontWeight: 300, margin: 0 }}>{emailError}</p>}
             <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0 }}>
               By submitting you agree to receive this report and tips from Scano.
             </p>
@@ -326,30 +407,24 @@ function ShareButton({ reportId }) {
   }
 
   return (
-    <div style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div className="share-row" style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
       <button
         className="share-btn"
         onClick={handleShare}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 7,
+          display: 'flex', alignItems: 'center', gap: 7,
           background: copied ? C.accent : C.white,
           color: copied ? C.white : C.text,
           border: `1px solid ${copied ? C.accent : C.border}`,
-          borderRadius: 9,
-          padding: '9px 18px',
-          fontSize: 13,
-          fontFamily: 'Jost, sans-serif',
-          fontWeight: 400,
-          cursor: 'pointer',
-          transition: 'all .2s',
+          borderRadius: 9, padding: '9px 18px', fontSize: 13,
+          fontFamily: 'Jost, sans-serif', fontWeight: 400,
+          cursor: 'pointer', transition: 'all .2s',
         }}
       >
         {copied ? '✓ Link copied!' : '↗ Share this report'}
       </button>
       {reportId && (
-        <span style={{ fontSize: 12, color: C.light, fontWeight: 300 }}>
+        <span style={{ fontSize: 12, color: C.light, fontWeight: 300, wordBreak: 'break-all' }}>
           scano.io/report/{reportId.slice(0, 8)}…
         </span>
       )}
@@ -359,10 +434,16 @@ function ShareButton({ reportId }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function Report({ navigate, scanData, reportData, websiteUrl, reportId }) {
+export default function Report({ navigate, scanData, reportData, websiteUrl, reportId, scanError, onRetry }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => { setTimeout(() => setVisible(true), 100) }, [])
 
+  // ── Error state ──
+  if (scanError) {
+    return <ErrorScreen navigate={navigate} error={scanError} onRetry={onRetry} />
+  }
+
+  // ── Loading state ──
   if (!scanData || !reportData) {
     return (
       <>
@@ -392,7 +473,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
       <div style={{ minHeight: '100vh', background: C.bg }}>
 
         {/* Nav */}
-        <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</button>
           <button onClick={() => navigate('/')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300, transition: 'color .2s' }}
@@ -401,14 +482,14 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           >← New scan</button>
         </nav>
 
-        <div style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px 96px' }}>
+        <div className="report-page-pad" style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px 96px' }}>
 
           {/* Header */}
           <div style={{ marginBottom: 48, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0s forwards' : 'none' }}>
             <p style={{ fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>
               Free Audit Report{benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}
             </p>
-            <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(22px,4vw,40px)', letterSpacing: '-.02em', lineHeight: 1.1, marginBottom: 8 }}>
+            <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(20px,4vw,40px)', letterSpacing: '-.02em', lineHeight: 1.1, marginBottom: 8, wordBreak: 'break-word' }}>
               {websiteUrl}
             </h1>
             <p style={{ fontSize: 13, color: C.light }}>
@@ -418,18 +499,18 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           </div>
 
           {/* Score */}
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '40px', marginBottom: 20, display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.1s forwards' : 'none' }}>
+          <div className="score-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '40px', marginBottom: 20, display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.1s forwards' : 'none' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <ScoreRing score={score} />
               <span style={{ fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', color: scoreColor, fontWeight: 400 }}>{scoreLabel}</span>
             </div>
-            <div style={{ flex: 1, minWidth: 200 }}>
+            <div className="score-card-text" style={{ flex: 1, minWidth: 200 }}>
               <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 22, letterSpacing: '-.01em', marginBottom: 12, lineHeight: 1.3 }}>{headline}</h2>
               <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.75, fontWeight: 300 }}>{summary}</p>
             </div>
           </div>
 
-          {/* Email capture — directly below score */}
+          {/* Email capture */}
           <EmailCapture reportId={reportId} visible={visible} />
 
           {/* Score breakdown */}
@@ -445,13 +526,13 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* Website Performance */}
           {website && (
             <Section title="Website Performance" delay={0.2} visible={visible}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+              <div className="stat-chips-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
                 <StatChip label="Performance"   value={website.performanceScore}      sub="mobile" />
                 <StatChip label="Accessibility" value={website.accessibilityScore} />
                 <StatChip label="LCP"           value={website.coreWebVitals.lcp} />
                 <StatChip label="FCP"           value={website.coreWebVitals.fcp} />
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+              <div className="check-tags" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
                 <CheckTag label="HTTPS"     ok={website.technical.hasHttps} />
                 <CheckTag label="Mobile"    ok={website.technical.mobileOptimized} />
                 <CheckTag label="No popups" ok={website.technical.noIntrusive} />
@@ -464,7 +545,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* SEO */}
           {content?.seo && (
             <Section title="SEO Analysis" delay={0.25} visible={visible}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+              <div className="stat-chips-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
                 <StatChip label="SEO Score"    value={content.seo.score}            sub="our deep scan" />
                 <StatChip label="Title length" value={`${content.seo.titleLength}c`} sub={content.seo.titleLength >= 30 && content.seo.titleLength <= 65 ? '✓ good' : '✗ off'} />
                 <StatChip label="Alt coverage" value={`${content.seo.imgAltScore}%`} sub="images" />
@@ -481,7 +562,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                   <p style={{ fontSize: 14, color: C.text, fontWeight: 300 }}>"{content.seo.metaDesc.slice(0, 120)}{content.seo.metaDesc.length > 120 ? '…' : ''}"</p>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: content.seo.issues.length > 0 ? 16 : 0 }}>
+              <div className="check-tags" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: content.seo.issues.length > 0 ? 16 : 0 }}>
                 <CheckTag label="Canonical"   ok={content.seo.canonicalPresent} />
                 <CheckTag label="Open Graph"  ok={content.seo.ogTitlePresent} />
                 <CheckTag label="Schema.org"  ok={content.seo.structuredData} />
@@ -498,13 +579,15 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* Copy & UX */}
           {content?.copy && (
             <Section title="Copy & UX Analysis" delay={0.3} visible={visible}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+              <div className="stat-chips-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
                 <StatChip label="Copy Score" value={content.copy.score} sub="out of 100" />
-                <StatChip label="Word count" value={content.copy.wordCount} sub="on page" />
+                {!content.copy.isSPA && (
+                  <StatChip label="Word count" value={content.copy.wordCount} sub="on page" />
+                )}
               </div>
               {content.copy.isSPA && (
                 <div style={{ background: 'rgba(42,92,69,0.05)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, border: '1px solid rgba(42,92,69,0.12)' }}>
-                  <p style={{ fontSize: 13, color: '#2a5c45', fontWeight: 300 }}>ℹ️ This site uses JavaScript rendering — copy analysis is based on available page data.</p>
+                  <p style={{ fontSize: 13, color: '#2a5c45', fontWeight: 300 }}>ℹ️ JavaScript-rendered site — copy analysis is based on available static data. Word count is not shown.</p>
                 </div>
               )}
               {content.copy.heroHeadline && (
@@ -515,7 +598,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                   <p style={{ fontSize: 15, color: C.text, fontWeight: 300, fontStyle: 'italic' }}>"{content.copy.heroHeadline}"</p>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+              <div className="check-tags" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                 <CheckTag label="Clear CTA"                ok={content.copy.hasCTA} />
                 <CheckTag label="Social proof"             ok={content.copy.hasSocialProof} />
                 <CheckTag label="Price visible"            ok={content.copy.hasPriceVisible} />
@@ -533,7 +616,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* Social + Benchmarks */}
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · vs ${benchmarkData.industryLabel} average` : ''}`} delay={0.35} visible={visible}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+              <div className="stat-chips-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
                 {tiktok    && <StatChip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate}% eng`} />}
                 {tiktok    && <StatChip label="Avg Views"   value={tiktok.avgViews?.toLocaleString()}     sub="per video" />}
                 {instagram && <StatChip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate}% eng`} />}
@@ -582,7 +665,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div className="report-footer" style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Scano</span>
           <div style={{ display: 'flex', gap: 20 }}>
             <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
