@@ -52,6 +52,15 @@ const sev = {
   quickwin:  { color: '#1e8449', bg: '#f2fdf5', label: '🟢 Quick Win', border: '#a9dfbf' },
 }
 
+// ─── Business-Impact Copy per Score Range ─────────────────────────────────────
+function getScoreImpactLine(score) {
+  if (score >= 80) return `At ${score}/100, your site is performing well — but the remaining gaps are costing you real conversions.`
+  if (score >= 65) return `At ${score}/100, your site looks fine on the surface — but visitors who don't convert probably never will without these fixes.`
+  if (score >= 45) return `At ${score}/100, you're likely losing 4 in 10 visitors before they read a single word. These are fixable problems.`
+  if (score >= 30) return `At ${score}/100, you're losing more than half your visitors to preventable issues. Every day costs you potential customers.`
+  return `At ${score}/100, your site is actively driving visitors away. Google is likely already penalising your ranking for these issues.`
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ScoreRing({ score }) {
@@ -153,31 +162,55 @@ function ActionCard({ issue }) {
   )
 }
 
-function UnlockBlock() {
+// ─── CHANGED: LockedActionCard — title visible, description blurred ────────────
+function LockedActionCard({ issue }) {
+  const cfg = sev[issue.severity] || sev.quickwin
   return (
-    <div style={{ position: 'relative', marginTop: 8, background: 'linear-gradient(to bottom, rgba(247,244,239,0) 0%, #f7f4ef 38%)', padding: '80px 0 0', textAlign: 'center' }}>
-      <div className="unlock-card" style={{ background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '40px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)' }}>
-        <div style={{ fontSize: 26, marginBottom: 14 }}>🔒</div>
-        <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 26, letterSpacing: '-.015em', marginBottom: 10, color: C.text }}>
-          3 more actions in your full report
-        </h3>
-        <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.72, fontWeight: 300, maxWidth: 400, margin: '0 auto 28px' }}>
-          The full report includes every priority action with exact fixes, hook-by-hook content feedback, and a complete brand clarity breakdown.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 360, margin: '0 auto 32px', textAlign: 'left' }}>
-          {['All 5 priority actions with exact fixes', 'Hook quality analysis — post by post', 'Engagement benchmarks vs. similar accounts', 'Caption & CTA feedback', 'Brand clarity score with specific improvements'].map((item, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ color: C.accent, fontSize: 13, marginTop: 2, flexShrink: 0 }}>✓</span>
-              <span style={{ fontSize: 14, color: C.muted, fontWeight: 300 }}>{item}</span>
-            </div>
-          ))}
-        </div>
-        <button style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 10, padding: '15px 36px', fontSize: 15, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', letterSpacing: '.02em', width: '100%', maxWidth: 320, display: 'block', margin: '0 auto 12px', transition: 'background .2s' }}
-          onMouseEnter={e => e.currentTarget.style.background = C.accent}
-          onMouseLeave={e => e.currentTarget.style.background = C.text}
-        >Unlock full report — €9</button>
-        <p style={{ fontSize: 12, color: C.light, fontWeight: 300 }}>One-time · No subscription · Instant access</p>
+    <div className="action-card" style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '18px 22px', position: 'relative' }}>
+      <span style={{ fontSize: 10, letterSpacing: '.09em', textTransform: 'uppercase', color: cfg.color, fontWeight: 500, display: 'block', marginBottom: 5 }}>{cfg.label}</span>
+      {/* Title is fully visible — user sees WHAT the problem is */}
+      <p style={{ fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 5 }}>{issue.title}</p>
+      {/* Only the fix/description is blurred — user can't see HOW to fix it */}
+      <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, fontWeight: 300, filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none' }}>
+        {issue.description || 'Unlock to see the exact fix and step-by-step instructions for this issue.'}
+      </p>
+    </div>
+  )
+}
+
+// ─── CHANGED: UnlockBlock — no blurred cards above, just the CTA ─────────────
+function UnlockBlock({ lockedCount }) {
+  return (
+    <div style={{ marginTop: 16, background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '36px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)', textAlign: 'center' }} className="unlock-card">
+      <div style={{ fontSize: 24, marginBottom: 12 }}>🔒</div>
+      <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 24, letterSpacing: '-.015em', marginBottom: 10, color: C.text }}>
+        Unlock the exact fixes — €9
+      </h3>
+      <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.72, fontWeight: 300, maxWidth: 380, margin: '0 auto 24px' }}>
+        You can see what's broken. The full report tells you exactly how to fix it — step by step, copy-paste ready.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
+        {[
+          'Step-by-step fix for every issue above',
+          'Hook quality analysis — post by post',
+          'Engagement benchmarks vs. similar accounts',
+          'Caption & CTA feedback',
+          'Brand clarity score with specific improvements',
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ color: C.accent, fontSize: 13, marginTop: 2, flexShrink: 0 }}>✓</span>
+            <span style={{ fontSize: 14, color: C.muted, fontWeight: 300 }}>{item}</span>
+          </div>
+        ))}
       </div>
+      <button
+        style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 10, padding: '15px 36px', fontSize: 15, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', letterSpacing: '.02em', width: '100%', maxWidth: 320, display: 'block', margin: '0 auto 12px', transition: 'background .2s' }}
+        onMouseEnter={e => e.currentTarget.style.background = C.accent}
+        onMouseLeave={e => e.currentTarget.style.background = C.text}
+      >
+        Get the full report — €9
+      </button>
+      <p style={{ fontSize: 12, color: C.light, fontWeight: 300 }}>One-time · No subscription · Instant access</p>
     </div>
   )
 }
@@ -195,16 +228,16 @@ function Section({ title, children, delay, visible, noPad }) {
   )
 }
 
-// ─── Score Hero ───────────────────────────────────────────────────────────────
-// Shows score ring + headline + percentile context at the very top
+// ─── CHANGED: ScoreHero — Business-Impact-Copy statt generischer Headline ─────
 function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, visible }) {
   const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
 
-  // Pick the most dramatic benchmark to show as context
-  const topBenchmark = benchmarkData?.benchmarks?.[0]
-  const contextLine = topBenchmark?.percentileLabel
+  const contextLine = benchmarkData?.benchmarks?.[0]?.percentileLabel
     || (perfPercentile ? `Faster than ${perfPercentile}% of mobile pages` : null)
+
+  // Business-impact line overrides the AI-generated headline
+  const impactLine = getScoreImpactLine(score)
 
   return (
     <div className="score-hero" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '36px 40px', marginBottom: 16, display: 'flex', gap: 36, alignItems: 'center', flexWrap: 'wrap', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.08s forwards' : 'none' }}>
@@ -216,7 +249,12 @@ function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, vi
         )}
       </div>
       <div className="score-hero-text" style={{ flex: 1, minWidth: 200 }}>
-        <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 22, letterSpacing: '-.01em', marginBottom: 10, lineHeight: 1.3, color: C.text }}>{headline}</h2>
+        {/* Business-impact sentence — always shown first, prominent */}
+        <p style={{ fontSize: 15, fontWeight: 500, color: scoreColor, marginBottom: 10, lineHeight: 1.45 }}>{impactLine}</p>
+        {/* AI headline als Subtext, falls vorhanden */}
+        {headline && (
+          <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 20, letterSpacing: '-.01em', marginBottom: 10, lineHeight: 1.3, color: C.text }}>{headline}</h2>
+        )}
         <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.75, fontWeight: 300 }}>{summary}</p>
       </div>
     </div>
@@ -224,7 +262,6 @@ function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, vi
 }
 
 // ─── Benchmark Block ─────────────────────────────────────────────────────────
-// Standalone section — always rendered FIRST after the score if data exists
 function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
   const hasBm = benchmarkData?.benchmarks?.length > 0
   const hasPerfPct = benchmarkData?.perfPercentile != null
@@ -233,7 +270,6 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
 
   return (
     <div className="section-card" style={{ background: C.white, border: `1px solid rgba(42,92,69,0.18)`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', opacity: 0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none' }}>
-      {/* Header */}
       <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <p style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 2 }}>Market Benchmarks</p>
@@ -246,7 +282,6 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
         </span>
       </div>
       <div style={{ padding: '8px 24px 16px' }}>
-        {/* Perf percentile row */}
         {hasPerfPct && website && (
           <div className="bm-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: `1px solid rgba(28,25,23,0.06)` }}>
             <div>
@@ -272,7 +307,6 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
             </div>
           </div>
         )}
-        {/* Social benchmarks */}
         {hasBm && benchmarkData.benchmarks.map((b, i) => <BenchmarkRow key={i} b={b} />)}
       </div>
     </div>
@@ -310,7 +344,7 @@ function ErrorScreen({ navigate, error, onRetry }) {
   )
 }
 
-// ─── EmailCapture ─────────────────────────────────────────────────────────────
+// ─── CHANGED: EmailCapture — konkreter Wert statt "tips" ──────────────────────
 function EmailCapture({ reportId, visible }) {
   const [email, setEmail]               = useState('')
   const [emailSent, setEmailSent]       = useState(false)
@@ -331,8 +365,11 @@ function EmailCapture({ reportId, visible }) {
   return (
     <div className="email-capture" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 28px', marginBottom: 16, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.12s forwards' : 'none', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 180 }}>
-        <p style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: C.light, fontWeight: 500, marginBottom: 4 }}>Get report by email</p>
-        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, fontWeight: 300 }}>We'll send this report and tips to improve your score.</p>
+        {/* CHANGED: Headline — concrete value, not "tips" */}
+        <p style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 4 }}>Save this report to your inbox</p>
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, fontWeight: 300 }}>
+          Get a permanent link to this report — so you can track your score as you fix issues.
+        </p>
       </div>
       <div className="email-right" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 240 }}>
         {emailSent ? (
@@ -347,11 +384,11 @@ function EmailCapture({ reportId, visible }) {
               />
               <button onClick={handleSubmit} disabled={emailLoading}
                 style={{ background: C.accent, color: C.white, border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: emailLoading ? 'default' : 'pointer', opacity: emailLoading ? 0.7 : 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {emailLoading ? '…' : 'Send me this'}
+                {emailLoading ? '…' : 'Send report'}
               </button>
             </div>
             {emailError && <p style={{ fontSize: 12, color: C.red, fontWeight: 300, margin: 0 }}>{emailError}</p>}
-            <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0 }}>By submitting you agree to receive this report and tips from Scano.</p>
+            <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0 }}>No spam. Just your report, saved.</p>
           </>
         )}
       </div>
@@ -454,7 +491,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             />
           )}
 
-          {/* ── Score breakdown (mini bars, no prose) ── */}
+          {/* ── Score breakdown ── */}
           {(website || content) && (
             <Section title="Score Breakdown" delay={0.22} visible={visible}>
               <div style={{ paddingTop: 4 }}>
@@ -469,7 +506,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* ── Website Performance ── */}
           {website && (
             <Section title="Website Performance" delay={0.26} visible={visible}>
-              {/* Core vitals chips */}
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
                 <Chip label="Performance"   value={`${website.performanceScore}/100`} sub="mobile score"
                   highlight={benchmarkData?.perfPercentile != null}
@@ -479,14 +515,12 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 <Chip label="FCP"           value={website.coreWebVitals.fcp} sub="target: <1.8s" />
                 <Chip label="CLS"           value={website.coreWebVitals.cls} sub="target: <0.1" />
               </div>
-              {/* Technical checks */}
               <div className="check-tags" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 18 }}>
                 <CheckTag label="HTTPS"     ok={website.technical.hasHttps} />
                 <CheckTag label="Mobile"    ok={website.technical.mobileOptimized} />
                 <CheckTag label="No popups" ok={website.technical.noIntrusive} />
                 <CheckTag label="Font size" ok={website.technical.fontSizeOk} />
               </div>
-              {/* Analysis — kept short: 2 sentences max */}
               {websiteAnalysis && (
                 <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 4 }}>{websiteAnalysis}</p>
               )}
@@ -503,7 +537,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 <Chip label="Alt coverage" value={`${content.seo.imgAltScore}%`} sub={`${content.seo.imgsWithoutAlt} missing`} />
                 <Chip label="H1 tags"      value={content.seo.h1s.length} sub={content.seo.h1s.length === 1 ? '✓ correct' : content.seo.h1s.length === 0 ? '✗ none found' : '✗ too many'} />
               </div>
-              {/* Title + meta previews */}
               {content.seo.title && (
                 <div style={{ background: 'rgba(28,25,23,0.03)', borderRadius: 8, padding: '10px 14px', marginBottom: 10, border: '1px solid rgba(28,25,23,0.07)' }}>
                   <p style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>Page title</p>
@@ -566,7 +599,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Social (if no benchmarks block shown, or if we have social analysis text) ── */}
+          {/* ── Social ── */}
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}`} delay={0.38} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -591,12 +624,14 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {visibleActions.map((issue, i) => <ActionCard key={i} issue={issue} />)}
             </div>
+
+            {/* CHANGED: Locked actions show title, blur only description */}
             {lockedActions.length > 0 && (
-              <div style={{ position: 'relative', marginTop: 10 }}>
-                <div className="unlock-blur" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {lockedActions.map((issue, i) => <ActionCard key={i} issue={issue} />)}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {lockedActions.map((issue, i) => <LockedActionCard key={i} issue={issue} />)}
                 </div>
-                <UnlockBlock />
+                <UnlockBlock lockedCount={lockedActions.length} />
               </div>
             )}
           </div>
