@@ -7,7 +7,6 @@ export default async function handler(req, res) {
 
   const { website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
 
-  // ─── Helper: build percentile context strings for the prompt ───────────────
   const perfPercentile = website
     ? `${website.performanceScore}/100 — slower than ${100 - website.performanceScore}% of mobile pages`
     : null
@@ -42,6 +41,13 @@ export default async function handler(req, res) {
       })()
     : null
 
+  // FIX 3: Tell the AI explicitly when the site is JS-rendered so it doesn't
+  // invent "No Hero Headline" or "No H1" as critical issues from missing scraper data.
+  const isSPA = content?.copy?.isSPA === true
+  const spaNote = isSPA
+    ? `\nIMPORTANT: This site is JavaScript-rendered (React/Vue/etc). The static scraper cannot read client-side DOM. Missing headline or H1 data is a SCRAPING LIMITATION — NOT a real website problem. Do NOT generate issues like "No Hero Headline", "Missing H1", or "No CTA" based on empty scraper fields. Base copy analysis only on data that is actually present.\n`
+    : ''
+
   const prompt = `You are a data-driven performance analyst. Every sentence you write MUST follow this exact rule:
 
 MANDATORY SENTENCE RULE: Every sentence must contain ALL THREE of:
@@ -50,7 +56,7 @@ MANDATORY SENTENCE RULE: Every sentence must contain ALL THREE of:
 3. A concrete next action (e.g. "add alt text to the 7 images missing it", "rewrite the headline to start with a benefit verb", "compress images to get LCP under 2.5s")
 
 NEVER write a sentence without all three. NEVER use vague phrases like "consider improving" or "this could be better".
-
+${spaNote}
 Website: ${websiteUrl}
 Overall Score: ${scanData.score}/100
 Industry: ${benchmarkData?.industryLabel || 'General Business'}
@@ -82,9 +88,10 @@ ${content?.seo ? `
 COPY & UX DATA:
 ${content?.copy ? `
 - Copy Score: ${content.copy.score}/100
-- Hero Headline: "${content.copy.heroHeadline}"
-- Outcome-focused: ${content.copy.isOutcomeFocused ? 'YES' : 'NO — currently describes the product, not the user\'s result'}
-- CTA: ${content.copy.hasCTA ? `YES — found: ${content.copy.ctaButtons.join(', ')}` : 'NO CTA detected'}
+- JS-rendered site: ${isSPA ? 'YES — headline/CTA data may be unavailable from static scrape' : 'NO'}
+- Hero Headline: ${content.copy.heroHeadline ? `"${content.copy.heroHeadline}"` : isSPA ? 'NOT EXTRACTABLE (JS-rendered — do not flag as missing)' : 'MISSING'}
+- Outcome-focused: ${content.copy.isOutcomeFocused ? 'YES' : content.copy.heroHeadline ? 'NO — currently describes the product, not the user\'s result' : isSPA ? 'UNKNOWN — JS-rendered site' : 'NO headline found'}
+- CTA: ${content.copy.hasCTA ? `YES — found: ${content.copy.ctaButtons.join(', ')}` : isSPA ? 'NOT DETECTED (may exist in JS-rendered content)' : 'NO CTA detected'}
 - Social proof: ${content.copy.hasSocialProof ? 'present' : 'MISSING'}
 - Pricing visible: ${content.copy.hasPriceVisible ? 'YES' : 'NO'}
 - Word count: ${content.copy.wordCount}
@@ -107,8 +114,8 @@ Return ONLY valid JSON. No markdown. No explanation. Structure:
   "headline": "One sentence max 12 words — must include a specific number and a concrete improvement direction. Example format: 'Your 31/100 mobile score costs you visitors every day.'",
   "summary": "Exactly 3 sentences. Sentence 1: overall score + what it means vs benchmark. Sentence 2: the single biggest number-backed problem. Sentence 3: the exact first action to take with a measurable target.",
   "websiteAnalysis": "3 sentences. Each must name a specific metric, compare it to a target or benchmark, and state the exact fix. Example: 'LCP of 4.2s is 1.7s over Google's 2.5s threshold — compress your hero image to under 200kb to hit it.'",
-  "copyAnalysis": "2 sentences. Quote their actual headline. State whether it's outcome-focused and exactly how to rewrite it with a specific benefit.",
-  "socialAnalysis": "${(tiktok || instagram || youtube) ? '3 sentences. Each must reference a number, compare to industry benchmark, and state the exact next action.' : 'null'}",
+  "copyAnalysis": "2 sentences. Quote their actual headline if available. State whether it's outcome-focused and exactly how to rewrite it with a specific benefit. If the site is JS-rendered and no headline was extractable, focus on the copy signals that ARE available (social proof, pricing visibility, CTA patterns).",
+  "socialAnalysis": ${(tiktok || instagram || youtube) ? '"3 sentences. Each must reference a number, compare to industry benchmark, and state the exact next action."' : 'null'},
   "topIssues": [
     {
       "severity": "critical",

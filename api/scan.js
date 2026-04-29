@@ -8,6 +8,20 @@ function withTimeout(promise, ms, fallback = null) {
   ])
 }
 
+// ─── FIX 2: HTML Entity Decoder ──────────────────────────────────────────────
+function decodeHTMLEntities(str) {
+  if (!str) return str
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+}
+
 // ─── WEBSITE PERFORMANCE ─────────────────────────────────────────────────────
 async function analyzeWebsite(url) {
   try {
@@ -75,14 +89,18 @@ async function analyzeWebsiteContent(url) {
     }
 
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-    const title = titleMatch ? titleMatch[1].trim() : ''
+    // FIX 2: decode HTML entities in title
+    const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : ''
+
     const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)
       || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i)
-    const metaDesc = descMatch ? descMatch[1].trim() : ''
+    // FIX 2: decode HTML entities in meta description
+    const metaDesc = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : ''
+
     const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/gi) || []
-    const h1s = h1Match.map(h => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean)
+    const h1s = h1Match.map(h => decodeHTMLEntities(h.replace(/<[^>]+>/g, '').trim())).filter(Boolean)
     const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi) || []
-    const h2s = h2Match.map(h => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 5)
+    const h2s = h2Match.map(h => decodeHTMLEntities(h.replace(/<[^>]+>/g, '').trim())).filter(Boolean).slice(0, 5)
     const imgTags = html.match(/<img[^>]+>/gi) || []
     const imgsWithoutAlt = imgTags.filter(t => !t.match(/alt=["'][^"']+["']/i)).length
     const imgAltScore = imgTags.length > 0 ? Math.round(((imgTags.length - imgsWithoutAlt) / imgTags.length) * 100) : 100
@@ -106,7 +124,7 @@ async function analyzeWebsiteContent(url) {
     const hasPriceVisible = pricePatterns.test(fullText)
     const heroHeadline = h1s[0] || ''
     const outcomeWords = /you|your|get|achieve|become|stop|start|finally|without|in \d+|results|faster|easier|transform/i
-    const isOutcomeFocused = outcomeWords.test(heroHeadline)
+    const isOutcomeFocused = heroHeadline ? outcomeWords.test(heroHeadline) : false
     const wordCount = enrichedText.split(/\s+/).filter(Boolean).length
 
     let seoScore = 0
@@ -138,15 +156,23 @@ async function analyzeWebsiteContent(url) {
     if (!metaDesc) seoIssues.push('No meta description found')
     else if (metaDesc.length < 120) seoIssues.push(`Meta description too short (${metaDesc.length} chars, aim for 120–160)`)
     else if (metaDesc.length > 160) seoIssues.push(`Meta description too long (${metaDesc.length} chars)`)
-    if (h1s.length === 0) seoIssues.push('No H1 heading found on page')
-    if (h1s.length > 1) seoIssues.push(`${h1s.length} H1 tags found — should be exactly one`)
+    // FIX 3: Don't flag missing H1 as an issue on JS-rendered (SPA) sites —
+    // the scraper can't read client-rendered DOM, so this is a tooling limit, not a real issue.
+    if (!isSPA) {
+      if (h1s.length === 0) seoIssues.push('No H1 heading found on page')
+      if (h1s.length > 1) seoIssues.push(`${h1s.length} H1 tags found — should be exactly one`)
+    }
     if (imgAltScore < 80) seoIssues.push(`${imgsWithoutAlt} image(s) missing alt text`)
     if (!canonicalPresent) seoIssues.push('No canonical tag — duplicate content risk')
     if (!ogTitlePresent) seoIssues.push('Missing Open Graph tags (social sharing preview broken)')
 
     const copyIssues = []
-    if (!isOutcomeFocused && heroHeadline) copyIssues.push(`Headline "${heroHeadline.slice(0,60)}" is product-focused, not outcome-focused`)
-    if (!hasCTA) copyIssues.push('No clear call-to-action detected above the fold')
+    // FIX 3: Don't flag headline issues on SPA when heroHeadline is empty —
+    // JS-rendered sites don't expose their headline to the static scraper.
+    if (!isSPA || heroHeadline) {
+      if (!isOutcomeFocused && heroHeadline) copyIssues.push(`Headline "${heroHeadline.slice(0,60)}" is product-focused, not outcome-focused`)
+      if (!hasCTA) copyIssues.push('No clear call-to-action detected above the fold')
+    }
     if (!hasSocialProof) copyIssues.push('No social proof visible (testimonials, reviews, results)')
     if (!hasPriceVisible) copyIssues.push('Pricing or offer not visible — visitors may leave without knowing the cost')
 
@@ -204,16 +230,11 @@ function detectIndustry(url, copy) {
 }
 
 // ─── PERCENTILE CALCULATION ───────────────────────────────────────────────────
-// Approximate percentile rank using a log-normal distribution assumption.
-// Returns how many percent of accounts in that industry are BELOW this value.
-// e.g. 68 means "better than 68% of accounts scanned"
 function approxPercentile(value, benchmark, spreadFactor = 0.6) {
   if (!value || !benchmark) return null
-  // log-normal CDF approximation: normalise to z-score in log space
   const logVal = Math.log(Math.max(value, 0.001))
   const logBench = Math.log(Math.max(benchmark, 0.001))
   const z = (logVal - logBench) / spreadFactor
-  // Approximate normal CDF with a sigmoid
   const pct = Math.round(100 / (1 + Math.exp(-1.7 * z)))
   return Math.min(99, Math.max(1, pct))
 }
@@ -224,16 +245,19 @@ function buildBenchmarkInsights(industry, tiktok, instagram) {
 
   if (tiktok?.engagementRate) {
     const er = parseFloat(tiktok.engagementRate)
-    const pct = approxPercentile(er, bench.tiktokEng)
-    const diff = ((er - bench.tiktokEng) / bench.tiktokEng * 100).toFixed(0)
-    insights.push({
-      platform: 'TikTok', metric: 'Engagement Rate',
-      yours: `${er}%`, benchmark: `${bench.tiktokEng}%`,
-      diff: Math.abs(diff) + '%', direction: er >= bench.tiktokEng ? 'above' : 'below',
-      label: bench.label,
-      percentile: pct,
-      percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
-    })
+    // FIX 1: guard against NaN — skip if engagementRate can't be parsed
+    if (!isNaN(er)) {
+      const pct = approxPercentile(er, bench.tiktokEng)
+      const diff = ((er - bench.tiktokEng) / bench.tiktokEng * 100).toFixed(0)
+      insights.push({
+        platform: 'TikTok', metric: 'Engagement Rate',
+        yours: `${er}%`, benchmark: `${bench.tiktokEng}%`,
+        diff: Math.abs(diff) + '%', direction: er >= bench.tiktokEng ? 'above' : 'below',
+        label: bench.label,
+        percentile: pct,
+        percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
+      })
+    }
     if (tiktok.avgViews) {
       const vPct = approxPercentile(tiktok.avgViews, bench.avgViews)
       const vDiff = ((tiktok.avgViews - bench.avgViews) / bench.avgViews * 100).toFixed(0)
@@ -250,20 +274,21 @@ function buildBenchmarkInsights(industry, tiktok, instagram) {
 
   if (instagram?.engagementRate) {
     const er = parseFloat(instagram.engagementRate)
-    const pct = approxPercentile(er, bench.igEng)
-    const diff = ((er - bench.igEng) / bench.igEng * 100).toFixed(0)
-    insights.push({
-      platform: 'Instagram', metric: 'Engagement Rate',
-      yours: `${er}%`, benchmark: `${bench.igEng}%`,
-      diff: Math.abs(diff) + '%', direction: er >= bench.igEng ? 'above' : 'below',
-      label: bench.label,
-      percentile: pct,
-      percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
-    })
+    // FIX 1: guard against NaN — skip if engagementRate can't be parsed
+    if (!isNaN(er)) {
+      const pct = approxPercentile(er, bench.igEng)
+      const diff = ((er - bench.igEng) / bench.igEng * 100).toFixed(0)
+      insights.push({
+        platform: 'Instagram', metric: 'Engagement Rate',
+        yours: `${er}%`, benchmark: `${bench.igEng}%`,
+        diff: Math.abs(diff) + '%', direction: er >= bench.igEng ? 'above' : 'below',
+        label: bench.label,
+        percentile: pct,
+        percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
+      })
+    }
   }
 
-  // Derive a performance percentile from the perf score for use in the UI
-  // (passed via benchmarkData so Report.jsx can display it without re-computing)
   return { benchmarks: insights, industry, industryLabel: bench.label }
 }
 
@@ -316,16 +341,12 @@ export default async function handler(req, res) {
   const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram)
   const finalScore    = calcScore(perf, content, { tiktok, instagram })
 
-  // ── Derived percentile context for the UI ──
-  // Performance percentile: approx where this score sits among all mobile pages.
-  // Based on CrUX distribution data: median is ~50, p75 is ~30.
   if (perf) {
-    const perfPct = approxPercentile(perf.performanceScore, 45, 0.7) // median mobile perf ≈ 45
+    const perfPct = approxPercentile(perf.performanceScore, 45, 0.7)
     benchmarkData.perfPercentile = perfPct
     benchmarkData.perfPercentileLabel = perfPct
       ? `Faster than ${perfPct}% of mobile pages`
       : null
-    // Inverse: "slower than X%"
     benchmarkData.perfSlowerThan = perfPct ? 100 - perfPct : null
   }
 
