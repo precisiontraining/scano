@@ -120,9 +120,6 @@ function Nav({ navigate }) {
   )
 }
 
-// Hero no longer runs the fetch itself.
-// It collects url + social data, then calls onScanStart({ url, manualSocial }).
-// App.jsx takes over from there and shows ScanningScreen with live data.
 function Hero({ onScanStart }) {
   const [step, setStep] = useState(1)
   const [url, setUrl] = useState('')
@@ -193,7 +190,6 @@ function Hero({ onScanStart }) {
   const handleScan = () => {
     setError('')
     const manualSocial = buildManualSocial()
-    // Hand off to App.jsx — it owns the fetch and the scanning overlay from here
     onScanStart({ url, manualSocial })
   }
 
@@ -235,8 +231,6 @@ function Hero({ onScanStart }) {
           padding:28, display:'flex', flexDirection:'column', gap:0,
           animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)',
         }}>
-
-          {/* Step indicator */}
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24 }}>
             {[{n:1,label:'Website'},{n:2,label:'Social'}].map(({n,label}) => (
               <div key={n} style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -263,12 +257,8 @@ function Hero({ onScanStart }) {
               </div>
               {error && <p style={{ fontSize:13, color:'#c0392b', fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
               <div style={{ height:4 }} />
-              <button className="btn-primary" onClick={handleNext}>
-                Continue → Add social numbers
-              </button>
-              <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>
-                No account needed · Free forever
-              </p>
+              <button className="btn-primary" onClick={handleNext}>Continue → Add social numbers</button>
+              <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>No account needed · Free forever</p>
             </div>
           )}
 
@@ -277,7 +267,6 @@ function Hero({ onScanStart }) {
               <p style={{ fontSize:13, color:C.textMuted, fontWeight:300, lineHeight:1.6 }}>
                 Select the platforms you're active on and enter your numbers. You can find these in your app's analytics.
               </p>
-
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 {platforms.map(p => (
                   <button key={p.key} onClick={() => togglePlatform(p.key)} style={{
@@ -293,7 +282,6 @@ function Hero({ onScanStart }) {
                   </button>
                 ))}
               </div>
-
               {activePlatforms.map(pKey => (
                 <div key={pKey} style={{ background:'rgba(28,25,23,0.02)', border:'1px solid rgba(28,25,23,0.07)', borderRadius:12, padding:'16px' }}>
                   <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, marginBottom:12, fontWeight:400 }}>
@@ -311,15 +299,12 @@ function Hero({ onScanStart }) {
                   </div>
                 </div>
               ))}
-
               {activePlatforms.length === 0 && (
                 <p style={{ fontSize:13, color:C.textLight, fontWeight:300, textAlign:'center', padding:'8px 0', fontStyle:'italic' }}>
                   No social media? No problem — we'll analyze your website only.
                 </p>
               )}
-
               {error && <p style={{ fontSize:13, color:'#c0392b', fontWeight:300, padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
-
               <div style={{ display:'flex', gap:10, marginTop:4 }}>
                 <button onClick={() => setStep(1)} style={{
                   background:'none', border:'1px solid rgba(28,25,23,0.12)', borderRadius:10,
@@ -330,12 +315,9 @@ function Hero({ onScanStart }) {
                   Scan my business — it's free
                 </button>
               </div>
-              <p style={{ fontSize:12, color:C.textLight, textAlign:'center' }}>
-                No account needed · Only fill in what you have
-              </p>
+              <p style={{ fontSize:12, color:C.textLight, textAlign:'center' }}>No account needed · Only fill in what you have</p>
             </div>
           )}
-
         </div>
       </div>
     </section>
@@ -349,7 +331,6 @@ function WhatWeCheck() {
     { icon:'📱', title:'Your social content', desc:'We look at your TikTok, Instagram, YouTube, X, and Facebook — engagement rates, posting consistency, and what your best performing content has in common.' },
     { icon:'📋', title:'A clear action list', desc:'You get a score from 0–100 for each area, plus a prioritized list of the most important things to fix — written in plain, simple language.' },
   ]
-
   return (
     <section style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
@@ -382,15 +363,63 @@ function WhatWeCheck() {
   )
 }
 
-function ScoreBar({ label, score, color, delay, visible }) {
+// ─── Sample Report ────────────────────────────────────────────────────────────
+// Mirrors the real Report.jsx layout exactly: benchmarks first, chips not bars,
+// locked actions show title + blurred description, data-first throughout.
+
+function SampleMiniBar({ label, value, color }) {
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7, fontSize:13 }}>
-        <span style={{ color:C.textMuted, fontWeight:300 }}>{label}</span>
-        <span style={{ color:C.text, fontFamily:'DM Mono, monospace', fontSize:12 }}>{score}/100</span>
+    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:9 }}>
+      <div style={{ width:100, fontSize:12, color:C.textMuted, fontWeight:300, flexShrink:0 }}>{label}</div>
+      <div style={{ flex:1, height:4, background:'rgba(28,25,23,0.07)', borderRadius:2, overflow:'hidden' }}>
+        <div style={{ height:'100%', width:`${value}%`, background:color, borderRadius:2, transition:'width 1.1s cubic-bezier(.4,0,.2,1)' }}/>
       </div>
-      <div style={{ height:4, background:'rgba(28,25,23,0.07)', borderRadius:4, overflow:'hidden' }}>
-        <div style={{ height:'100%', borderRadius:4, background:color, width: visible ? `${score}%` : '0%', transition:`width 1.1s cubic-bezier(.4,0,.2,1) ${delay}s` }} />
+      <div style={{ width:28, fontSize:12, color, fontWeight:500, textAlign:'right', fontFamily:'DM Mono, monospace' }}>{value}</div>
+    </div>
+  )
+}
+
+function SampleChip({ label, value, sub, accent }) {
+  return (
+    <div style={{
+      background: accent ? 'rgba(42,92,69,0.06)' : '#fff',
+      border: `1px solid ${accent ? 'rgba(42,92,69,0.2)' : 'rgba(28,25,23,0.08)'}`,
+      borderRadius:10, padding:'11px 14px', flex:1, minWidth:80,
+    }}>
+      <div style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, fontWeight:400, marginBottom:4 }}>{label}</div>
+      <div style={{ fontSize:17, fontFamily:'Cormorant Garant, serif', fontWeight:400, color:C.text, lineHeight:1.1 }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color: accent ? C.accent : C.textLight, marginTop:2, fontWeight:300 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function SampleCheckTag({ label, ok }) {
+  return (
+    <span style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background: ok ? '#f2fdf5' : '#fdf2f2', color: ok ? '#1e8449' : '#c0392b', border:`1px solid ${ok ? '#a9dfbf' : '#f5c6c6'}` }}>
+      {ok ? '✓' : '✗'} {label}
+    </span>
+  )
+}
+
+function SampleBmRow({ platform, metric, yours, benchmark, diff, up, percentileLabel }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:10, alignItems:'center', padding:'10px 0', borderBottom:'1px solid rgba(28,25,23,0.06)' }}>
+      <div>
+        <span style={{ fontSize:12, color:C.textMuted, fontWeight:300, display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{platform} · {metric}</span>
+        {percentileLabel && <span style={{ fontSize:10, color: up ? C.accent : C.red, fontWeight:400 }}>{percentileLabel}</span>}
+      </div>
+      <div style={{ textAlign:'right' }}>
+        <div style={{ fontSize:14, fontWeight:500, fontFamily:'Cormorant Garant, serif', color:C.text }}>{yours}</div>
+        <div style={{ fontSize:9, color:C.textLight, textTransform:'uppercase', letterSpacing:'.05em' }}>yours</div>
+      </div>
+      <div style={{ textAlign:'center' }}>
+        <span style={{ fontSize:10, padding:'2px 7px', borderRadius:4, background: up ? 'rgba(42,92,69,0.1)' : 'rgba(192,57,43,0.08)', color: up ? C.accent : C.red, fontWeight:500 }}>
+          {up ? '↑' : '↓'} {diff}
+        </span>
+      </div>
+      <div style={{ textAlign:'right' }}>
+        <div style={{ fontSize:12, color:C.textLight, fontWeight:300 }}>{benchmark}</div>
+        <div style={{ fontSize:9, color:C.textLight, textTransform:'uppercase', letterSpacing:'.05em' }}>avg</div>
       </div>
     </div>
   )
@@ -398,52 +427,219 @@ function ScoreBar({ label, score, color, delay, visible }) {
 
 function SampleReport() {
   const [ref, visible] = useReveal()
-  const bars = [
-    { label:'Website & UX',    score:71, color:'#2a5c45' },
-    { label:'TikTok content',  score:43, color:'#c0392b' },
-    { label:'Instagram',       score:62, color:'#b7860b' },
-    { label:'Brand clarity',   score:58, color:'#8c7355' },
-  ]
-  const actions = [
-    { bad:true,  text:"Your hero headline \"Premium Online Coaching\" describes the product, not the result. Visitors decide in 5 seconds. Rewrite it to answer: what does the customer's life look like after buying?" },
-    { bad:true,  text:'Your TikTok engagement rate is 1.8% — the fitness average is 4.8%. Your hooks are likely too slow. Your top-performing video had 3x the average views — analyze what made it different.' },
-    { bad:false, text:'SEO foundation is solid: meta title and description are good length, H1 is present. Canonical tag is missing — add it to avoid duplicate content penalties.' },
-    { bad:true,  text:'No social proof visible above the fold. One real testimonial with a specific result ("Lost 12kg in 8 weeks") converts better than any design change.' },
-  ]
+
+  const card = (children, delay, extraStyle = {}) => ({
+    background:'#fff',
+    border:'1px solid rgba(28,25,23,0.08)',
+    borderRadius:16,
+    padding:'24px 26px',
+    marginBottom:12,
+    opacity: visible ? 1 : 0,
+    transform: visible ? 'none' : 'translateY(14px)',
+    transition: `all .55s ease ${delay}s`,
+    ...extraStyle,
+  })
+
+  const accentCard = (delay) => ({
+    ...card(null, delay),
+    border:'1px solid rgba(42,92,69,0.2)',
+  })
+
+  // Score ring SVG — 41/100 → dash = 41% of circumference (r=54, circ≈339)
+  const r = 54, circ = 2 * Math.PI * r
+  const dash = (41 / 100) * circ
 
   return (
-    <section style={{ padding:'96px 24px' }}>
+    <section style={{ padding:'96px 24px', background:C.bg }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
-        <div ref={ref} className={`reveal ${visible ? 'in' : ''}`} style={{ marginBottom:60 }}>
+
+        {/* Section heading */}
+        <div ref={ref} className={`reveal ${visible ? 'in' : ''}`} style={{ marginBottom:48 }}>
           <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Sample output</p>
-          <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(32px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>This is what your report looks like.</h2>
-          <p style={{ color:C.textMuted, marginTop:12, fontSize:16, fontWeight:300 }}>Real data. Industry benchmarks. Specific fixes. No generic advice.</p>
+          <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(32px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>
+            This is what your report looks like.
+          </h2>
+          <p style={{ color:C.textMuted, marginTop:12, fontSize:16, fontWeight:300 }}>
+            Real data. Benchmark comparisons. Specific fixes — not generic advice.
+          </p>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1.5fr', gap:20 }}>
-          <div className="card" style={{ padding:36 }}>
-            <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, marginBottom:20, fontWeight:400 }}>Overall score</p>
-            <div style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:100, lineHeight:1, letterSpacing:'-.04em', color:C.text, marginBottom:2, opacity:visible?1:0, transform:visible?'none':'scale(.85)', transition:'all .7s .3s ease' }}>
-              59
-            </div>
-            <p style={{ color:C.textLight, fontSize:13, marginBottom:36, fontWeight:300 }}>out of 100</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-              {bars.map((b, i) => <ScoreBar key={i} {...b} delay={.4 + i*.12} visible={visible} />)}
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <p style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, marginBottom:6, fontWeight:400 }}>Priority action list</p>
-            {actions.map((a, i) => (
-              <div key={i} style={{
-                background: a.bad ? C.redLight : C.greenLight,
-                border:`1px solid ${a.bad ? 'rgba(192,57,43,0.14)' : 'rgba(42,92,69,0.14)'}`,
-                borderRadius:12, padding:'16px 18px', display:'flex', gap:12,
-                opacity:visible?1:0, transform:visible?'none':'translateX(16px)',
-                transition:`all .5s ease ${.4+i*.1}s`,
-              }}>
-                <span style={{ fontSize:14, flexShrink:0, marginTop:2 }}>{a.bad ? '⚠' : '✓'}</span>
-                <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.68, fontWeight:300 }}>{a.text}</p>
+
+        {/* Two-column layout */}
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1.55fr)', gap:16, alignItems:'start' }}>
+
+          {/* ── LEFT COLUMN ── */}
+          <div>
+
+            {/* Score hero */}
+            <div style={{ ...card(null, 0.1), display:'flex', gap:20, alignItems:'center', flexWrap:'wrap' }}>
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, flexShrink:0 }}>
+                <svg width="110" height="110" viewBox="0 0 140 140">
+                  <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(28,25,23,0.08)" strokeWidth="8"/>
+                  <circle cx="70" cy="70" r={r} fill="none" stroke="#d68910" strokeWidth="8" strokeLinecap="round"
+                    strokeDasharray={`${visible ? dash : 0} ${circ}`} strokeDashoffset={circ * 0.25}
+                    style={{ transition:'stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1) 0.2s' }}/>
+                  <text x="70" y="66" textAnchor="middle" fontFamily="Cormorant Garant, serif" fontSize="32" fontWeight="300" fill="#1c1917">41</text>
+                  <text x="70" y="81" textAnchor="middle" fontFamily="Jost, sans-serif" fontSize="11" fontWeight="300" fill="#a09890" letterSpacing="2">/100</text>
+                </svg>
+                <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#d68910', fontWeight:500 }}>Needs Work</span>
+                <span style={{ fontSize:10, color:C.textMuted, textAlign:'center', maxWidth:110, lineHeight:1.4, fontWeight:300 }}>Slower than 73% of mobile pages</span>
               </div>
-            ))}
+              <div style={{ flex:1, minWidth:140 }}>
+                <p style={{ fontSize:13, fontWeight:500, color:'#d68910', marginBottom:7, lineHeight:1.4 }}>
+                  At 41/100, you're losing 4 in 10 visitors before they read a single word.
+                </p>
+                <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.65, fontWeight:300 }}>
+                  LCP of 6.1s is 3.6s over Google's threshold. TikTok engagement 63% below the fitness average. No CTA above the fold.
+                </p>
+              </div>
+            </div>
+
+            {/* Benchmarks */}
+            <div style={{ ...accentCard(0.18), padding:0, overflow:'hidden' }}>
+              <div style={{ padding:'14px 20px 10px', borderBottom:'1px solid rgba(28,25,23,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.accent, fontWeight:500, marginBottom:2 }}>Market Benchmarks</p>
+                  <p style={{ fontSize:11, color:C.textMuted, fontWeight:300 }}>vs. Fitness &amp; Health accounts</p>
+                </div>
+                <span style={{ fontSize:10, padding:'2px 9px', borderRadius:20, background:'rgba(42,92,69,0.08)', color:C.accent, fontWeight:500, letterSpacing:'.06em', textTransform:'uppercase' }}>Reference data</span>
+              </div>
+              <div style={{ padding:'4px 20px 10px' }}>
+                <SampleBmRow platform="Website" metric="Mobile Speed" yours="27/100" benchmark="45/100" diff="18pts" up={false} percentileLabel="Slower than 73% of mobile pages" />
+                <SampleBmRow platform="TikTok" metric="Engagement" yours="1.8%" benchmark="4.8%" diff="63%" up={false} percentileLabel="Worse than 68% of Fitness accounts" />
+                <SampleBmRow platform="TikTok" metric="Avg. Views" yours="4,200" benchmark="15,000" diff="72%" up={false} percentileLabel="Worse than 71% of Fitness accounts" />
+              </div>
+            </div>
+
+            {/* Score breakdown */}
+            <div style={card(null, 0.24)}>
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:14 }}>Score Breakdown</p>
+              <SampleMiniBar label="Performance"   value={27} color="#c0392b" />
+              <SampleMiniBar label="SEO"           value={54} color="#d68910" />
+              <SampleMiniBar label="Copy & UX"     value={35} color="#c0392b" />
+              <SampleMiniBar label="Accessibility" value={81} color="#2a5c45" />
+            </div>
+
+            {/* Website chips */}
+            <div style={card(null, 0.3)}>
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:12 }}>Website Performance</p>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+                <SampleChip label="Performance" value="27/100" sub="mobile score" accent />
+                <SampleChip label="LCP" value="6.1s" sub="target: <2.5s" />
+                <SampleChip label="FCP" value="3.2s" sub="target: <1.8s" />
+                <SampleChip label="CLS" value="0.04" sub="✓ good" />
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <SampleCheckTag label="HTTPS" ok={true} />
+                <SampleCheckTag label="Mobile" ok={true} />
+                <SampleCheckTag label="No popups" ok={false} />
+                <SampleCheckTag label="Font size" ok={true} />
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── RIGHT COLUMN ── */}
+          <div>
+
+            {/* SEO */}
+            <div style={card(null, 0.16)}>
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:12 }}>SEO Analysis</p>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+                <SampleChip label="SEO Score" value="54/100" sub="our deep scan" />
+                <SampleChip label="Title" value="38c" sub="✓ ideal length" />
+                <SampleChip label="Meta desc" value="Missing" sub="✗ not found" />
+                <SampleChip label="Alt coverage" value="60%" sub="6 missing" />
+                <SampleChip label="H1 tags" value="2" sub="✗ too many" />
+              </div>
+              <div style={{ background:'rgba(28,25,23,0.03)', borderRadius:8, padding:'9px 12px', marginBottom:12, border:'1px solid rgba(28,25,23,0.07)' }}>
+                <p style={{ fontSize:10, color:C.textLight, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:3 }}>Page title</p>
+                <p style={{ fontSize:13, color:C.text, fontWeight:300 }}>"strongcoach.io — Premium Online Coaching"</p>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <SampleCheckTag label="Canonical" ok={false} />
+                <SampleCheckTag label="Open Graph" ok={true} />
+                <SampleCheckTag label="Schema.org" ok={false} />
+              </div>
+            </div>
+
+            {/* Copy & UX */}
+            <div style={card(null, 0.22)}>
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:12 }}>Copy &amp; UX</p>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+                <SampleChip label="Copy Score" value="35/100" sub="out of 100" />
+                <SampleChip label="Word count" value="312" sub="on page" />
+              </div>
+              <div style={{ background:'rgba(192,57,43,0.05)', borderRadius:8, padding:'11px 13px', marginBottom:12, border:'1px solid rgba(192,57,43,0.15)' }}>
+                <p style={{ fontSize:10, color:C.textLight, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>Hero headline — ✗ not outcome-focused</p>
+                <p style={{ fontSize:13, color:C.text, fontWeight:300, fontStyle:'italic' }}>"Premium Online Coaching for Serious Athletes"</p>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <SampleCheckTag label="Clear CTA" ok={false} />
+                <SampleCheckTag label="Social proof" ok={false} />
+                <SampleCheckTag label="Price visible" ok={false} />
+                <SampleCheckTag label="Outcome headline" ok={false} />
+              </div>
+            </div>
+
+            {/* Priority Actions */}
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
+                <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500 }}>Priority Actions</p>
+                <p style={{ fontSize:11, color:C.textLight, fontWeight:300 }}>2 of 5 shown</p>
+              </div>
+
+              {/* Action 1 — visible */}
+              <div style={{ background:'#fdf2f2', border:'1px solid #f5c6c6', borderRadius:12, padding:'16px 18px', marginBottom:10,
+                opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.3s' }}>
+                <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#c0392b', fontWeight:500, display:'block', marginBottom:4 }}>🔴 Critical</span>
+                <p style={{ fontSize:13, fontWeight:500, color:C.text, marginBottom:4 }}>LCP 6.1s — fix hero image to hit 2.5s</p>
+                <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.65, fontWeight:300 }}>
+                  Your LCP of 6.1s is 3.6s above Google's 2.5s threshold, putting you in the bottom 27% of mobile pages — compress your hero image to under 150kb and add <code style={{ fontFamily:'DM Mono, monospace', fontSize:11 }}>loading="eager"</code> to cut it to under 2s.
+                </p>
+              </div>
+
+              {/* Action 2 — visible */}
+              <div style={{ background:'#fdf2f2', border:'1px solid #f5c6c6', borderRadius:12, padding:'16px 18px', marginBottom:10,
+                opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.38s' }}>
+                <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#c0392b', fontWeight:500, display:'block', marginBottom:4 }}>🔴 Critical</span>
+                <p style={{ fontSize:13, fontWeight:500, color:C.text, marginBottom:4 }}>No CTA above the fold — visitors leave</p>
+                <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.65, fontWeight:300 }}>
+                  0 of your top 5 sections contain a button or link — sites with a visible CTA above the fold convert 3.5× better. Add one button in the first viewport with a benefit-led label like "Start your programme today."
+                </p>
+              </div>
+
+              {/* Action 3 — locked: title visible, description blurred */}
+              <div style={{ background:'#fefdf2', border:'1px solid #f5e6a3', borderRadius:12, padding:'16px 18px', marginBottom:10,
+                opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.46s' }}>
+                <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#d68910', fontWeight:500, display:'block', marginBottom:4 }}>🟡 Important</span>
+                <p style={{ fontSize:13, fontWeight:500, color:C.text, marginBottom:4 }}>TikTok engagement 63% below fitness average</p>
+                <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.65, fontWeight:300, filter:'blur(4px)', userSelect:'none', pointerEvents:'none' }}>
+                  Your 1.8% engagement rate vs. the 4.8% fitness benchmark means your hooks aren't landing. Analyse your top 3 videos — they average 4× your normal views. Reverse-engineer what the first 2 seconds do differently and apply it to every post.
+                </p>
+              </div>
+
+              {/* Unlock block */}
+              <div style={{ background:'#fff', border:'1px solid rgba(42,92,69,0.2)', borderRadius:16, padding:'28px 24px', textAlign:'center', marginTop:4,
+                opacity:visible?1:0, transform:visible?'none':'translateY(10px)', transition:'all .5s ease 0.52s' }}>
+                <div style={{ fontSize:20, marginBottom:10 }}>🔒</div>
+                <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:20, letterSpacing:'-.015em', marginBottom:8, color:C.text }}>
+                  Unlock the exact fixes — €9
+                </h3>
+                <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.7, fontWeight:300, marginBottom:16, maxWidth:340, margin:'0 auto 16px' }}>
+                  You can see what's broken. The full report tells you exactly how to fix it — step by step, copy-paste ready.
+                </p>
+                <button
+                  onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
+                  style={{ background:C.text, color:C.bg, border:'none', borderRadius:9, padding:'12px 28px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.accent}
+                  onMouseLeave={e => e.currentTarget.style.background = C.text}
+                >
+                  Scan your site — it's free
+                </button>
+                <p style={{ fontSize:11, color:C.textLight, marginTop:10, fontWeight:300 }}>One-time · No subscription · Instant access</p>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -467,7 +663,6 @@ function Pricing() {
       cta:'Get full report', featured:true,
     },
   ]
-
   return (
     <section style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:760, margin:'0 auto' }}>
@@ -520,7 +715,6 @@ function FAQ() {
     { q:'Free vs. full report — what\'s the difference?', a:'The free scan gives you your full score, website analysis, social media stats, and your 2 most critical issues. The full report (€9, one-time) unlocks all 5 priority actions with exact fixes, hook-by-hook content analysis, engagement benchmarks, and brand clarity feedback.' },
     { q:'Is my data safe?', a:'Yes. Your URLs and handles are only used to run the scan. We don\'t sell or share your data with anyone. Read more in our Privacy Policy.' },
   ]
-
   return (
     <section style={{ padding:'96px 24px' }}>
       <div style={{ maxWidth:680, margin:'0 auto' }}>
