@@ -65,6 +65,10 @@ const CSS = `
   ::-webkit-scrollbar { width:5px; }
   ::-webkit-scrollbar-track { background:#f7f4ef; }
   ::-webkit-scrollbar-thumb { background:rgba(28,25,23,0.12); border-radius:3px; }
+
+  @media (max-width: 600px) {
+    .sample-report-grid { grid-template-columns: 1fr !important; }
+  }
 `
 
 function useReveal(delay = 0) {
@@ -364,8 +368,6 @@ function WhatWeCheck() {
 }
 
 // ─── Sample Report ────────────────────────────────────────────────────────────
-// Mirrors the real Report.jsx layout exactly: benchmarks first, chips not bars,
-// locked actions show title + blurred description, data-first throughout.
 
 function SampleMiniBar({ label, value, color }) {
   return (
@@ -445,7 +447,6 @@ function SampleReport() {
     border:'1px solid rgba(42,92,69,0.2)',
   })
 
-  // Score ring SVG — 41/100 → dash = 41% of circumference (r=54, circ≈339)
   const r = 54, circ = 2 * Math.PI * r
   const dash = (41 / 100) * circ
 
@@ -453,7 +454,6 @@ function SampleReport() {
     <section style={{ padding:'96px 24px', background:C.bg }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
 
-        {/* Section heading */}
         <div ref={ref} className={`reveal ${visible ? 'in' : ''}`} style={{ marginBottom:48 }}>
           <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Sample output</p>
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(32px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>
@@ -464,8 +464,8 @@ function SampleReport() {
           </p>
         </div>
 
-        {/* Two-column layout */}
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1.55fr)', gap:16, alignItems:'start' }}>
+        {/* ── ÄNDERUNG 1: repeat(auto-fit, minmax(300px, 1fr)) + className für Mobile-Override ── */}
+        <div className="sample-report-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:16, alignItems:'start' }}>
 
           {/* ── LEFT COLUMN ── */}
           <div>
@@ -608,7 +608,7 @@ function SampleReport() {
                 </p>
               </div>
 
-              {/* Action 3 — locked: title visible, description blurred */}
+              {/* Action 3 — locked */}
               <div style={{ background:'#fefdf2', border:'1px solid #f5e6a3', borderRadius:12, padding:'16px 18px', marginBottom:10,
                 opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.46s' }}>
                 <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#d68910', fontWeight:500, display:'block', marginBottom:4 }}>🟡 Important</span>
@@ -618,16 +618,40 @@ function SampleReport() {
                 </p>
               </div>
 
-              {/* Unlock block */}
+              {/* ── ÄNDERUNG 2: Neuer Unlock-Block ── */}
               <div style={{ background:'#fff', border:'1px solid rgba(42,92,69,0.2)', borderRadius:16, padding:'28px 24px', textAlign:'center', marginTop:4,
                 opacity:visible?1:0, transform:visible?'none':'translateY(10px)', transition:'all .5s ease 0.52s' }}>
                 <div style={{ fontSize:20, marginBottom:10 }}>🔒</div>
                 <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:20, letterSpacing:'-.015em', marginBottom:8, color:C.text }}>
-                  Unlock the exact fixes — €9
+                  Get the full report — €9
                 </h3>
-                <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.7, fontWeight:300, marginBottom:16, maxWidth:340, margin:'0 auto 16px' }}>
-                  You can see what's broken. The full report tells you exactly how to fix it — step by step, copy-paste ready.
+                <p style={{ fontSize:15, fontWeight:500, color:C.text, lineHeight:1.6, maxWidth:340, margin:'0 auto 10px' }}>
+                  You've seen the problems. Here's exactly how to fix all 5.
                 </p>
+                <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.7, fontWeight:300, maxWidth:320, margin:'0 auto 18px' }}>
+                  Step-by-step, copy-paste ready — no guessing, no generic advice.
+                </p>
+                <div style={{ display:'flex', flexDirection:'column', gap:7, maxWidth:300, margin:'0 auto 20px', textAlign:'left' }}>
+                  {[
+                    { text:'Exact fix for every issue — copy-paste ready', soon:false },
+                    { text:'Hook quality analysis — post by post', soon:false },
+                    { text:'Engagement benchmarks vs. similar accounts', soon:false },
+                    { text:'Caption & CTA feedback with rewrite suggestions', soon:false },
+                    { text:'Brand clarity score + specific improvements', soon:false },
+                    { text:'Competitor comparison scan', soon:true },
+                    { text:'Score history — track progress as you fix issues', soon:true },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                      <span style={{ color:C.accent, fontSize:12, marginTop:2, flexShrink:0 }}>✓</span>
+                      <span style={{ fontSize:12, color:C.textMuted, fontWeight:300 }}>
+                        {item.text}
+                        {item.soon && (
+                          <span style={{ marginLeft:6, fontSize:10, background:'rgba(42,92,69,0.1)', color:C.accent, padding:'1px 6px', borderRadius:4, fontWeight:500, letterSpacing:'.04em', verticalAlign:'middle' }}>SOON</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
                 <button
                   onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
                   style={{ background:C.text, color:C.bg, border:'none', borderRadius:9, padding:'12px 28px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s' }}
@@ -649,17 +673,33 @@ function SampleReport() {
 
 function Pricing() {
   const [ref, visible] = useReveal()
+  // ── ÄNDERUNG 3: Pricing-Features aktualisiert ──
   const plans = [
     {
       name:'Free', price:'€0', note:'no account required',
       desc:'See where you stand.',
-      features:['Overall score from 0–100','Full website analysis (performance, SEO, accessibility)','Social media stats & engagement rates','Your 2 most critical issues to fix','No account needed'],
+      features:[
+        'Overall score from 0–100',
+        'Full website analysis (performance, SEO, accessibility)',
+        'Social media stats & engagement rates',
+        'Your 2 most critical issues to fix',
+        'No account needed',
+      ],
       cta:'Start for free', featured:false,
     },
     {
       name:'Full Report', price:'€9', note:'one-time · no subscription',
       desc:'Everything you need to actually improve.',
-      features:['Everything in the free scan','All 5 priority actions with exact fixes','Automatic social media data pull','Competitor comparison scan','Score history — track your progress','Priority email support'],
+      features:[
+        'Everything in the free scan',
+        'All 5 priority actions with exact fixes — copy-paste ready',
+        'Hook quality analysis — post by post',
+        'Engagement benchmarks vs. similar accounts',
+        'Caption & CTA feedback with rewrite suggestions',
+        'Brand clarity score + specific improvements',
+        { text:'Competitor comparison scan', soon:true },
+        { text:'Score history — track your progress', soon:true },
+      ],
       cta:'Get full report', featured:true,
     },
   ]
@@ -687,12 +727,20 @@ function Pricing() {
               </div>
               <p style={{ color:C.textLight, fontSize:12, marginBottom:28, fontWeight:300 }}>{p.note}</p>
               <div style={{ display:'flex', flexDirection:'column', gap:11, marginBottom:32 }}>
-                {p.features.map((f, j) => (
-                  <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:10, fontSize:14 }}>
-                    <span style={{ color:p.featured ? C.accent : C.textLight, flexShrink:0, marginTop:1 }}>✓</span>
-                    <span style={{ color:C.textMuted, fontWeight:300 }}>{f}</span>
-                  </div>
-                ))}
+                {p.features.map((f, j) => {
+                  const isObj = typeof f === 'object'
+                  return (
+                    <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:10, fontSize:14 }}>
+                      <span style={{ color:p.featured ? C.accent : C.textLight, flexShrink:0, marginTop:1 }}>✓</span>
+                      <span style={{ color:C.textMuted, fontWeight:300 }}>
+                        {isObj ? f.text : f}
+                        {isObj && f.soon && (
+                          <span style={{ marginLeft:6, fontSize:10, background:'rgba(42,92,69,0.1)', color:C.accent, padding:'1px 6px', borderRadius:4, fontWeight:500, letterSpacing:'.04em', verticalAlign:'middle' }}>SOON</span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
               <button className={p.featured ? 'btn-primary' : 'btn-ghost'}
                 onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
@@ -712,7 +760,7 @@ function FAQ() {
     { q:'Do I need an account?', a:'No. You can scan your business and see your score without creating an account. You only need one if you want to save and revisit your full report later.' },
     { q:'Which platforms does Scano support?', a:'You can enter your website, TikTok, Instagram, YouTube, X (Twitter), and Facebook. You don\'t need all of them — just add what you have.' },
     { q:'How accurate is the analysis?', a:'Scano uses real data from your profiles: actual engagement rates, posting frequency, and content structure. The AI interprets this data and identifies patterns. It\'s not perfect, but it\'s based on what actually works — not generic advice.' },
-    { q:'Free vs. full report — what\'s the difference?', a:'The free scan gives you your full score, website analysis, social media stats, and your 2 most critical issues. The full report (€9, one-time) unlocks all 5 priority actions with exact fixes, hook-by-hook content analysis, engagement benchmarks, and brand clarity feedback.' },
+    { q:'Free vs. full report — what\'s the difference?', a:'The free scan gives you your full score, website analysis, social media stats, and your 2 most critical issues. The full report (€9, one-time) unlocks all 5 priority actions with exact fixes, hook-by-hook content analysis, engagement benchmarks, caption & CTA feedback, and brand clarity improvements.' },
     { q:'Is my data safe?', a:'Yes. Your URLs and handles are only used to run the scan. We don\'t sell or share your data with anyone. Read more in our Privacy Policy.' },
   ]
   return (

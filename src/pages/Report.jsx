@@ -52,7 +52,6 @@ const sev = {
   quickwin:  { color: '#1e8449', bg: '#f2fdf5', label: '🟢 Quick Win', border: '#a9dfbf' },
 }
 
-// ─── Business-Impact Copy per Score Range ─────────────────────────────────────
 function getScoreImpactLine(score) {
   if (score >= 80) return `At ${score}/100, your site is performing well — but the remaining gaps are costing you real conversions.`
   if (score >= 65) return `At ${score}/100, your site looks fine on the surface — but visitors who don't convert probably never will without these fixes.`
@@ -123,7 +122,6 @@ function IssueTag({ text }) {
   )
 }
 
-// Benchmark row — now shows percentile prominently
 function BenchmarkRow({ b }) {
   const isAbove = b.direction === 'above'
   return (
@@ -162,15 +160,12 @@ function ActionCard({ issue }) {
   )
 }
 
-// ─── CHANGED: LockedActionCard — title visible, description blurred ────────────
 function LockedActionCard({ issue }) {
   const cfg = sev[issue.severity] || sev.quickwin
   return (
     <div className="action-card" style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '18px 22px', position: 'relative' }}>
       <span style={{ fontSize: 10, letterSpacing: '.09em', textTransform: 'uppercase', color: cfg.color, fontWeight: 500, display: 'block', marginBottom: 5 }}>{cfg.label}</span>
-      {/* Title is fully visible — user sees WHAT the problem is */}
       <p style={{ fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 5 }}>{issue.title}</p>
-      {/* Only the fix/description is blurred — user can't see HOW to fix it */}
       <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, fontWeight: 300, filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none' }}>
         {issue.description || 'Unlock to see the exact fix and step-by-step instructions for this issue.'}
       </p>
@@ -178,28 +173,40 @@ function LockedActionCard({ issue }) {
   )
 }
 
-// ─── CHANGED: UnlockBlock — no blurred cards above, just the CTA ─────────────
+// ─── PUNKT 3: UnlockBlock — konvertierender CTA + vollständige Feature-Liste ──
 function UnlockBlock({ lockedCount }) {
+  const totalIssues = (lockedCount || 0) + 2
   return (
     <div style={{ marginTop: 16, background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '36px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)', textAlign: 'center' }} className="unlock-card">
       <div style={{ fontSize: 24, marginBottom: 12 }}>🔒</div>
-      <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 24, letterSpacing: '-.015em', marginBottom: 10, color: C.text }}>
-        Unlock the exact fixes — €9
+      <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 26, letterSpacing: '-.015em', marginBottom: 10, color: C.text }}>
+        Get the full report — €9
       </h3>
-      <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.72, fontWeight: 300, maxWidth: 380, margin: '0 auto 24px' }}>
-        You can see what's broken. The full report tells you exactly how to fix it — step by step, copy-paste ready.
+      {/* One sentence that sells the next step, not features */}
+      <p style={{ fontSize: 15, fontWeight: 500, color: C.text, lineHeight: 1.6, maxWidth: 380, margin: '0 auto 20px' }}>
+        You've seen the problems. Here's exactly how to fix all {totalIssues}.
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
+      <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, maxWidth: 360, margin: '0 auto 24px' }}>
+        Step-by-step, copy-paste ready — no guessing, no generic advice.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
         {[
-          'Step-by-step fix for every issue above',
-          'Hook quality analysis — post by post',
-          'Engagement benchmarks vs. similar accounts',
-          'Caption & CTA feedback',
-          'Brand clarity score with specific improvements',
+          { text: 'Exact fix for every issue — copy-paste ready', soon: false },
+          { text: 'Hook quality analysis — post by post', soon: false },
+          { text: 'Engagement benchmarks vs. similar accounts', soon: false },
+          { text: 'Caption & CTA feedback with rewrite suggestions', soon: false },
+          { text: 'Brand clarity score + specific improvements', soon: false },
+          { text: 'Competitor comparison scan', soon: true },
+          { text: 'Score history — track progress as you fix issues', soon: true },
         ].map((item, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <span style={{ color: C.accent, fontSize: 13, marginTop: 2, flexShrink: 0 }}>✓</span>
-            <span style={{ fontSize: 14, color: C.muted, fontWeight: 300 }}>{item}</span>
+            <span style={{ fontSize: 13, color: C.muted, fontWeight: 300 }}>
+              {item.text}
+              {item.soon && (
+                <span style={{ marginLeft: 6, fontSize: 10, background: 'rgba(42,92,69,0.1)', color: C.accent, padding: '1px 6px', borderRadius: 4, fontWeight: 500, letterSpacing: '.04em', verticalAlign: 'middle' }}>COMING SOON</span>
+              )}
+            </span>
           </div>
         ))}
       </div>
@@ -228,7 +235,6 @@ function Section({ title, children, delay, visible, noPad }) {
   )
 }
 
-// ─── CHANGED: ScoreHero — Business-Impact-Copy statt generischer Headline ─────
 function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, visible }) {
   const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
@@ -236,7 +242,6 @@ function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, vi
   const contextLine = benchmarkData?.benchmarks?.[0]?.percentileLabel
     || (perfPercentile ? `Faster than ${perfPercentile}% of mobile pages` : null)
 
-  // Business-impact line overrides the AI-generated headline
   const impactLine = getScoreImpactLine(score)
 
   return (
@@ -249,9 +254,7 @@ function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, vi
         )}
       </div>
       <div className="score-hero-text" style={{ flex: 1, minWidth: 200 }}>
-        {/* Business-impact sentence — always shown first, prominent */}
         <p style={{ fontSize: 15, fontWeight: 500, color: scoreColor, marginBottom: 10, lineHeight: 1.45 }}>{impactLine}</p>
-        {/* AI headline als Subtext, falls vorhanden */}
         {headline && (
           <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 20, letterSpacing: '-.01em', marginBottom: 10, lineHeight: 1.3, color: C.text }}>{headline}</h2>
         )}
@@ -261,12 +264,15 @@ function ScoreHero({ score, headline, summary, perfPercentile, benchmarkData, vi
   )
 }
 
-// ─── Benchmark Block ─────────────────────────────────────────────────────────
+// ─── PUNKT 6: BenchmarkBlock — perfSlowerThan Fallback ───────────────────────
 function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
   const hasBm = benchmarkData?.benchmarks?.length > 0
   const hasPerfPct = benchmarkData?.perfPercentile != null
 
   if (!hasBm && !hasPerfPct) return null
+
+  // Fallback: wenn perfSlowerThan fehlt (ältere gespeicherte Reports), aus perfPercentile berechnen
+  const perfSlowerThan = benchmarkData.perfSlowerThan ?? (100 - benchmarkData.perfPercentile)
 
   return (
     <div className="section-card" style={{ background: C.white, border: `1px solid rgba(42,92,69,0.18)`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', opacity: 0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none' }}>
@@ -289,7 +295,7 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
               <span style={{ fontSize: 11, color: benchmarkData.perfPercentile >= 50 ? C.accent : C.red, fontWeight: 400 }}>
                 {benchmarkData.perfPercentile >= 50
                   ? `Faster than ${benchmarkData.perfPercentile}% of mobile pages`
-                  : `Slower than ${benchmarkData.perfSlowerThan}% of mobile pages`}
+                  : `Slower than ${perfSlowerThan}% of mobile pages`}
               </span>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -313,7 +319,6 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
   )
 }
 
-// ─── ErrorScreen ─────────────────────────────────────────────────────────────
 function ErrorScreen({ navigate, error, onRetry }) {
   const errorInfo = (() => {
     if (error?.code === 'unreachable') return { icon: '🌐', title: 'Website couldn\'t be reached', message: 'We couldn\'t connect to this URL. Double-check the address and make sure the site is live.', retry: true }
@@ -344,7 +349,6 @@ function ErrorScreen({ navigate, error, onRetry }) {
   )
 }
 
-// ─── CHANGED: EmailCapture — konkreter Wert statt "tips" ──────────────────────
 function EmailCapture({ reportId, visible }) {
   const [email, setEmail]               = useState('')
   const [emailSent, setEmailSent]       = useState(false)
@@ -365,7 +369,6 @@ function EmailCapture({ reportId, visible }) {
   return (
     <div className="email-capture" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 28px', marginBottom: 16, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.12s forwards' : 'none', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 180 }}>
-        {/* CHANGED: Headline — concrete value, not "tips" */}
         <p style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 4 }}>Save this report to your inbox</p>
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, fontWeight: 300 }}>
           Get a permanent link to this report — so you can track your score as you fix issues.
@@ -396,7 +399,6 @@ function EmailCapture({ reportId, visible }) {
   )
 }
 
-// ─── ShareButton ──────────────────────────────────────────────────────────────
 function ShareButton({ reportId }) {
   const [copied, setCopied] = useState(false)
   const shareUrl = reportId ? `${window.location.origin}/report/${reportId}` : window.location.href
@@ -450,7 +452,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
       <style>{CSS}</style>
       <div style={{ minHeight: '100vh', background: C.bg }}>
 
-        {/* Nav */}
         <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>← New scan</button>
@@ -458,7 +459,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
 
         <div className="report-page-pad" style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 96px' }}>
 
-          {/* Header */}
           <div style={{ marginBottom: 36, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0s forwards' : 'none' }}>
             <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 10, fontWeight: 500 }}>
               Free Audit Report{benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}
@@ -468,7 +468,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             <ShareButton reportId={reportId} />
           </div>
 
-          {/* Score hero */}
           <ScoreHero
             score={score}
             headline={headline}
@@ -478,10 +477,8 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             visible={visible}
           />
 
-          {/* Email capture */}
           <EmailCapture reportId={reportId} visible={visible} />
 
-          {/* ── BENCHMARKS — always first after score ── */}
           {hasBenchmarkBlock && (
             <BenchmarkBlock
               benchmarkData={benchmarkData}
@@ -491,7 +488,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             />
           )}
 
-          {/* ── Score breakdown ── */}
           {(website || content) && (
             <Section title="Score Breakdown" delay={0.22} visible={visible}>
               <div style={{ paddingTop: 4 }}>
@@ -503,7 +499,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Website Performance ── */}
           {website && (
             <Section title="Website Performance" delay={0.26} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -527,7 +522,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── SEO ── */}
           {content?.seo && (
             <Section title="SEO Analysis" delay={0.3} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -562,7 +556,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Copy & UX ── */}
           {content?.copy && (
             <Section title="Copy & UX" delay={0.34} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -599,7 +592,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             </Section>
           )}
 
-          {/* ── Social ── */}
+          {/* ── PUNKT 5: socialAnalysis Guard — kein String-'null'-Check mehr ─── */}
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}`} delay={0.38} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -609,13 +602,12 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 {youtube   && <Chip label="YouTube"     value={youtube.subscribers?.toLocaleString()} sub="subscribers" />}
                 {twitter   && <Chip label="X / Twitter" value={twitter.followers?.toLocaleString()}   sub="followers" />}
               </div>
-              {socialAnalysis && socialAnalysis !== 'null' && (
+              {socialAnalysis && (
                 <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>{socialAnalysis}</p>
               )}
             </Section>
           )}
 
-          {/* ── Priority Actions ── */}
           <div style={{ opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.42s forwards' : 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
               <p style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: C.light, fontWeight: 500 }}>Priority Actions</p>
@@ -625,7 +617,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
               {visibleActions.map((issue, i) => <ActionCard key={i} issue={issue} />)}
             </div>
 
-            {/* CHANGED: Locked actions show title, blur only description */}
             {lockedActions.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -636,7 +627,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             )}
           </div>
 
-          {/* Footer button */}
           <div style={{ marginTop: 52, textAlign: 'center', opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0.5s forwards' : 'none' }}>
             <button onClick={() => navigate('/')}
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 28px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 300, cursor: 'pointer', color: C.muted, transition: 'all .2s' }}
@@ -646,7 +636,6 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           </div>
         </div>
 
-        {/* Footer */}
         <div className="report-footer" style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Scano</span>
           <div style={{ display: 'flex', gap: 20 }}>

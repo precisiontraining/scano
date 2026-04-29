@@ -35,62 +35,42 @@ function perfLabel(score) {
 
 // ─── The radar-logo centerpiece ───────────────────────────────────────────────
 function RadarLogo() {
-  // viewBox 160×160, center 80,80
-  // Outer ring r=70, inner ring r=45, center dot r=5
-  // Tick marks at N/E/S/W
   const ticks = [
-    { x1: 80, y1: 10,  x2: 80, y2: 22  }, // top
-    { x1: 80, y1: 138, x2: 80, y2: 150 }, // bottom
-    { x1: 10, y1: 80,  x2: 22, y2: 80  }, // left
-    { x1: 138,y1: 80,  x2: 150,y2: 80  }, // right
+    { x1: 80, y1: 10,  x2: 80, y2: 22  },
+    { x1: 80, y1: 138, x2: 80, y2: 150 },
+    { x1: 10, y1: 80,  x2: 22, y2: 80  },
+    { x1: 138,y1: 80,  x2: 150,y2: 80  },
   ]
 
   return (
     <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 40px' }}>
-
-      {/* Rotating conic sweep — the radar beam */}
       <div style={{
         position: 'absolute', inset: 0, borderRadius: '50%',
         background: 'conic-gradient(from 270deg, rgba(42,92,69,0) 0deg, rgba(42,92,69,0.08) 45deg, rgba(42,92,69,0.18) 90deg, rgba(42,92,69,0) 90deg)',
         animation: 'radarSweep 3.5s linear infinite',
       }} />
-
-      {/* Ping ring — fades out at outer edge */}
       <div style={{
         position: 'absolute', inset: 16, borderRadius: '50%',
         border: '1px solid rgba(42,92,69,0.35)',
         animation: 'pingRing 3.5s linear infinite',
       }} />
-
-      {/* SVG logo */}
       <svg viewBox="0 0 160 160" width="160" height="160" style={{ position: 'absolute', inset: 0 }} fill="none">
-
-        {/* Outer circle */}
         <circle cx="80" cy="80" r="70"
           stroke="#2a5c45" strokeWidth="1"
           style={{ animation: 'ringPulse1 3.5s ease-in-out infinite' }} />
-
-        {/* Inner circle */}
         <circle cx="80" cy="80" r="45"
           stroke="#2a5c45" strokeWidth="1"
           style={{ animation: 'ringPulse2 3.5s ease-in-out 0.4s infinite' }} />
-
-        {/* Tick marks — sequential glow */}
         {ticks.map((t, i) => (
           <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
             stroke="#2a5c45" strokeWidth="1.2" strokeLinecap="round"
             style={{ animation: `tickSeq 3.5s ease-in-out ${i * 0.875}s infinite` }} />
         ))}
-
-        {/* Rotating sweep line — the sharp leading edge */}
         <g style={{ animation: 'radarSweep 3.5s linear infinite', transformOrigin: '80px 80px' }}>
           <line x1="80" y1="80" x2="80" y2="10"
             stroke="#2a5c45" strokeWidth="1" strokeLinecap="round" opacity="0.9" />
-          {/* Small dot at tip of sweep line */}
           <circle cx="80" cy="14" r="1.5" fill="#2a5c45" opacity="0.7" />
         </g>
-
-        {/* Center dot with glow */}
         <circle cx="80" cy="80" r="5" fill="#2a5c45"
           style={{ animation: 'dotGlow 1.8s ease-in-out infinite' }} />
         <circle cx="80" cy="80" r="2.5" fill="#f7f4ef" opacity="0.6" />
@@ -120,7 +100,6 @@ function ScanningScreen({ url, liveData }) {
     return 8
   })()
 
-  // Re-key phase text so it animates on each change
   const prevPhase = useRef(phase)
   useEffect(() => {
     if (phase !== prevPhase.current) {
@@ -129,7 +108,6 @@ function ScanningScreen({ url, liveData }) {
     }
   }, [phase])
 
-  // Build live rows
   const rows = []
   if (liveData.perf != null) {
     const label = perfLabel(liveData.perf.performanceScore)
@@ -177,30 +155,20 @@ function ScanningScreen({ url, liveData }) {
         fontFamily: 'Jost, sans-serif', padding: '40px 24px',
       }}>
         <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-
-          {/* Wordmark */}
           <p style={{
             fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 18,
             color: '#1c1917', marginBottom: 44, letterSpacing: '-.01em',
           }}>Scano</p>
-
-          {/* Radar logo */}
           <RadarLogo />
-
-          {/* URL */}
           <p style={{
             fontSize: 12, color: '#a09890', fontWeight: 300, marginBottom: 20,
             maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             letterSpacing: '.01em',
           }}>{url}</p>
-
-          {/* Phase label — re-animates on change */}
           <p key={phaseKey} className="phase-label" style={{
             fontSize: 13, color: '#2a5c45', fontWeight: 300,
             letterSpacing: '.03em', marginBottom: 16, textAlign: 'center',
           }}>{phase}</p>
-
-          {/* Thin progress bar */}
           <div style={{
             width: '100%', height: 2, background: 'rgba(28,25,23,0.07)',
             borderRadius: 2, overflow: 'hidden', marginBottom: 32,
@@ -211,8 +179,6 @@ function ScanningScreen({ url, liveData }) {
               transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
             }} />
           </div>
-
-          {/* Live data rows */}
           {rows.length > 0 && (
             <div style={{
               width: '100%', background: '#ffffff',
@@ -232,8 +198,6 @@ function ScanningScreen({ url, liveData }) {
               ))}
             </div>
           )}
-
-          {/* Empty placeholder */}
           {rows.length === 0 && (
             <div style={{
               width: '100%', background: '#ffffff',
@@ -245,18 +209,16 @@ function ScanningScreen({ url, liveData }) {
               </p>
             </div>
           )}
-
           <p style={{ fontSize: 11, color: '#a09890', marginTop: 20, fontWeight: 300, letterSpacing: '.04em' }}>
             Usually 15–25 seconds
           </p>
-
         </div>
       </div>
     </>
   )
 }
 
-// ─── Spinner (report loading) ─────────────────────────────────────────────────
+// ─── Spinner ──────────────────────────────────────────────────────────────────
 const Spinner = () => (
   <div style={{ minHeight: '100vh', background: '#f7f4ef', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: 'Jost, sans-serif' }}>
     <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -311,7 +273,9 @@ export default function App() {
     window.scrollTo(0, 0)
   }
 
+  // ── PUNKT 4: doppelter Submit-Schutz ────────────────────────────────────────
   const handleScanStart = async ({ url, manualSocial = {} }) => {
+    if (scanning) return  // Verhindert parallele Fetches bei Doppelklick
     const fullUrl = url.startsWith('http') ? url : `https://${url}`
     setScanningUrl(url)
     setLiveData({})
