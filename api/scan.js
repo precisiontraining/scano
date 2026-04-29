@@ -74,7 +74,6 @@ async function analyzeWebsiteContent(url) {
       dataAttrs.forEach(a => { enrichedText += ' ' + a.replace(/data-content="|"/g, '') })
     }
 
-    // ── SEO checks ──
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
     const title = titleMatch ? titleMatch[1].trim() : ''
     const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)
@@ -103,16 +102,12 @@ async function analyzeWebsiteContent(url) {
 
     const socialProofPatterns = /testimonial|review|rating|customer|client|trust|verified|guarantee|result|success|transform/i
     const hasSocialProof = socialProofPatterns.test(fullText)
-
     const pricePatterns = /\$[\d,.]+|€[\d,.]+|£[\d,.]+|per month|\/mo|one.time|free trial/i
     const hasPriceVisible = pricePatterns.test(fullText)
-
     const heroHeadline = h1s[0] || ''
     const outcomeWords = /you|your|get|achieve|become|stop|start|finally|without|in \d+|results|faster|easier|transform/i
     const isOutcomeFocused = outcomeWords.test(heroHeadline)
-
     const wordCount = enrichedText.split(/\s+/).filter(Boolean).length
-    const internalLinks = (html.match(/<a[^>]*href=["'][^"'#][^"']*["']/gi) || []).length
 
     let seoScore = 0
     if (title && title.length >= 30 && title.length <= 65) seoScore += 18
@@ -208,23 +203,67 @@ function detectIndustry(url, copy) {
   return 'default'
 }
 
+// ─── PERCENTILE CALCULATION ───────────────────────────────────────────────────
+// Approximate percentile rank using a log-normal distribution assumption.
+// Returns how many percent of accounts in that industry are BELOW this value.
+// e.g. 68 means "better than 68% of accounts scanned"
+function approxPercentile(value, benchmark, spreadFactor = 0.6) {
+  if (!value || !benchmark) return null
+  // log-normal CDF approximation: normalise to z-score in log space
+  const logVal = Math.log(Math.max(value, 0.001))
+  const logBench = Math.log(Math.max(benchmark, 0.001))
+  const z = (logVal - logBench) / spreadFactor
+  // Approximate normal CDF with a sigmoid
+  const pct = Math.round(100 / (1 + Math.exp(-1.7 * z)))
+  return Math.min(99, Math.max(1, pct))
+}
+
 function buildBenchmarkInsights(industry, tiktok, instagram) {
   const bench = BENCHMARKS[industry] || BENCHMARKS.default
   const insights = []
+
   if (tiktok?.engagementRate) {
     const er = parseFloat(tiktok.engagementRate)
+    const pct = approxPercentile(er, bench.tiktokEng)
     const diff = ((er - bench.tiktokEng) / bench.tiktokEng * 100).toFixed(0)
-    insights.push({ platform: 'TikTok', metric: 'Engagement Rate', yours: `${er}%`, benchmark: `${bench.tiktokEng}%`, diff: Math.abs(diff) + '%', direction: er >= bench.tiktokEng ? 'above' : 'below', label: bench.label })
+    insights.push({
+      platform: 'TikTok', metric: 'Engagement Rate',
+      yours: `${er}%`, benchmark: `${bench.tiktokEng}%`,
+      diff: Math.abs(diff) + '%', direction: er >= bench.tiktokEng ? 'above' : 'below',
+      label: bench.label,
+      percentile: pct,
+      percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
+    })
     if (tiktok.avgViews) {
+      const vPct = approxPercentile(tiktok.avgViews, bench.avgViews)
       const vDiff = ((tiktok.avgViews - bench.avgViews) / bench.avgViews * 100).toFixed(0)
-      insights.push({ platform: 'TikTok', metric: 'Avg. Views', yours: tiktok.avgViews.toLocaleString(), benchmark: bench.avgViews.toLocaleString(), diff: Math.abs(vDiff) + '%', direction: tiktok.avgViews >= bench.avgViews ? 'above' : 'below', label: bench.label })
+      insights.push({
+        platform: 'TikTok', metric: 'Avg. Views',
+        yours: tiktok.avgViews.toLocaleString(), benchmark: bench.avgViews.toLocaleString(),
+        diff: Math.abs(vDiff) + '%', direction: tiktok.avgViews >= bench.avgViews ? 'above' : 'below',
+        label: bench.label,
+        percentile: vPct,
+        percentileLabel: vPct ? `Better than ${vPct}% of ${bench.label} accounts` : null,
+      })
     }
   }
+
   if (instagram?.engagementRate) {
     const er = parseFloat(instagram.engagementRate)
+    const pct = approxPercentile(er, bench.igEng)
     const diff = ((er - bench.igEng) / bench.igEng * 100).toFixed(0)
-    insights.push({ platform: 'Instagram', metric: 'Engagement Rate', yours: `${er}%`, benchmark: `${bench.igEng}%`, diff: Math.abs(diff) + '%', direction: er >= bench.igEng ? 'above' : 'below', label: bench.label })
+    insights.push({
+      platform: 'Instagram', metric: 'Engagement Rate',
+      yours: `${er}%`, benchmark: `${bench.igEng}%`,
+      diff: Math.abs(diff) + '%', direction: er >= bench.igEng ? 'above' : 'below',
+      label: bench.label,
+      percentile: pct,
+      percentileLabel: pct ? `Better than ${pct}% of ${bench.label} accounts` : null,
+    })
   }
+
+  // Derive a performance percentile from the perf score for use in the UI
+  // (passed via benchmarkData so Report.jsx can display it without re-computing)
   return { benchmarks: insights, industry, industryLabel: bench.label }
 }
 
@@ -256,14 +295,11 @@ export default async function handler(req, res) {
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
   console.log('Scan starting:', url)
 
-  // Run PageSpeed and HTML fetch in parallel, each with their own timeout.
-  // PageSpeed gets 25s, HTML fetch gets 10s — total stays well under 55s.
   const [perf, content] = await Promise.all([
     withTimeout(analyzeWebsite(url), 25000, null),
     withTimeout(analyzeWebsiteContent(url), 12000, null),
   ])
 
-  // If both failed, the URL is likely unreachable
   if (!perf && !content) {
     return res.status(422).json({
       error: 'unreachable',
@@ -280,7 +316,20 @@ export default async function handler(req, res) {
   const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram)
   const finalScore    = calcScore(perf, content, { tiktok, instagram })
 
-  console.log('Scan done. Score:', finalScore, 'Industry:', industry, 'SEO:', content?.seo?.score, 'Copy:', content?.copy?.score)
+  // ── Derived percentile context for the UI ──
+  // Performance percentile: approx where this score sits among all mobile pages.
+  // Based on CrUX distribution data: median is ~50, p75 is ~30.
+  if (perf) {
+    const perfPct = approxPercentile(perf.performanceScore, 45, 0.7) // median mobile perf ≈ 45
+    benchmarkData.perfPercentile = perfPct
+    benchmarkData.perfPercentileLabel = perfPct
+      ? `Faster than ${perfPct}% of mobile pages`
+      : null
+    // Inverse: "slower than X%"
+    benchmarkData.perfSlowerThan = perfPct ? 100 - perfPct : null
+  }
+
+  console.log('Scan done. Score:', finalScore, 'Industry:', industry, 'perfPct:', benchmarkData.perfPercentile)
 
   res.status(200).json({
     score: finalScore,

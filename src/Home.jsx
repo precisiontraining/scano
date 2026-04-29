@@ -120,33 +120,10 @@ function Nav({ navigate }) {
   )
 }
 
-const SCAN_STEPS = [
-  'Analyzing website performance…',
-  'Checking Core Web Vitals…',
-  'Scanning SEO signals…',
-  'Pulling social media data…',
-  'Measuring engagement rates…',
-  'Running AI analysis…',
-  'Generating your report…',
-]
-
-// Maps API error responses to user-facing error codes for Report.jsx ErrorScreen
-function classifyError(scanRes, scanData, reportRes) {
-  if (!scanRes.ok) {
-    if (scanData?.error === 'unreachable') return { code: 'unreachable' }
-    if (scanRes.status === 504 || scanRes.status === 524) return { code: 'timeout' }
-    return { code: 'generic' }
-  }
-  if (!reportRes?.ok) {
-    return { code: 'generic' }
-  }
-  if (!scanData || (!scanData.website && !scanData.content)) {
-    return { code: 'no_data' }
-  }
-  return null
-}
-
-function Hero({ onScanComplete, onScanError }) {
+// Hero no longer runs the fetch itself.
+// It collects url + social data, then calls onScanStart({ url, manualSocial }).
+// App.jsx takes over from there and shows ScanningScreen with live data.
+function Hero({ onScanStart }) {
   const [step, setStep] = useState(1)
   const [url, setUrl] = useState('')
   const [social, setSocial] = useState({
@@ -156,11 +133,7 @@ function Hero({ onScanComplete, onScanError }) {
     twFollowers:'',
   })
   const [activePlatforms, setActivePlatforms] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState('')
-  // Stores the built manualSocial payload so onRetry can reuse it
-  const lastScanPayload = useRef(null)
 
   const platforms = [
     { key:'tiktok',    icon:'🎵', label:'TikTok' },
@@ -179,14 +152,6 @@ function Hero({ onScanComplete, onScanError }) {
   const togglePlatform = (key) => {
     setActivePlatforms(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key])
   }
-
-  useEffect(() => {
-    if (!loading) return
-    const interval = setInterval(() => {
-      setStepIndex(i => Math.min(i + 1, SCAN_STEPS.length - 1))
-    }, 7000)
-    return () => clearInterval(interval)
-  }, [loading])
 
   const handleNext = () => {
     if (!url) { setError('Please enter your website URL.'); return }
@@ -225,130 +190,11 @@ function Hero({ onScanComplete, onScanError }) {
     return manualSocial
   }
 
-  const runScan = async (websiteUrl, manualSocial) => {
-    setLoading(true)
-    setStepIndex(0)
-
-    let scanRes, scanData, reportRes, reportData
-
-    try {
-      scanRes = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl, manualSocial }),
-      })
-      scanData = await scanRes.json()
-    } catch {
-      // Network failure / Vercel timeout (fetch itself threw)
-      setLoading(false)
-      onScanError({ code: 'timeout' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
-      return
-    }
-
-    // Scan API returned an error
-    if (!scanRes.ok) {
-      setLoading(false)
-      const errorCode = classifyError(scanRes, scanData, null)
-      onScanError(errorCode, websiteUrl, () => runScan(websiteUrl, manualSocial))
-      return
-    }
-
-    try {
-      reportRes = await fetch('/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scanData, websiteUrl }),
-      })
-      reportData = await reportRes.json()
-    } catch {
-      setLoading(false)
-      onScanError({ code: 'generic' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
-      return
-    }
-
-    if (!reportRes.ok || !reportData?.report) {
-      setLoading(false)
-      onScanError({ code: 'generic' }, websiteUrl, () => runScan(websiteUrl, manualSocial))
-      return
-    }
-
-    // All good — hand off to App
-    onScanComplete(scanData, reportData.report, websiteUrl)
-  }
-
-  const handleScan = async () => {
+  const handleScan = () => {
     setError('')
     const manualSocial = buildManualSocial()
-    lastScanPayload.current = { websiteUrl: url, manualSocial }
-    await runScan(url, manualSocial)
-  }
-
-  if (loading) {
-    return (
-      <>
-        <style>{`
-          @keyframes drawPath { from { stroke-dashoffset: 900; } to { stroke-dashoffset: 0; } }
-          @keyframes fadeStep { from { opacity:0; transform:translateX(6px); } to { opacity:1; transform:none; } }
-          @keyframes markerIn { from { opacity:0; transform:scaleY(0); } to { opacity:1; transform:scaleY(1); } }
-          @keyframes endGlow { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
-        `}</style>
-        <section style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f7f4ef', padding:'0 32px' }}>
-          <div style={{ width:'100%', maxWidth:560, display:'flex', flexDirection:'column', alignItems:'center' }}>
-            <svg viewBox="0 0 500 200" style={{ width:'100%', maxWidth:500, marginBottom:44, overflow:'visible' }}>
-              {[50,100,150].map(y => <line key={y} x1="20" y1={y} x2="480" y2={y} stroke="rgba(28,25,23,0.035)" strokeWidth="1"/>)}
-              <path d="M 30,100 C 80,100 90,45 140,45 C 190,45 190,155 240,155 C 290,155 290,60 340,60 C 390,60 400,110 460,100"
-                fill="none" stroke="rgba(42,92,69,0.1)" strokeWidth="1.2"/>
-              <path d="M 30,100 C 80,100 90,45 140,45 C 190,45 190,155 240,155 C 290,155 290,60 340,60 C 390,60 400,110 460,100"
-                fill="none" stroke="#2a5c45" strokeWidth="1.4" strokeLinecap="round"
-                strokeDasharray="900" strokeDashoffset="900"
-                style={{ animation:'drawPath 50s cubic-bezier(0.4,0,0.6,1) forwards' }}/>
-              {[{x:140,y:45},{x:240,y:155},{x:340,y:60}].map(({x,y},i) => (
-                <g key={x} style={{ animation:`markerIn .4s ease ${2+i*3}s both`, opacity:0 }}>
-                  <line x1={x} y1={y-28} x2={x} y2={y+28} stroke="rgba(42,92,69,0.2)" strokeWidth="1" strokeDasharray="2 3"/>
-                  <circle cx={x} cy={y} r="2.5" fill="none" stroke="rgba(42,92,69,0.45)" strokeWidth="1"/>
-                  <circle cx={x} cy={y} r="1" fill="#2a5c45" opacity="0.6"/>
-                </g>
-              ))}
-              <circle cx="30" cy="100" r="4" fill="none" stroke="rgba(42,92,69,0.4)" strokeWidth="1.2"/>
-              <circle cx="30" cy="100" r="1.8" fill="#2a5c45"/>
-              <circle cx="460" cy="100" r="5" fill="none" stroke="#2a5c45" strokeWidth="1"
-                style={{ animation:'endGlow 2s ease-in-out infinite' }}/>
-              <circle cx="460" cy="100" r="2" fill="#2a5c45" opacity="0.5"/>
-              {[{x:90,y:32,label:'Website'},{x:215,y:172,label:'Social'},{x:355,y:47,label:'AI Analysis'}].map(({x,y,label},i) => (
-                <text key={label} x={x} y={y} textAnchor="middle"
-                  fontFamily="Jost, sans-serif" fontSize="9" fontWeight="300"
-                  fill="rgba(42,92,69,0.5)" letterSpacing="1"
-                  style={{ animation:`markerIn .4s ease ${1.5+i*3}s both`, opacity:0 }}>
-                  {label.toUpperCase()}
-                </text>
-              ))}
-            </svg>
-            <p style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(22px,4vw,30px)', letterSpacing:'-.02em', color:'#1c1917', marginBottom:10, textAlign:'center' }}>
-              Scanning your business
-            </p>
-            <div style={{ height:22, overflow:'hidden', marginBottom:20 }}>
-              <p key={stepIndex} style={{ fontSize:13, color:'#2a5c45', fontWeight:300, letterSpacing:'.03em', textAlign:'center', animation:'fadeStep .35s ease both' }}>
-                {SCAN_STEPS[stepIndex]}
-              </p>
-            </div>
-            <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-              {SCAN_STEPS.map((_, i) => (
-                <div key={i} style={{
-                  height:4, borderRadius:2,
-                  width: i === stepIndex ? 20 : 5,
-                  background: i < stepIndex ? '#2a5c45' : i === stepIndex ? '#2a5c45' : 'rgba(28,25,23,0.1)',
-                  opacity: i < stepIndex ? 0.35 : 1,
-                  transition:'all .4s cubic-bezier(0.4,0,0.2,1)',
-                }}/>
-              ))}
-            </div>
-            <p style={{ fontSize:11, color:'#a09890', marginTop:18, fontWeight:300, letterSpacing:'.04em', textTransform:'uppercase' }}>
-              30 – 60 seconds
-            </p>
-          </div>
-        </section>
-      </>
-    )
+    // Hand off to App.jsx — it owns the fetch and the scanning overlay from here
+    onScanStart({ url, manualSocial })
   }
 
   return (
@@ -758,12 +604,12 @@ function Footer({ navigate }) {
   )
 }
 
-export default function Home({ navigate, onScanComplete, onScanError }) {
+export default function Home({ navigate, onScanStart, onScanComplete, onScanError }) {
   return (
     <>
       <style>{CSS}</style>
       <Nav navigate={navigate} />
-      <Hero onScanComplete={onScanComplete} onScanError={onScanError} />
+      <Hero onScanStart={onScanStart} />
       <WhatWeCheck />
       <SampleReport />
       <Pricing />

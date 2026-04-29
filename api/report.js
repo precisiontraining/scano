@@ -7,71 +7,134 @@ export default async function handler(req, res) {
 
   const { website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
 
-  const prompt = `You are a brutally honest but constructive business mentor. You have real data below. Write a specific, direct audit. No fluff. No generic advice. Every sentence must reference actual numbers or specific observations from the data.
+  // ─── Helper: build percentile context strings for the prompt ───────────────
+  const perfPercentile = website
+    ? `${website.performanceScore}/100 — slower than ${100 - website.performanceScore}% of mobile pages`
+    : null
+  const tiktokEngContext = (tiktok && benchmarkData?.benchmarks?.length > 0)
+    ? (() => {
+        const b = benchmarkData.benchmarks.find(b => b.platform === 'TikTok' && b.metric === 'Engagement Rate')
+        if (!b) return null
+        const direction = b.direction === 'above'
+          ? `${b.diff} above the ${benchmarkData.industryLabel} average of ${b.benchmark}`
+          : `${b.diff} below the ${benchmarkData.industryLabel} average of ${b.benchmark}`
+        return `${tiktok.engagementRate}% engagement — ${direction}`
+      })()
+    : null
+  const igEngContext = (instagram && benchmarkData?.benchmarks?.length > 0)
+    ? (() => {
+        const b = benchmarkData.benchmarks.find(b => b.platform === 'Instagram' && b.metric === 'Engagement Rate')
+        if (!b) return null
+        const direction = b.direction === 'above'
+          ? `${b.diff} above the ${benchmarkData.industryLabel} average of ${b.benchmark}`
+          : `${b.diff} below the ${benchmarkData.industryLabel} average of ${b.benchmark}`
+        return `${instagram.engagementRate}% engagement — ${direction}`
+      })()
+    : null
+  const viewsContext = (tiktok?.avgViews && benchmarkData?.benchmarks?.length > 0)
+    ? (() => {
+        const b = benchmarkData.benchmarks.find(b => b.platform === 'TikTok' && b.metric === 'Avg. Views')
+        if (!b) return null
+        const direction = b.direction === 'above'
+          ? `${b.diff} above average for ${benchmarkData.industryLabel}`
+          : `${b.diff} below average for ${benchmarkData.industryLabel}`
+        return `${tiktok.avgViews.toLocaleString()} avg views — ${direction}`
+      })()
+    : null
+
+  const prompt = `You are a data-driven performance analyst. Every sentence you write MUST follow this exact rule:
+
+MANDATORY SENTENCE RULE: Every sentence must contain ALL THREE of:
+1. A specific number from the data (e.g. "34/100", "2.1%", "1.8s")
+2. A comparison or benchmark reference (e.g. "below the 3.5% industry average", "slower than 80% of mobile pages", "vs. the 160-char recommendation")
+3. A concrete next action (e.g. "add alt text to the 7 images missing it", "rewrite the headline to start with a benefit verb", "compress images to get LCP under 2.5s")
+
+NEVER write a sentence without all three. NEVER use vague phrases like "consider improving" or "this could be better".
 
 Website: ${websiteUrl}
 Overall Score: ${scanData.score}/100
-Detected Industry: ${benchmarkData?.industryLabel || 'General Business'}
+Industry: ${benchmarkData?.industryLabel || 'General Business'}
 
-WEBSITE PERFORMANCE:
+PERFORMANCE DATA:
 ${website ? `
-- Mobile Performance: ${website.performanceScore}/100
-- Accessibility: ${website.accessibilityScore}/100  
-- LCP: ${website.coreWebVitals?.lcp} | FCP: ${website.coreWebVitals?.fcp} | CLS: ${website.coreWebVitals?.cls}
-- HTTPS: ${website.technical?.hasHttps} | Mobile optimized: ${website.technical?.mobileOptimized}
-` : 'Not available'}
+- Mobile Performance: ${perfPercentile || website.performanceScore + '/100'}
+- Accessibility: ${website.accessibilityScore}/100
+- LCP: ${website.coreWebVitals?.lcp} (target: under 2.5s)
+- FCP: ${website.coreWebVitals?.fcp} (target: under 1.8s)
+- CLS: ${website.coreWebVitals?.cls} (target: under 0.1)
+- TBT: ${website.coreWebVitals?.tbt}
+- HTTPS: ${website.technical?.hasHttps} | Mobile viewport: ${website.technical?.mobileOptimized} | Intrusive popups: ${!website.technical?.noIntrusive}
+` : 'Performance: not available'}
 
-SEO ANALYSIS (deep scan):
+SEO DATA:
 ${content?.seo ? `
-- SEO Score: ${content.seo.score}/100
-- Page Title: "${content.seo.title}" (${content.seo.titleLength} chars${content.seo.titleLength < 30 ? ' — TOO SHORT' : content.seo.titleLength > 65 ? ' — TOO LONG' : ' — good length'})
-- Meta Description: ${content.seo.metaDesc ? `"${content.seo.metaDesc.slice(0,100)}..." (${content.seo.metaDescLength} chars)` : 'MISSING'}
-- H1 tags: ${content.seo.h1s.length} found${content.seo.h1s.length > 0 ? `: "${content.seo.h1s[0]}"` : ''}
-- H2 tags: ${content.seo.h2s.length} found${content.seo.h2s.length > 0 ? `: ${content.seo.h2s.slice(0,3).map(h => `"${h}"`).join(', ')}` : ''}
-- Images without alt text: ${content.seo.imgsWithoutAlt} (alt coverage: ${content.seo.imgAltScore}%)
-- Canonical tag: ${content.seo.canonicalPresent ? 'present' : 'MISSING'}
-- Open Graph tags: ${content.seo.ogTitlePresent ? 'present' : 'MISSING'}
-- Structured data: ${content.seo.structuredData ? 'present' : 'not found'}
-- SEO issues: ${content.seo.issues.join('; ') || 'none'}
-` : 'Not available'}
+- Score: ${content.seo.score}/100
+- Title: "${content.seo.title}" — ${content.seo.titleLength} chars (ideal: 30–65 chars)
+- Meta desc: ${content.seo.metaDesc ? `"${content.seo.metaDesc.slice(0,100)}…" — ${content.seo.metaDescLength} chars (ideal: 120–160)` : 'MISSING'}
+- H1s: ${content.seo.h1s.length} found (ideal: exactly 1)${content.seo.h1s.length > 0 ? ` — "${content.seo.h1s[0]}"` : ''}
+- Alt coverage: ${content.seo.imgAltScore}% — ${content.seo.imgsWithoutAlt} image(s) missing alt text
+- Canonical: ${content.seo.canonicalPresent ? 'present' : 'MISSING'}
+- Open Graph: ${content.seo.ogTitlePresent ? 'present' : 'MISSING'}
+- Structured data: ${content.seo.structuredData ? 'present' : 'MISSING'}
+- Issues list: ${content.seo.issues.join(' | ') || 'none'}
+` : 'SEO: not available'}
 
-WEBSITE COPY & UX ANALYSIS:
+COPY & UX DATA:
 ${content?.copy ? `
 - Copy Score: ${content.copy.score}/100
 - Hero Headline: "${content.copy.heroHeadline}"
-- Headline outcome-focused: ${content.copy.isOutcomeFocused ? 'YES' : 'NO — currently product/feature focused'}
-- Clear CTA present: ${content.copy.hasCTA ? 'YES' : 'NO'}
-- CTA button text found: ${content.copy.ctaButtons.length > 0 ? content.copy.ctaButtons.join(', ') : 'none detected'}
-- Social proof visible: ${content.copy.hasSocialProof ? 'YES' : 'NO'}
+- Outcome-focused: ${content.copy.isOutcomeFocused ? 'YES' : 'NO — currently describes the product, not the user\'s result'}
+- CTA: ${content.copy.hasCTA ? `YES — found: ${content.copy.ctaButtons.join(', ')}` : 'NO CTA detected'}
+- Social proof: ${content.copy.hasSocialProof ? 'present' : 'MISSING'}
 - Pricing visible: ${content.copy.hasPriceVisible ? 'YES' : 'NO'}
-- Page word count: ${content.copy.wordCount}
-- Copy issues: ${content.copy.issues.join('; ') || 'none'}
-` : 'Not available'}
+- Word count: ${content.copy.wordCount}
+- Issues: ${content.copy.issues.join(' | ') || 'none'}
+` : 'Copy: not available'}
 
-SOCIAL MEDIA DATA (user-provided):
-${tiktok ? `TikTok: ${tiktok.followers?.toLocaleString()} followers | ${tiktok.avgViews?.toLocaleString()} avg views | ${tiktok.engagementRate}% engagement` : 'TikTok: not provided'}
-${instagram ? `Instagram: ${instagram.followers?.toLocaleString()} followers | ${instagram.avgLikes?.toLocaleString()} avg likes | ${instagram.engagementRate}% engagement` : 'Instagram: not provided'}
-${youtube ? `YouTube: ${youtube.subscribers?.toLocaleString()} subscribers | ${youtube.totalViews?.toLocaleString()} avg views` : 'YouTube: not provided'}
-${twitter ? `X/Twitter: ${twitter.followers?.toLocaleString()} followers` : 'Twitter: not provided'}
+SOCIAL MEDIA + BENCHMARKS:
+${tiktok ? `TikTok: ${tiktok.followers?.toLocaleString()} followers | ${viewsContext || tiktok.avgViews?.toLocaleString() + ' avg views'} | ${tiktokEngContext || tiktok.engagementRate + '% engagement'}` : 'TikTok: not provided'}
+${instagram ? `Instagram: ${instagram.followers?.toLocaleString()} followers | ${instagram.avgLikes?.toLocaleString()} avg likes | ${igEngContext || instagram.engagementRate + '% engagement'}` : 'Instagram: not provided'}
+${youtube ? `YouTube: ${youtube.subscribers?.toLocaleString()} subscribers` : 'YouTube: not provided'}
+${twitter ? `X/Twitter: ${twitter.followers?.toLocaleString()} followers` : 'X: not provided'}
 
-INDUSTRY BENCHMARKS (${benchmarkData?.industryLabel}):
-${benchmarkData?.benchmarks?.length > 0 ? benchmarkData.benchmarks.map(b =>
-  `${b.platform} ${b.metric}: yours ${b.yours} vs benchmark ${b.benchmark} — ${b.diff} ${b.direction} average`
-).join('\n') : 'No benchmark comparison available (no social data provided)'}
+Benchmark comparisons available:
+${benchmarkData?.benchmarks?.length > 0
+  ? benchmarkData.benchmarks.map(b => `${b.platform} ${b.metric}: yours=${b.yours} | benchmark=${b.benchmark} | ${b.diff} ${b.direction} average`).join('\n')
+  : 'No benchmark data (no social data provided)'}
 
-Write the report in this EXACT JSON structure. Respond ONLY with valid JSON, no markdown, no extra text:
+Return ONLY valid JSON. No markdown. No explanation. Structure:
 {
-  "headline": "One punchy sentence — max 12 words. Reference a specific number or finding.",
-  "summary": "3 sentences. Be direct and specific. Reference actual numbers from the data. Mention the industry benchmark if relevant.",
-  "websiteAnalysis": "3-4 sentences. Reference specific scores and numbers. Call out the headline copy specifically if it's weak. Mention SEO issues by name.",
-  "copyAnalysis": "2-3 sentences specifically about their copy and UX. Quote their actual headline. Be direct about whether it works or not.",
-  "socialAnalysis": "${(tiktok || instagram || youtube) ? '3-4 sentences about social presence. Compare to benchmarks where available. Mention specific numbers.' : 'null — write null here since no social data was provided'}",
+  "headline": "One sentence max 12 words — must include a specific number and a concrete improvement direction. Example format: 'Your 31/100 mobile score costs you visitors every day.'",
+  "summary": "Exactly 3 sentences. Sentence 1: overall score + what it means vs benchmark. Sentence 2: the single biggest number-backed problem. Sentence 3: the exact first action to take with a measurable target.",
+  "websiteAnalysis": "3 sentences. Each must name a specific metric, compare it to a target or benchmark, and state the exact fix. Example: 'LCP of 4.2s is 1.7s over Google's 2.5s threshold — compress your hero image to under 200kb to hit it.'",
+  "copyAnalysis": "2 sentences. Quote their actual headline. State whether it's outcome-focused and exactly how to rewrite it with a specific benefit.",
+  "socialAnalysis": "${(tiktok || instagram || youtube) ? '3 sentences. Each must reference a number, compare to industry benchmark, and state the exact next action.' : 'null'}",
   "topIssues": [
-    {"severity": "critical", "title": "Short specific title", "description": "1-2 sentences. Name the exact problem and exact fix. Reference actual data."},
-    {"severity": "critical", "title": "Short specific title", "description": "1-2 sentences. Name the exact problem and exact fix."},
-    {"severity": "important", "title": "Short specific title", "description": "1-2 sentences. Specific and actionable."},
-    {"severity": "important", "title": "Short specific title", "description": "1-2 sentences. Specific and actionable."},
-    {"severity": "quickwin", "title": "Short specific title", "description": "Can be done in under 15 minutes. Very specific instruction."}
+    {
+      "severity": "critical",
+      "title": "Max 6 words — name the problem",
+      "description": "1–2 sentences. Must include: specific number from data, comparison to benchmark/target, exact action with measurable outcome."
+    },
+    {
+      "severity": "critical",
+      "title": "Max 6 words",
+      "description": "1–2 sentences with number + comparison + action."
+    },
+    {
+      "severity": "important",
+      "title": "Max 6 words",
+      "description": "1–2 sentences with number + comparison + action."
+    },
+    {
+      "severity": "important",
+      "title": "Max 6 words",
+      "description": "1–2 sentences with number + comparison + action."
+    },
+    {
+      "severity": "quickwin",
+      "title": "Max 6 words",
+      "description": "Doable in under 15 min. Exact step-by-step instruction. Must reference a specific metric it will improve and by how much."
+    }
   ]
 }`
 
@@ -85,7 +148,7 @@ Write the report in this EXACT JSON structure. Respond ONLY with valid JSON, no 
       },
       body: JSON.stringify({
         model: 'anthropic/claude-3.5-haiku',
-        max_tokens: 1400,
+        max_tokens: 1600,
         messages: [{ role: 'user', content: prompt }]
       })
     })
@@ -98,7 +161,7 @@ Write the report in this EXACT JSON structure. Respond ONLY with valid JSON, no 
     }
 
     const text = data.choices?.[0]?.message?.content || ''
-    console.log('Raw AI response (first 200):', text.slice(0, 200))
+    console.log('Raw AI response (first 300):', text.slice(0, 300))
 
     const jsonStart = text.indexOf('{')
     const jsonEnd = text.lastIndexOf('}')
