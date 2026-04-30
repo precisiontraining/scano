@@ -303,13 +303,22 @@ function calcScore(perf, content, social) {
   if (content?.copy) { score += content.copy.score * 0.20; factors += 0.20 }
   if (social.tiktok) {
     const er = parseFloat(social.tiktok.engagementRate) || 0
-    const ts = Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.tiktok.avgViews > 50000 ? 50 : social.tiktok.avgViews > 10000 ? 35 : social.tiktok.avgViews > 1000 ? 20 : 5)))
+    const isNewAccount = (social.tiktok.followers || 0) < 500 && (social.tiktok.videoCount || 0) < 15
+    // New accounts get a neutral score (50) — not enough data to judge fairly
+    const ts = isNewAccount
+      ? 50
+      : Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.tiktok.avgViews > 50000 ? 50 : social.tiktok.avgViews > 10000 ? 35 : social.tiktok.avgViews > 1000 ? 20 : 5)))
     score += ts * 0.20; factors += 0.20
+    social.tiktok._isNewAccount = isNewAccount
   }
   if (social.instagram) {
     const er = parseFloat(social.instagram.engagementRate) || 0
-    const is = Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)))
+    const isNewAccount = (social.instagram.followers || 0) < 200 && (social.instagram.postsCount || 0) < 10
+    const is = isNewAccount
+      ? 50
+      : Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)))
     score += is * 0.20; factors += 0.20
+    social.instagram._isNewAccount = isNewAccount
   }
   return factors > 0 ? Math.round(score / factors) : 0
 }
@@ -342,6 +351,15 @@ export default async function handler(req, res) {
 
   const industry      = detectIndustry(url, content?.copy)
   const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram)
+
+  // Detect new accounts for fair reporting — attach flags to benchmarkData
+  benchmarkData.tiktokIsNewAccount = tiktok
+    ? ((tiktok.followers || 0) < 500 && (tiktok.videoCount || 0) < 15)
+    : false
+  benchmarkData.instagramIsNewAccount = instagram
+    ? ((instagram.followers || 0) < 200 && (instagram.postsCount || 0) < 10)
+    : false
+
   const finalScore    = calcScore(perf, content, { tiktok, instagram })
 
   if (perf) {

@@ -121,9 +121,9 @@ function MiniBar({ label, value, max = 100, unit = '' }) {
   )
 }
 
-function CheckTag({ label, ok }) {
+function CheckTag({ label, ok, title }) {
   return (
-    <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: ok ? '#f2fdf5' : '#fdf2f2', color: ok ? C.green : C.red, border: `1px solid ${ok ? '#a9dfbf' : '#f5c6c6'}` }}>
+    <span title={title} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: ok ? '#f2fdf5' : '#fdf2f2', color: ok ? C.green : C.red, border: `1px solid ${ok ? '#a9dfbf' : '#f5c6c6'}`, cursor: title ? 'help' : 'default' }}>
       {ok ? '✓' : '✗'} {label}
     </span>
   )
@@ -204,6 +204,9 @@ function UnlockBlock({ lockedCount }) {
       </p>
       <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, maxWidth: 360, margin: '0 auto 24px' }}>
         Step-by-step, copy-paste ready — no guessing, no generic advice.
+      </p>
+      <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, fontWeight: 300, maxWidth: 340, margin: '0 auto 20px', background: 'rgba(42,92,69,0.05)', borderRadius: 10, padding: '12px 16px', border: '1px solid rgba(42,92,69,0.12)' }}>
+        💬 Most business owners fix their top 3 issues within a week of getting the full report — and see measurable improvements in traffic and conversions within a month.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
         {[
@@ -518,6 +521,9 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 {content?.copy  && <MiniBar label="Copy & UX"    value={content.copy.score} />}
                 {website        && <MiniBar label="Accessibility" value={website.accessibilityScore} />}
               </div>
+              <p style={{ fontSize: 12, color: C.light, marginTop: 12, fontWeight: 300, lineHeight: 1.6, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                Your overall score weighs all areas together. A high SEO score won't fully compensate for a slow site or weak copy — every area matters for real visitors.
+              </p>
             </Section>
           )}
 
@@ -533,10 +539,10 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 <Chip label="CLS"           value={website.coreWebVitals.cls} sub="target: <0.1" />
               </div>
               <div className="check-tags" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 18 }}>
-                <CheckTag label="HTTPS"     ok={website.technical.hasHttps} />
-                <CheckTag label="Mobile"    ok={website.technical.mobileOptimized} />
-                <CheckTag label="No popups" ok={website.technical.noIntrusive} />
-                <CheckTag label="Font size" ok={website.technical.fontSizeOk} />
+                <CheckTag label="Secure (HTTPS)" ok={website.technical.hasHttps} title="Your site uses HTTPS — visitors' data is encrypted and Google ranks secure sites higher" />
+                <CheckTag label="Mobile-friendly" ok={website.technical.mobileOptimized} title="Your site adapts to phone screens — over 60% of visitors are on mobile" />
+                <CheckTag label="No intrusive popups" ok={website.technical.noIntrusive} title="Popups that block content on mobile cause Google to rank your site lower" />
+                <CheckTag label="Readable text size" ok={website.technical.fontSizeOk} title="Text is large enough to read on mobile without zooming" />
               </div>
               {websiteAnalysis && (
                 <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 4 }}>{websiteAnalysis}</p>
@@ -566,9 +572,9 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 </div>
               )}
               <div className="check-tags" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: content.seo.issues.length ? 14 : 0 }}>
-                <CheckTag label="Canonical"   ok={content.seo.canonicalPresent} />
-                <CheckTag label="Open Graph"  ok={content.seo.ogTitlePresent} />
-                <CheckTag label="Schema.org"  ok={content.seo.structuredData} />
+                <CheckTag label="No duplicate pages" ok={content.seo.canonicalPresent} title="Canonical tag — tells Google which version of a page is the original, preventing duplicate content penalties" />
+                <CheckTag label="Social sharing preview" ok={content.seo.ogTitlePresent} title="Open Graph tags — control how your page looks when shared on Facebook, LinkedIn, etc." />
+                <CheckTag label="Rich search results" ok={content.seo.structuredData} title="Schema.org structured data — helps Google show extra info (ratings, prices) in search results" />
               </div>
               {content.seo.issues.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 12 }}>
@@ -586,7 +592,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
               </div>
               {content.copy.isSPA && (
                 <div style={{ background: 'rgba(42,92,69,0.05)', borderRadius: 8, padding: '9px 12px', marginBottom: 12, border: '1px solid rgba(42,92,69,0.12)' }}>
-                  <p style={{ fontSize: 12, color: C.accent, fontWeight: 300 }}>ℹ️ JS-rendered site — copy analysis based on available static data.</p>
+                  <p style={{ fontSize: 12, color: C.accent, fontWeight: 300 }}>ℹ️ Your site loads content with JavaScript — we analysed what was visible to search engines and our scanner. Some copy details may not be available.</p>
                 </div>
               )}
               {content.copy.heroHeadline && (
@@ -617,10 +623,17 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {/* ── PUNKT 5: socialAnalysis Guard — kein String-'null'-Check mehr ─── */}
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}`} delay={0.38} visible={visible}>
+              {(benchmarkData?.tiktokIsNewAccount || benchmarkData?.instagramIsNewAccount) && (
+                <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.15)', borderRadius: 8, padding: '9px 14px', marginBottom: 14 }}>
+                  <p style={{ fontSize: 12, color: C.accent, fontWeight: 300, lineHeight: 1.55 }}>
+                    🌱 <strong style={{ fontWeight: 500 }}>New account detected.</strong> Benchmarks are based on established accounts — your numbers will look low at this stage, and that's completely normal. Focus on consistency over the next 90 days.
+                  </p>
+                </div>
+              )}
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-                {tiktok    && <Chip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate ?? '?'}% eng`} />}
+                {tiktok    && <Chip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate ?? '?'}% interaction`} />}
                 {tiktok    && <Chip label="Avg Views"   value={tiktok.avgViews?.toLocaleString()}     sub="per video" />}
-                {instagram && <Chip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate ?? '?'}% eng`} />}
+                {instagram && <Chip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate ?? '?'}% interaction`} />}
                 {youtube   && <Chip label="YouTube"     value={youtube.subscribers?.toLocaleString()} sub="subscribers" />}
                 {twitter   && <Chip label="X / Twitter" value={twitter.followers?.toLocaleString()}   sub="followers" />}
               </div>

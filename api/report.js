@@ -50,12 +50,31 @@ export default async function handler(req, res) {
 
   const prompt = `You are a data-driven performance analyst. Every sentence you write MUST follow this exact rule:
 
-MANDATORY SENTENCE RULE: Every sentence must contain ALL THREE of:
-1. A specific number from the data (e.g. "34/100", "2.1%", "1.8s")
-2. A comparison or benchmark reference (e.g. "below the 3.5% industry average", "slower than 80% of mobile pages", "vs. the 160-char recommendation")
-3. A concrete next action (e.g. "add alt text to the 7 images missing it", "rewrite the headline to start with a benefit verb", "compress images to get LCP under 2.5s")
+TONE AND LANGUAGE RULES — READ CAREFULLY:
+Your audience is a business owner, NOT a marketer or developer. They have never heard of "canonical tags", "Open Graph", "LCP", or "CLS". Write like you're explaining to a smart friend who runs a bakery or a gym — not a tech conference.
 
-NEVER write a sentence without all three. NEVER use vague phrases like "consider improving" or "this could be better".
+MANDATORY for every issue or recommendation:
+1. Say what the problem IS in plain English (no jargon)
+2. Say why it MATTERS to their business (lost customers, lower Google ranking, etc.)
+3. Say exactly what to DO to fix it — one concrete step
+
+BANNED words and phrases (use the plain alternative):
+- "Canonical" → "duplicate page protection"
+- "Open Graph" → "social sharing preview"  
+- "Schema.org" / "structured data" → "Google rich results"
+- "LCP" → "page load speed" (you may say "your page takes X seconds to load")
+- "FCP" → "time before anything appears on screen"
+- "CLS" → "page layout jumping"
+- "TBT" → "how long your page freezes"
+- "JS-rendered" or "SPA" → never mention this to the user
+- "engagement rate" → "how often people interact with your posts"
+- "benchmark" → "compared to similar businesses"
+- "deviation" → never use this word
+- "percentile" → "out of 100 businesses like yours, X do better/worse"
+- "metric" → "measurement" or just name the thing
+
+NEVER use vague phrases like "consider improving" or "this could be better" or "may impact".
+ALWAYS use specific numbers from the data.
 ${spaNote}
 Website: ${websiteUrl}
 Overall Score: ${scanData.score}/100
@@ -99,8 +118,8 @@ ${content?.copy ? `
 ` : 'Copy: not available'}
 
 SOCIAL MEDIA + BENCHMARKS:
-${tiktok ? `TikTok: ${tiktok.followers?.toLocaleString()} followers | ${viewsContext || tiktok.avgViews?.toLocaleString() + ' avg views'} | ${tiktokEngContext || tiktok.engagementRate + '% engagement'}` : 'TikTok: not provided'}
-${instagram ? `Instagram: ${instagram.followers?.toLocaleString()} followers | ${instagram.avgLikes?.toLocaleString()} avg likes | ${igEngContext || instagram.engagementRate + '% engagement'}` : 'Instagram: not provided'}
+${tiktok ? `TikTok: ${tiktok.followers?.toLocaleString()} followers | ${viewsContext || tiktok.avgViews?.toLocaleString() + ' avg views'} | ${tiktokEngContext || tiktok.engagementRate + '% engagement'}${benchmarkData?.tiktokIsNewAccount ? ' | NOTE: NEW ACCOUNT (under 500 followers / under 15 videos) — do NOT flag low engagement as Critical. Treat as early-stage, focus on growth strategy instead.' : ''}` : 'TikTok: not provided'}
+${instagram ? `Instagram: ${instagram.followers?.toLocaleString()} followers | ${instagram.avgLikes?.toLocaleString()} avg likes | ${igEngContext || instagram.engagementRate + '% engagement'}${benchmarkData?.instagramIsNewAccount ? ' | NOTE: NEW ACCOUNT (under 200 followers / under 10 posts) — do NOT flag as Critical. Focus on content consistency advice instead.' : ''}` : 'Instagram: not provided'}
 ${youtube ? `YouTube: ${youtube.subscribers?.toLocaleString()} subscribers` : 'YouTube: not provided'}
 ${twitter ? `X/Twitter: ${twitter.followers?.toLocaleString()} followers` : 'X: not provided'}
 
@@ -111,36 +130,36 @@ ${benchmarkData?.benchmarks?.length > 0
 
 Return ONLY valid JSON. No markdown. No explanation. Structure:
 {
-  "headline": "One sentence max 12 words — must include a specific number and a concrete improvement direction. Example format: 'Your 31/100 mobile score costs you visitors every day.'",
-  "summary": "Exactly 3 sentences. Sentence 1: overall score + what it means vs benchmark. Sentence 2: the single biggest number-backed problem. Sentence 3: the exact first action to take with a measurable target.",
-  "websiteAnalysis": "3 sentences. Each must name a specific metric, compare it to a target or benchmark, and state the exact fix. Example: 'LCP of 4.2s is 1.7s over Google's 2.5s threshold — compress your hero image to under 200kb to hit it.'",
-  "copyAnalysis": "2 sentences. Quote their actual headline if available. State whether it's outcome-focused and exactly how to rewrite it with a specific benefit. If the site is JS-rendered and no headline was extractable, focus on the copy signals that ARE available (social proof, pricing visibility, CTA patterns).",
+  "headline": "One sentence max 12 words. Plain English, no jargon. Must include a number. Example: 'Your site loses visitors because it takes 6 seconds to load.'",
+  "summary": "Exactly 3 sentences in plain English. No jargon. Sentence 1: what the overall score means for their business in everyday language. Sentence 2: the single biggest problem — explained as a business consequence, not a technical fact. Sentence 3: the single most important thing to fix first, with a specific action.",
+  "websiteAnalysis": "3 sentences in plain English. No acronyms unless immediately explained. Each sentence: name the problem in plain words, say what it costs the business, say exactly how to fix it.",
+  "copyAnalysis": "2 sentences in plain English. Quote their actual headline if available. Say whether it tells visitors what they will GET or ACHIEVE — and if not, give a specific rewrite example that does.",
   "socialAnalysis": ${(tiktok || instagram || youtube) ? '"3 sentences. Each must reference a number, compare to industry benchmark, and state the exact next action."' : 'null'},
   "topIssues": [
     {
       "severity": "critical",
-      "title": "Max 6 words — name the problem",
-      "description": "1–2 sentences. Must include: specific number from data, comparison to benchmark/target, exact action with measurable outcome."
+      "title": "Max 6 words, plain English — name the real-world problem, not the technical symptom. Bad: 'Fix LCP Score'. Good: 'Site Takes 6s to Load'",
+      "description": "1–2 sentences. No jargon. Explain: what's wrong, what it costs the business, exactly how to fix it. Use a number from the data."
     },
     {
       "severity": "critical",
-      "title": "Max 6 words",
-      "description": "1–2 sentences with number + comparison + action."
+      "title": "Max 6 words, plain English",
+      "description": "1–2 sentences. No jargon. What's wrong → business consequence → exact fix."
     },
     {
       "severity": "important",
-      "title": "Max 6 words",
-      "description": "1–2 sentences with number + comparison + action."
+      "title": "Max 6 words, plain English",
+      "description": "1–2 sentences. No jargon. What's wrong → business consequence → exact fix."
     },
     {
       "severity": "important",
-      "title": "Max 6 words",
-      "description": "1–2 sentences with number + comparison + action."
+      "title": "Max 6 words, plain English",
+      "description": "1–2 sentences. No jargon. What's wrong → business consequence → exact fix."
     },
     {
       "severity": "quickwin",
-      "title": "Max 6 words",
-      "description": "Doable in under 15 min. Exact step-by-step instruction. Must reference a specific metric it will improve and by how much."
+      "title": "Max 6 words — something fixable in under 15 minutes",
+      "description": "Plain English. One specific action the business owner can take right now. Say what it will improve and roughly by how much."
     }
   ]
 }`
