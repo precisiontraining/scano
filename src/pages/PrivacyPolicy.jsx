@@ -1,3 +1,6 @@
+// Fix #4: SociaVault → Apify
+// Fix #2: Logo im Nav
+
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400;500&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,7 +14,21 @@ const SHARED_CSS = `
 `
 
 const block = { marginBottom: 36 }
-const label = { fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: '#a09890', fontWeight: 400, marginBottom: 8, display: 'block' }
+
+// Fix #2: Logo SVG — same as in Home.jsx
+function Logo({ size = 24, color = '#2a5c45' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="1.1" opacity="0.35" />
+      <circle cx="16" cy="16" r="9"  stroke={color} strokeWidth="1.1" opacity="0.6" />
+      <circle cx="16" cy="16" r="3.2" fill={color} />
+      <line x1="16" y1="2"  x2="16" y2="7"  stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="16" y1="25" x2="16" y2="30" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="2"  y1="16" x2="7"  y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="25" y1="16" x2="30" y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+    </svg>
+  )
+}
 
 export default function PrivacyPolicy({ navigate }) {
   return (
@@ -20,8 +37,10 @@ export default function PrivacyPolicy({ navigate }) {
       <div style={{ minHeight: '100vh', background: '#f7f4ef' }}>
 
         <nav style={{ borderBottom: '1px solid rgba(28,25,23,0.08)', padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)' }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>
-            Scano
+          {/* Fix #2: Logo + Schriftzug wie auf allen anderen Seiten */}
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
+            <Logo size={24} />
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>Scano</span>
           </button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300, transition: 'color .2s' }}
             onMouseEnter={e => e.target.style.color = '#6b6460'}
@@ -76,7 +95,8 @@ export default function PrivacyPolicy({ navigate }) {
             <ul>
               <li><strong style={{ fontWeight: 500 }}>Vercel</strong> — hosting and content delivery. Privacy policy: <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">vercel.com/legal/privacy-policy</a></li>
               <li><strong style={{ fontWeight: 500 }}>Supabase</strong> — secure database storage for reports and accounts. Privacy policy: <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">supabase.com/privacy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>SociaVault</strong> — used to retrieve publicly available social media data (post counts, engagement rates, captions) to power the audit. Only public data is accessed.</li>
+              {/* Fix #4: SociaVault → Apify */}
+              <li><strong style={{ fontWeight: 500 }}>Apify</strong> — used to retrieve publicly available social media data (post counts, engagement rates, captions) to power the audit. Only public data is accessed. Privacy policy: <a href="https://apify.com/privacy-policy" target="_blank" rel="noopener noreferrer">apify.com/privacy-policy</a></li>
             </ul>
             <p style={{ marginTop: 12 }}>All services are GDPR-compliant. No data is stored outside the European Economic Area or on servers with inadequate protection.</p>
           </div>
@@ -114,7 +134,6 @@ export default function PrivacyPolicy({ navigate }) {
             <h2>Changes to this policy</h2>
             <p>If we make significant changes to this privacy policy, we will update the date at the top of this page. We recommend checking back periodically.</p>
           </div>
-
         </div>
 
         <div style={{ borderTop: '1px solid rgba(28,25,23,0.08)', padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>

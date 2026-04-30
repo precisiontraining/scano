@@ -82,7 +82,7 @@ ${content?.seo ? `
 - Canonical: ${content.seo.canonicalPresent ? 'present' : 'MISSING'}
 - Open Graph: ${content.seo.ogTitlePresent ? 'present' : 'MISSING'}
 - Structured data: ${content.seo.structuredData ? 'present' : 'MISSING'}
-- Issues list: ${content.seo.issues.join(' | ') || 'none'}
+- Issues list: ${(content.seo.issues || []).join(' | ') || 'none'}
 ` : 'SEO: not available'}
 
 COPY & UX DATA:
@@ -95,7 +95,7 @@ ${content?.copy ? `
 - Social proof: ${content.copy.hasSocialProof ? 'present' : 'MISSING'}
 - Pricing visible: ${content.copy.hasPriceVisible ? 'YES' : 'NO'}
 - Word count: ${content.copy.wordCount}
-- Issues: ${content.copy.issues.join(' | ') || 'none'}
+- Issues: ${(content.copy.issues || []).join(' | ') || 'none'}
 ` : 'Copy: not available'}
 
 SOCIAL MEDIA + BENCHMARKS:

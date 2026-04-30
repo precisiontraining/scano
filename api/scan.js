@@ -219,13 +219,16 @@ const BENCHMARKS = {
 
 function detectIndustry(url, copy) {
   const text = (url + ' ' + (copy?.heroHeadline || '') + ' ' + (copy?.rawText || '')).toLowerCase()
-  if (/fitness|workout|gym|train|sport|health|weight|muscle/.test(text)) return 'fitness'
-  if (/coach|mentor|course|learn|teach|educat|program/.test(text)) return 'coaching'
-  if (/shop|store|product|buy|cart|order|shipping/.test(text)) return 'ecommerce'
-  if (/saas|software|app|dashboard|api|platform|tool/.test(text)) return 'saas'
-  if (/creator|content|video|podcast|newsletter/.test(text)) return 'creator'
-  if (/food|recipe|restaurant|cafe|cook|eat/.test(text)) return 'food'
-  if (/beauty|makeup|fashion|style|skincare|hair/.test(text)) return 'beauty'
+  // Automotive check FIRST — must come before fitness to prevent motorsport/sportscar false positives
+  if (/\bcar\b|\bcars\b|motorsport|automobile|automotive|vehicle|\bsuv\b|\bvan\b|turbo|horsepower|dealership|autohaus|fahrzeug|kfz|gebrauchtwagen|neuwagen|pkw|tuning|racing|\bdrive\b.*\bcar|forum.*auto|auto.*forum/.test(text)) return 'default'
+  // Fitness — removed generic "sport" and "train" which cause false positives on automotive/sports forums
+  if (/fitness|workout|\bgym\b|bodybuilding|health coach|weight loss|\bmuscle\b|personal train|nutrition plan/.test(text)) return 'fitness'
+  if (/\bcoach\b|mentor|online course|learn|\bteach\b|educat|\bprogram\b.*skill|\blesson/.test(text)) return 'coaching'
+  if (/\bshop\b|\bstore\b|\bproduct\b|\bbuy\b|\bcart\b|\border\b|shipping|checkout|ecommerce/.test(text)) return 'ecommerce'
+  if (/saas|\bsoftware\b|\bapi\b|dashboard|platform|\btool\b|\bapp\b.*subscription/.test(text)) return 'saas'
+  if (/\bcreator\b|\bcontent\b.*creat|\bpodcast\b|newsletter|\bstreamer/.test(text)) return 'creator'
+  if (/\bfood\b|\brecipe\b|restaurant|\bcafe\b|\bcook\b|\beat\b|cuisine/.test(text)) return 'food'
+  if (/beauty|makeup|\bfashion\b|skincare|\bhair salon\b|cosmetic/.test(text)) return 'beauty'
   return 'default'
 }
 

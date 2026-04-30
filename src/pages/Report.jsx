@@ -60,6 +60,22 @@ function getScoreImpactLine(score) {
   return `At ${score}/100, your site is actively driving visitors away. Google is likely already penalising your ranking for these issues.`
 }
 
+
+// Fix #2: Logo SVG — identical to Home.jsx
+function Logo({ size = 24, color = '#2a5c45' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="1.1" opacity="0.35" />
+      <circle cx="16" cy="16" r="9"  stroke={color} strokeWidth="1.1" opacity="0.6" />
+      <circle cx="16" cy="16" r="3.2" fill={color} />
+      <line x1="16" y1="2"  x2="16" y2="7"  stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="16" y1="25" x2="16" y2="30" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="2"  y1="16" x2="7"  y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+      <line x1="25" y1="16" x2="30" y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+    </svg>
+  )
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ScoreRing({ score }) {
@@ -331,7 +347,10 @@ function ErrorScreen({ navigate, error, onRetry }) {
       <style>{CSS}</style>
       <div style={{ minHeight: '100vh', background: C.bg }}>
         <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</button>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
+            <Logo size={24} />
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Scano</span>
+          </button>
         </nav>
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 24 }}>{errorInfo.icon}</div>
@@ -453,7 +472,10 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
       <div style={{ minHeight: '100vh', background: C.bg }}>
 
         <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</button>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
+            <Logo size={24} />
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Scano</span>
+          </button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>← New scan</button>
         </nav>
 
@@ -461,7 +483,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
 
           <div style={{ marginBottom: 36, opacity: 0, animation: visible ? 'fadeUp 0.6s ease 0s forwards' : 'none' }}>
             <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 10, fontWeight: 500 }}>
-              Free Audit Report{benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}
+              Audit Report{benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}
             </p>
             <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(18px,4vw,36px)', letterSpacing: '-.02em', lineHeight: 1.1, marginBottom: 6, wordBreak: 'break-word' }}>{websiteUrl}</h1>
             <p style={{ fontSize: 12, color: C.light }}>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -596,9 +618,9 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
           {hasSocial && (
             <Section title={`Social Media${benchmarkData?.industryLabel ? ` · ${benchmarkData.industryLabel}` : ''}`} delay={0.38} visible={visible}>
               <div className="chips-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-                {tiktok    && <Chip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate}% eng`} />}
+                {tiktok    && <Chip label="TikTok"      value={tiktok.followers?.toLocaleString()}    sub={`${tiktok.engagementRate ?? '?'}% eng`} />}
                 {tiktok    && <Chip label="Avg Views"   value={tiktok.avgViews?.toLocaleString()}     sub="per video" />}
-                {instagram && <Chip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate}% eng`} />}
+                {instagram && <Chip label="Instagram"   value={instagram.followers?.toLocaleString()} sub={`${instagram.engagementRate ?? '?'}% eng`} />}
                 {youtube   && <Chip label="YouTube"     value={youtube.subscribers?.toLocaleString()} sub="subscribers" />}
                 {twitter   && <Chip label="X / Twitter" value={twitter.followers?.toLocaleString()}   sub="followers" />}
               </div>
