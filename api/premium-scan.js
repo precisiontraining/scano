@@ -162,7 +162,7 @@ async function analyzeWebsite(url) {
 
 function decodeHTMLEntities(str) {
   if (!str) return str
-  return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n)).replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+  return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&nbsp;/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n)).replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
 }
 
 async function analyzeContent(url) {
@@ -298,6 +298,22 @@ function calcScore(perf, content, social) {
     const is = isNew ? 50 : Math.min(100, Math.round((er > 5 ? 50 : er > 3 ? 38 : er > 1 ? 24 : 10) + (social.instagram.followers > 50000 ? 50 : social.instagram.followers > 10000 ? 35 : social.instagram.followers > 1000 ? 20 : 5)))
     score += is * 0.20; factors += 0.20
   }
+  if (social.youtube) {
+    const subs = social.youtube.subscribers || 0
+    const avgV = social.youtube.avgViews || 0
+    const ys = Math.min(100, Math.round(
+      (subs > 100000 ? 50 : subs > 10000 ? 38 : subs > 1000 ? 24 : subs > 100 ? 12 : 5) +
+      (avgV > 50000 ? 50 : avgV > 10000 ? 35 : avgV > 1000 ? 20 : 5)
+    ))
+    score += ys * 0.10; factors += 0.10
+  }
+  if (social.twitter) {
+    const followers = social.twitter.followers || 0
+    const ts = Math.min(100, Math.round(
+      followers > 100000 ? 90 : followers > 10000 ? 70 : followers > 1000 ? 45 : followers > 100 ? 20 : 8
+    ))
+    score += ts * 0.10; factors += 0.10
+  }
   return factors > 0 ? Math.round(score / factors) : 0
 }
 
@@ -340,7 +356,7 @@ export default async function handler(req, res) {
     benchmarkData.perfSlowerThan = perfPct ? 100 - perfPct : null
   }
 
-  const score = calcScore(perf, content, { tiktok, instagram })
+  const score = calcScore(perf, content, { tiktok, instagram, youtube, twitter })
 
   console.log('Premium scan done. Score:', score, 'TikTok:', !!tiktok, 'IG:', !!instagram)
 

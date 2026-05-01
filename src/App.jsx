@@ -62,7 +62,7 @@ function RadarLogo() {
   )
 }
 
-function ScanningScreen({ url, liveData }) {
+function ScanningScreen({ url, liveData, isPremium = false }) {
   const [phaseKey, setPhaseKey] = useState(0)
 
   const phase = (() => {
@@ -108,7 +108,7 @@ function ScanningScreen({ url, liveData }) {
       <style>{CSS_SCANNER}</style>
       <div style={{ minHeight: '100vh', background: '#f7f4ef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Jost, sans-serif', padding: '40px 24px' }}>
         <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <p style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 18, color: '#1c1917', marginBottom: 44, letterSpacing: '-.01em' }}>Scano</p>
+          <p style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 18, color: '#1c1917', marginBottom: 44, letterSpacing: '-.01em' }}>Scano{isPremium ? ' · Full Audit' : ''}</p>
           <RadarLogo />
           <p style={{ fontSize: 12, color: '#a09890', fontWeight: 300, marginBottom: 20, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '.01em' }}>{url}</p>
           <p key={phaseKey} className="phase-label" style={{ fontSize: 13, color: '#2a5c45', fontWeight: 300, letterSpacing: '.03em', marginBottom: 16, textAlign: 'center' }}>{phase}</p>
@@ -130,7 +130,7 @@ function ScanningScreen({ url, liveData }) {
               <p style={{ fontSize: 13, color: '#a09890', fontWeight: 300, animation: 'ringPulse1 1.8s ease infinite' }}>Connecting to your website…</p>
             </div>
           )}
-          <p style={{ fontSize: 11, color: '#a09890', marginTop: 20, fontWeight: 300, letterSpacing: '.04em' }}>Usually 15–25 seconds</p>
+          <p style={{ fontSize: 11, color: '#a09890', marginTop: 20, fontWeight: 300, letterSpacing: '.04em' }}>{isPremium ? 'Usually 30–60 seconds' : 'Usually 15–25 seconds'}</p>
         </div>
       </div>
     </>
@@ -166,6 +166,8 @@ export default function App() {
   const [premiumScanning, setPremiumScanning]     = useState(false)
   const [premiumScanningUrl, setPremiumScanningUrl] = useState('')
   const [premiumLiveData, setPremiumLiveData]     = useState({})
+  const [premiumError, setPremiumError]           = useState(null)
+  const [premiumRetryFn, setPremiumRetryFn]       = useState(null)
 
   useEffect(() => {
     const handler = () => setPath(window.location.pathname)
@@ -310,8 +312,10 @@ export default function App() {
     if (premiumScanning) return
     const fullUrl = url.startsWith('http') ? url : `https://${url}`
     setPremiumScanningUrl(url)
+    setPremiumWebsiteUrl(url)
     setPremiumLiveData({})
     setPremiumScanning(true)
+    setPremiumError(null)
 
     let scan = null, report = null
 
@@ -321,8 +325,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ websiteUrl: fullUrl, handles }),
       })
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw { code: err.error || 'generic' } }
-      scan = await res.json()
+      const err = await res.json().catch(() => ({}))
+      if (!res.ok) throw { code: err.error || 'generic', message: err.message }
+      scan = err // res.json() already consumed above
       setPremiumLiveData({
         perf: scan.website || null,
         seo: scan.content?.seo || null,
@@ -333,7 +338,9 @@ export default function App() {
       })
     } catch (err) {
       setPremiumScanning(false)
-      navigate('/premium')
+      setPremiumError(err.code ? err : { code: 'generic' })
+      setPremiumRetryFn(() => () => handlePremiumScanStart({ url, handles }))
+      navigate('/premium/report')
       return
     }
 
@@ -349,13 +356,16 @@ export default function App() {
       setPremiumLiveData(prev => ({ ...prev, report: 'done' }))
     } catch (err) {
       setPremiumScanning(false)
-      navigate('/premium')
+      setPremiumError({ code: 'generic' })
+      setPremiumRetryFn(() => () => handlePremiumScanStart({ url, handles }))
+      navigate('/premium/report')
       return
     }
 
     setPremiumScanData(scan)
     setPremiumReportData(report)
-    setPremiumWebsiteUrl(url)
+    setPremiumError(null)
+    setPremiumRetryFn(null)
     navigate('/premium/report')
     setPremiumScanning(false)
 
@@ -370,36 +380,10 @@ export default function App() {
     } catch (e) { console.error('Save premium report failed:', e) }
   }
 
-  const handleScanComplete = async (scan, report, url) => {
-    setScanData(scan)
-    setReportData(report)
-    setWebsiteUrl(url)
-    setScanError(null)
-    setRetryFn(null)
-    navigate('/report')
-    setScanning(false)
-
-    try {
-      const res = await fetch('/api/save-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scanData: scan, reportData: report, websiteUrl: url }),
-      })
-      const data = await res.json()
-      if (data.id) { setReportId(data.id); navigate(`/report/${data.id}`) }
-    } catch (e) {
-      console.error('Save report failed:', e)
-    }
-  }
-
-  const handleScanError = (error, url, retry) => {
-    setScanData(null)
-    setReportData(null)
-    setWebsiteUrl(url || websiteUrl)
-    setScanError(error)
-    setRetryFn(() => retry)
-    setScanning(false)
-    navigate('/report')
+  const handlePremiumRetry = () => {
+    setPremiumError(null)
+    setPremiumRetryFn(null)
+    if (premiumRetryFn) premiumRetryFn()
   }
 
   const handleRetry = () => {
@@ -430,7 +414,7 @@ export default function App() {
   }
 
   // ── Premium scanning overlay ─────────────────────────────────────────────────
-  if (premiumScanning) return <ScanningScreen url={premiumScanningUrl} liveData={premiumLiveData} />
+  if (premiumScanning) return <ScanningScreen url={premiumScanningUrl} liveData={premiumLiveData} isPremium />
 
   // ── Premium report path ───────────────────────────────────────────────────────
   if (path === '/premium/report' || PREMIUM_UUID_REGEX.test(path)) {
@@ -442,6 +426,8 @@ export default function App() {
         reportData={premiumReportData}
         websiteUrl={premiumWebsiteUrl}
         reportId={premiumReportId}
+        scanError={premiumError}
+        onRetry={handlePremiumRetry}
       />
     )
   }
@@ -455,8 +441,6 @@ export default function App() {
     <Home
       navigate={navigate}
       onScanStart={handleScanStart}
-      onScanComplete={handleScanComplete}
-      onScanError={handleScanError}
     />
   )
 }

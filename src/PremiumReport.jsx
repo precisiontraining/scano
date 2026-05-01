@@ -111,11 +111,26 @@ function ActionCard({ issue }) {
 
 function ShareButton({ reportId }) {
   const [copied, setCopied] = useState(false)
-  const url = reportId ? `${window.location.origin}/premium/${reportId}` : window.location.href
+  // Only build a shareable URL once the UUID is saved — before that the
+  // /premium/report path is in-memory only and can't be shared.
+  const url = reportId
+    ? `${window.location.origin}/premium/${reportId}`
+    : null
+
   const copy = async () => {
+    if (!url) return
     try { await navigator.clipboard.writeText(url) } catch { const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t) }
     setCopied(true); setTimeout(() => setCopied(false), 2500)
   }
+
+  if (!url) {
+    return (
+      <button disabled style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'transparent', color: C.light, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 18px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'not-allowed', marginTop: 16, opacity: 0.5 }}>
+        ↗ Saving report…
+      </button>
+    )
+  }
+
   return (
     <button onClick={copy} style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied ? C.accent : C.white, color: copied ? C.white : C.text, border: `1px solid ${copied ? C.accent : C.border}`, borderRadius: 9, padding: '9px 18px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', transition: 'all .2s', marginTop: 16 }}>
       {copied ? '✓ Link copied!' : '↗ Share this report'}
@@ -123,9 +138,37 @@ function ShareButton({ reportId }) {
   )
 }
 
-export default function PremiumReport({ navigate, scanData, reportData, websiteUrl, reportId }) {
+export default function PremiumReport({ navigate, scanData, reportData, websiteUrl, reportId, scanError, onRetry }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => { setTimeout(() => setVisible(true), 100) }, [])
+
+  if (scanError) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20, padding: '40px 24px', fontFamily: 'Jost, sans-serif', textAlign: 'center' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#fdf2f2', border: '1px solid #f5c6c6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>✗</div>
+          <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 28, color: C.text, letterSpacing: '-.02em' }}>Something went wrong</h2>
+          <p style={{ fontSize: 14, color: C.muted, fontWeight: 300, maxWidth: 360, lineHeight: 1.7 }}>
+            {scanError.code === 'unreachable'
+              ? `We couldn't reach ${websiteUrl}. Check the URL is correct and the site is live.`
+              : 'Something went wrong during the scan. This is usually temporary — please try again.'}
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {onRetry && (
+              <button onClick={onRetry} style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', transition: 'background .2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = C.accent}
+                onMouseLeave={e => e.currentTarget.style.background = C.text}
+              >Try again</button>
+            )}
+            <button onClick={() => navigate('/premium')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 24px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', color: C.muted, transition: 'all .2s' }}>
+              ← Back to form
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   if (!scanData || !reportData) {
     return (
