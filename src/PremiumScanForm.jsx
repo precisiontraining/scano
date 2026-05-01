@@ -48,8 +48,9 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
   const [active, setActive]     = useState([])
   const [error, setError]       = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showSocialNudge, setShowSocialNudge] = useState(false)
 
-  const toggle = (key) => setActive(a => a.includes(key) ? a.filter(k => k !== key) : [...a, key])
+  const toggle = (key) => { setShowSocialNudge(false); setActive(a => a.includes(key) ? a.filter(k => k !== key) : [...a, key]) }
 
   const isValidHandle = (raw) => {
     if (!raw?.trim()) return true
@@ -60,6 +61,9 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
     return cleaned.length >= 2 && !/\s/.test(cleaned)
   }
 
+  // Check if user has entered any social handles
+  const hasAnySocial = active.some(k => handles[k]?.trim())
+
   const handleSubmit = () => {
     if (!url.trim()) { setError('Please enter your website URL.'); return }
     const invalidPlatform = active.find(k => handles[k]?.trim() && !isValidHandle(handles[k]))
@@ -68,7 +72,13 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
       setError(`"${handles[invalidPlatform].trim()}" doesn't look like a valid ${label} handle. Try @yourusername.`)
       return
     }
+    // First click without social: show nudge, don't submit yet
+    if (!hasAnySocial && !showSocialNudge) {
+      setShowSocialNudge(true)
+      return
+    }
     setError('')
+    setShowSocialNudge(false)
     setSubmitting(true)
     const cleanHandles = {}
     active.forEach(k => { if (handles[k]?.trim()) cleanHandles[k] = handles[k].trim() })
@@ -161,7 +171,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
                     <div style={{ position: 'relative' }}>
                       <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 14 }}>{p.icon}</span>
                       <input className="pinp" value={handles[key]}
-                        onChange={e => setHandles(h => ({ ...h, [key]: e.target.value }))}
+                        onChange={e => { setShowSocialNudge(false); setHandles(h => ({ ...h, [key]: e.target.value })) }}
                         placeholder={p.placeholder} />
                     </div>
                   </div>
@@ -176,22 +186,38 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
 
             {error && <p style={{ fontSize: 13, color: '#c0392b', marginBottom: 16, padding: '8px 12px', background: 'rgba(192,57,43,0.06)', borderRadius: 8 }}>{error}</p>}
 
+            {/* Social nudge — shown on first submit attempt without social handles */}
+            {showSocialNudge && (
+              <div style={{ marginBottom: 16, padding: '14px 16px', background: 'rgba(140,115,85,0.07)', border: '1px solid rgba(140,115,85,0.25)', borderRadius: 10 }}>
+                <p style={{ fontSize: 13, color: '#6b5a40', fontWeight: 400, marginBottom: 4, lineHeight: 1.5 }}>
+                  ⚡ Your report will be website-only
+                </p>
+                <p style={{ fontSize: 12, color: '#8c7355', fontWeight: 300, lineHeight: 1.6 }}>
+                  Without social handles, we can't include hook analysis, caption rewrites, or engagement benchmarks — the sections most customers find most valuable. Add at least one handle above for the full picture.
+                </p>
+                <p style={{ fontSize: 12, color: '#8c7355', fontWeight: 500, marginTop: 8 }}>
+                  Click again to continue with website-only.
+                </p>
+              </div>
+            )}
+
             <button onClick={handleSubmit} disabled={submitting} style={{
-              width: '100%', background: submitting ? C.accent : C.text, color: C.bg, border: 'none', borderRadius: 10,
+              width: '100%', background: submitting ? C.accent : showSocialNudge ? C.warm : C.text,
+              color: C.bg, border: 'none', borderRadius: 10,
               padding: '15px 28px', fontSize: 15, fontFamily: 'Jost, sans-serif', fontWeight: 500,
               cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '.03em',
               transition: 'background .2s, transform .15s', opacity: submitting ? 0.85 : 1,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             }}
               onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = C.accent }}
-              onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = C.text }}
+              onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = showSocialNudge ? C.warm : C.text }}
             >
               {submitting ? (
                 <>
                   <span style={{ width: 14, height: 14, border: '2px solid rgba(247,244,239,0.35)', borderTopColor: '#f7f4ef', borderRadius: '50%', animation: 'spin .7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
                   Starting audit…
                 </>
-              ) : 'Run full audit — €9'}
+              ) : showSocialNudge ? 'Continue without social — website only' : 'Run full audit — €9'}
             </button>
             <p style={{ fontSize: 12, color: C.light, textAlign: 'center', marginTop: 10, fontWeight: 300 }}>
               One-time · No subscription · Results in ~60 seconds
