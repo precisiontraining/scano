@@ -153,8 +153,7 @@ export default function App() {
   const [reportId, setReportId]       = useState(null)
   const [loading, setLoading]         = useState(false)
   const [scanError, setScanError]     = useState(null)
-  const retryFnRef        = useRef(null)
-  const premiumRetryFnRef = useRef(null)
+  const [retryFn, setRetryFn]         = useState(null)
   const [scanning, setScanning]       = useState(false)
   const [scanningUrl, setScanningUrl] = useState('')
   const [liveData, setLiveData]       = useState({})
@@ -168,6 +167,7 @@ export default function App() {
   const [premiumScanningUrl, setPremiumScanningUrl] = useState('')
   const [premiumLiveData, setPremiumLiveData]     = useState({})
   const [premiumError, setPremiumError]           = useState(null)
+  const [premiumRetryFn, setPremiumRetryFn]       = useState(null)
 
   useEffect(() => {
     const handler = () => setPath(window.location.pathname)
@@ -255,7 +255,7 @@ export default function App() {
       setScanning(false)
       setScanError(err.code ? err : { code: 'generic' })
       setWebsiteUrl(url)
-      retryFnRef.current = () => handleScanStart({ url, manualSocial })
+      setRetryFn(() => () => handleScanStart({ url, manualSocial }))
       navigate('/report')
       return
     }
@@ -274,7 +274,7 @@ export default function App() {
       setScanning(false)
       setScanError({ code: 'generic' })
       setWebsiteUrl(url)
-      retryFnRef.current = () => handleScanStart({ url, manualSocial })
+      setRetryFn(() => () => handleScanStart({ url, manualSocial }))
       navigate('/report')
       return
     }
@@ -286,7 +286,7 @@ export default function App() {
     setReportData(report)
     setWebsiteUrl(url)
     setScanError(null)
-    retryFnRef.current = null
+    setRetryFn(null)
     navigate('/report')      // ← Pfad zuerst setzen
     setScanning(false)       // ← dann Overlay ausblenden — Report wird sofort gezeigt
 
@@ -339,7 +339,7 @@ export default function App() {
     } catch (err) {
       setPremiumScanning(false)
       setPremiumError(err.code ? err : { code: 'generic' })
-      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles })
+      setPremiumRetryFn(() => () => handlePremiumScanStart({ url, handles }))
       navigate('/premium/report')
       return
     }
@@ -357,7 +357,7 @@ export default function App() {
     } catch (err) {
       setPremiumScanning(false)
       setPremiumError({ code: 'generic' })
-      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles })
+      setPremiumRetryFn(() => () => handlePremiumScanStart({ url, handles }))
       navigate('/premium/report')
       return
     }
@@ -365,7 +365,7 @@ export default function App() {
     setPremiumScanData(scan)
     setPremiumReportData(report)
     setPremiumError(null)
-    premiumRetryFnRef.current = null
+    setPremiumRetryFn(null)
     navigate('/premium/report')
     setPremiumScanning(false)
 
@@ -382,16 +382,14 @@ export default function App() {
 
   const handlePremiumRetry = () => {
     setPremiumError(null)
-    const fn = premiumRetryFnRef.current
-    premiumRetryFnRef.current = null
-    if (fn) fn()
+    setPremiumRetryFn(null)
+    if (premiumRetryFn) premiumRetryFn()
   }
 
   const handleRetry = () => {
     setScanError(null)
-    const fn = retryFnRef.current
-    retryFnRef.current = null
-    if (fn) fn()
+    setRetryFn(null)
+    if (retryFn) retryFn()
   }
 
   if (path === '/impressum') return <Impressum navigate={navigate} />

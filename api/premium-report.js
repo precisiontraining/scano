@@ -151,7 +151,7 @@ Return ONLY valid JSON (no markdown, no explanation):
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://scano.io' },
-      body: JSON.stringify({ model: 'anthropic/claude-sonnet-4-5', max_tokens: 4096, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 4096, messages: [{ role: 'user', content: prompt }] })
     })
 
     const data = await response.json()
