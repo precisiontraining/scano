@@ -61,44 +61,35 @@ function processTikTok(items) {
 function processInstagram(items) {
   if (!items?.length) return null
   try {
-    // Apify instagram-scraper can return data in two shapes:
-    // Shape A: first item is the profile object, rest are posts
-    // Shape B: all items are posts, each containing ownerFullName / ownerId but no followersCount
-    // We try multiple field names to find the followers count.
-    const followerFields = ['followersCount', 'followers', 'edge_followed_by_count']
-    const profile = items.find(i => followerFields.some(f => i[f] !== undefined)) || items[0]
-    const followers = followerFields.reduce((acc, f) => acc || profile?.[f] || 0, 0)
-
-    // Posts are items that have likes data — use multiple possible field names
-    const posts = items.filter(i =>
-      (i.likesCount !== undefined || i.likes !== undefined || i.edge_liked_by_count !== undefined) &&
-      (i.shortCode || i.url || i.id) // must look like a post, not a profile
-    )
-
-    const getLikes = p => p.likesCount ?? p.likes ?? p.edge_liked_by_count ?? 0
-    const getComments = p => p.commentsCount ?? p.comments ?? p.edge_media_to_comment_count ?? 0
-
-    const totalLikes    = posts.reduce((s, p) => s + getLikes(p), 0)
-    const totalComments = posts.reduce((s, p) => s + getComments(p), 0)
-    const avgLikes      = posts.length ? Math.round(totalLikes / posts.length) : 0
+    // Apify Instagram Scraper sometimes returns all items as posts (no separate profile object).
+    // Strategy: prefer a dedicated profile item (has followersCount but no likesCount typical of posts),
+    // then fall back to the item with the highest followersCount, then items[0].
+    const profileCandidates = items.filter(i => i.followersCount !== undefined)
+    const profile = profileCandidates.find(i => i.likesCount === undefined)
+      || profileCandidates.sort((a, b) => (b.followersCount || 0) - (a.followersCount || 0))[0]
+      || items[0]
+    const posts = items.filter(i => i.likesCount !== undefined)
+    // If every item is a post (no separate profile), pull follower count from any post that has it
+    const followers = profile?.followersCount
+      || posts.find(p => p.followersCount !== undefined)?.followersCount
+      || 0
+    const totalLikes = posts.reduce((s, p) => s + (p.likesCount || 0), 0)
+    const totalComments = posts.reduce((s, p) => s + (p.commentsCount || 0), 0)
+    const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0
     const engagementRate = followers > 0 && posts.length > 0
       ? (((totalLikes + totalComments) / posts.length) / followers * 100).toFixed(2) : '0'
-
-    // Log a warning if we couldn't find followers — helps debug Apify schema changes
-    if (!followers) console.warn('Instagram: followers not found in any known field. Profile keys:', Object.keys(profile || {}))
-
     return {
       followers,
-      following:   profile?.followsCount ?? profile?.following ?? 0,
-      postsCount:  profile?.postsCount ?? profile?.mediaCount ?? posts.length,
-      bio:         profile?.biography ?? profile?.bio ?? '',
-      hasLink:     !!(profile?.externalUrl ?? profile?.external_url),
+      following: profile?.followsCount || 0,
+      postsCount: profile?.postsCount || posts.length,
+      bio: profile?.biography || '',
+      hasLink: !!(profile?.externalUrl),
       avgLikes, engagementRate,
       topPosts: posts.slice(0, 8).map(p => ({
-        caption:  (p.caption || p.accessibility_caption || '').slice(0, 300),
-        likes:    getLikes(p),
-        comments: getComments(p),
-        type:     p.type || p.mediaType || 'image',
+        caption: (p.caption || '').slice(0, 300),
+        likes: p.likesCount || 0,
+        comments: p.commentsCount || 0,
+        type: p.type || 'image',
       }))
     }
   } catch (e) { console.error('Instagram parse error:', e.message); return null }
