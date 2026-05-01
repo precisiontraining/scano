@@ -112,14 +112,18 @@ function Nav({ navigate }) {
         <Logo size={24} />
         <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Scano</span>
       </div>
-      <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
-        background:C.text, color:C.bg, border:'none', borderRadius:8,
-        padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:14,
-        cursor:'pointer', letterSpacing:'.02em', transition:'background .2s',
-      }}
-        onMouseEnter={e => e.target.style.background = C.accent}
-        onMouseLeave={e => e.target.style.background = C.text}
-      >Scan for free</button>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
+          background:C.text, color:C.bg, border:'none', borderRadius:8,
+          padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:14,
+          cursor:'pointer', letterSpacing:'.02em', transition:'background .2s',
+        }}
+          onMouseEnter={e => e.target.style.background = C.accent}
+          onMouseLeave={e => e.target.style.background = C.text}
+        >Scan for free</button>
+        {/* PATCH 1: Full report nav button */}
+        <button onClick={() => navigate('/premium')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:14, cursor:'pointer', marginLeft:8 }}>Full report — €9</button>
+      </div>
     </nav>
   )
 }
@@ -464,7 +468,6 @@ function SampleReport() {
           </p>
         </div>
 
-        {/* ── ÄNDERUNG 1: repeat(auto-fit, minmax(300px, 1fr)) + className für Mobile-Override ── */}
         <div className="sample-report-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:16, alignItems:'start' }}>
 
           {/* ── LEFT COLUMN ── */}
@@ -588,7 +591,7 @@ function SampleReport() {
                 <p style={{ fontSize:11, color:C.textLight, fontWeight:300 }}>2 of 5 shown</p>
               </div>
 
-              {/* Action 1 — visible */}
+              {/* Action 1 */}
               <div style={{ background:'#fdf2f2', border:'1px solid #f5c6c6', borderRadius:12, padding:'16px 18px', marginBottom:10,
                 opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.3s' }}>
                 <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#c0392b', fontWeight:500, display:'block', marginBottom:4 }}>🔴 Critical</span>
@@ -598,7 +601,7 @@ function SampleReport() {
                 </p>
               </div>
 
-              {/* Action 2 — visible */}
+              {/* Action 2 */}
               <div style={{ background:'#fdf2f2', border:'1px solid #f5c6c6', borderRadius:12, padding:'16px 18px', marginBottom:10,
                 opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.38s' }}>
                 <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#c0392b', fontWeight:500, display:'block', marginBottom:4 }}>🔴 Critical</span>
@@ -608,7 +611,7 @@ function SampleReport() {
                 </p>
               </div>
 
-              {/* Action 3 — locked */}
+              {/* Action 3 — blurred */}
               <div style={{ background:'#fefdf2', border:'1px solid #f5e6a3', borderRadius:12, padding:'16px 18px', marginBottom:10,
                 opacity:visible?1:0, transform:visible?'none':'translateX(14px)', transition:'all .5s ease 0.46s' }}>
                 <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:'#d68910', fontWeight:500, display:'block', marginBottom:4 }}>🟡 Important</span>
@@ -618,7 +621,7 @@ function SampleReport() {
                 </p>
               </div>
 
-              {/* ── ÄNDERUNG 2: Neuer Unlock-Block ── */}
+              {/* Unlock block */}
               <div style={{ background:'#fff', border:'1px solid rgba(42,92,69,0.2)', borderRadius:16, padding:'28px 24px', textAlign:'center', marginTop:4,
                 opacity:visible?1:0, transform:visible?'none':'translateY(10px)', transition:'all .5s ease 0.52s' }}>
                 <div style={{ fontSize:20, marginBottom:10 }}>🔒</div>
@@ -671,9 +674,8 @@ function SampleReport() {
   )
 }
 
-function Pricing() {
+function Pricing({ navigate }) {
   const [ref, visible] = useReveal()
-  // ── ÄNDERUNG 3: Pricing-Features aktualisiert ──
   const plans = [
     {
       name:'Free', price:'€0', note:'no account required',
@@ -742,8 +744,9 @@ function Pricing() {
                   )
                 })}
               </div>
+              {/* PATCH 2: featured plan navigates to /premium */}
               <button className={p.featured ? 'btn-primary' : 'btn-ghost'}
-                onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
+                onClick={() => p.featured ? navigate('/premium') : document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })}
               >{p.cta}</button>
             </div>
           ))}
@@ -854,7 +857,7 @@ export default function Home({ navigate, onScanStart, onScanComplete, onScanErro
       <Hero onScanStart={onScanStart} />
       <WhatWeCheck />
       <SampleReport />
-      <Pricing />
+      <Pricing navigate={navigate} />
       <FAQ />
       <FinalCTA />
       <Footer navigate={navigate} />

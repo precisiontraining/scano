@@ -3,8 +3,11 @@ import Home from './Home.jsx'
 import Report from './pages/Report.jsx'
 import Impressum from './pages/Impressum.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
+import PremiumScanForm from './PremiumScanForm.jsx'
+import PremiumReport from './PremiumReport.jsx'
 
-const UUID_REGEX = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
+const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
+const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 
 const CSS_SCANNER = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&family=Jost:wght@300;400;500&display=swap');
@@ -155,6 +158,15 @@ export default function App() {
   const [scanningUrl, setScanningUrl] = useState('')
   const [liveData, setLiveData]       = useState({})
 
+  // ── Premium state ────────────────────────────────────────────────────────────
+  const [premiumScanData, setPremiumScanData]     = useState(null)
+  const [premiumReportData, setPremiumReportData] = useState(null)
+  const [premiumWebsiteUrl, setPremiumWebsiteUrl] = useState('')
+  const [premiumReportId, setPremiumReportId]     = useState(null)
+  const [premiumScanning, setPremiumScanning]     = useState(false)
+  const [premiumScanningUrl, setPremiumScanningUrl] = useState('')
+  const [premiumLiveData, setPremiumLiveData]     = useState({})
+
   useEffect(() => {
     const handler = () => setPath(window.location.pathname)
     window.addEventListener('popstate', handler)
@@ -178,6 +190,26 @@ export default function App() {
         setScanError(null)
       })
       .catch(() => navigate('/'))
+      .finally(() => setLoading(false))
+  }, [path])
+
+  // Load premium report from UUID path
+  useEffect(() => {
+    const match = path.match(PREMIUM_UUID_REGEX)
+    if (!match) return
+    const id = match[1]
+    if (premiumReportId === id) return
+    setLoading(true)
+    fetch(`/api/get-premium-report?id=${id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { navigate('/premium'); return }
+        setPremiumScanData(data.scan_data)
+        setPremiumReportData(data.report_data)
+        setPremiumWebsiteUrl(data.website_url)
+        setPremiumReportId(id)
+      })
+      .catch(() => navigate('/premium'))
       .finally(() => setLoading(false))
   }, [path])
 
@@ -273,6 +305,71 @@ export default function App() {
     }
   }
 
+  // ── Premium scan handler ────────────────────────────────────────────────────
+  const handlePremiumScanStart = async ({ url, handles = {} }) => {
+    if (premiumScanning) return
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`
+    setPremiumScanningUrl(url)
+    setPremiumLiveData({})
+    setPremiumScanning(true)
+
+    let scan = null, report = null
+
+    try {
+      const res = await fetch('/api/premium-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteUrl: fullUrl, handles }),
+      })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw { code: err.error || 'generic' } }
+      scan = await res.json()
+      setPremiumLiveData({
+        perf: scan.website || null,
+        seo: scan.content?.seo || null,
+        copy: scan.content?.copy || null,
+        benchmarkLabel: scan.benchmarkData?.industryLabel || null,
+        social: { tiktok: scan.tiktok, instagram: scan.instagram },
+        report: 'generating',
+      })
+    } catch (err) {
+      setPremiumScanning(false)
+      navigate('/premium')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/premium-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanData: scan, websiteUrl: fullUrl }),
+      })
+      if (!res.ok) throw new Error('Report generation failed')
+      const data = await res.json()
+      report = data.report
+      setPremiumLiveData(prev => ({ ...prev, report: 'done' }))
+    } catch (err) {
+      setPremiumScanning(false)
+      navigate('/premium')
+      return
+    }
+
+    setPremiumScanData(scan)
+    setPremiumReportData(report)
+    setPremiumWebsiteUrl(url)
+    navigate('/premium/report')
+    setPremiumScanning(false)
+
+    try {
+      const res = await fetch('/api/save-premium-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanData: scan, reportData: report, websiteUrl: fullUrl, handles }),
+      })
+      const data = await res.json()
+      if (data.id) { setPremiumReportId(data.id); navigate(`/premium/${data.id}`) }
+    } catch (e) { console.error('Save premium report failed:', e) }
+  }
+
   const handleScanComplete = async (scan, report, url) => {
     setScanData(scan)
     setReportData(report)
@@ -330,6 +427,28 @@ export default function App() {
         onRetry={handleRetry}
       />
     )
+  }
+
+  // ── Premium scanning overlay ─────────────────────────────────────────────────
+  if (premiumScanning) return <ScanningScreen url={premiumScanningUrl} liveData={premiumLiveData} />
+
+  // ── Premium report path ───────────────────────────────────────────────────────
+  if (path === '/premium/report' || PREMIUM_UUID_REGEX.test(path)) {
+    if (loading) return <Spinner />
+    return (
+      <PremiumReport
+        navigate={navigate}
+        scanData={premiumScanData}
+        reportData={premiumReportData}
+        websiteUrl={premiumWebsiteUrl}
+        reportId={premiumReportId}
+      />
+    )
+  }
+
+  // ── Premium scan form ─────────────────────────────────────────────────────────
+  if (path === '/premium') {
+    return <PremiumScanForm navigate={navigate} onScanStart={handlePremiumScanStart} />
   }
 
   return (
