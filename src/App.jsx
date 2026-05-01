@@ -325,9 +325,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ websiteUrl: fullUrl, handles }),
       })
-      const err = await res.json().catch(() => ({}))
-      if (!res.ok) throw { code: err.error || 'generic', message: err.message }
-      scan = err // res.json() already consumed above
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw { code: body.error || 'generic', message: body.message }
+      scan = body
       setPremiumLiveData({
         perf: scan.website || null,
         seo: scan.content?.seo || null,

@@ -47,12 +47,29 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
   const [handles, setHandles]   = useState({ tiktok: '', instagram: '', youtube: '', twitter: '' })
   const [active, setActive]     = useState([])
   const [error, setError]       = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const toggle = (key) => setActive(a => a.includes(key) ? a.filter(k => k !== key) : [...a, key])
 
+  const isValidHandle = (raw) => {
+    if (!raw?.trim()) return true
+    const cleaned = raw.trim()
+      .replace(/^@/, '')
+      .replace(/^https?:\/\/(www\.)?(tiktok|instagram|twitter|x|youtube)\.com\/?(@)?/, '')
+      .split('/')[0].split('?')[0].trim()
+    return cleaned.length >= 2 && !/\s/.test(cleaned)
+  }
+
   const handleSubmit = () => {
     if (!url.trim()) { setError('Please enter your website URL.'); return }
+    const invalidPlatform = active.find(k => handles[k]?.trim() && !isValidHandle(handles[k]))
+    if (invalidPlatform) {
+      const label = platforms.find(p => p.key === invalidPlatform)?.label || invalidPlatform
+      setError(`"${handles[invalidPlatform].trim()}" doesn't look like a valid ${label} handle. Try @yourusername.`)
+      return
+    }
     setError('')
+    setSubmitting(true)
     const cleanHandles = {}
     active.forEach(k => { if (handles[k]?.trim()) cleanHandles[k] = handles[k].trim() })
     onScanStart({ url: url.trim(), handles: cleanHandles })
@@ -159,15 +176,22 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
 
             {error && <p style={{ fontSize: 13, color: '#c0392b', marginBottom: 16, padding: '8px 12px', background: 'rgba(192,57,43,0.06)', borderRadius: 8 }}>{error}</p>}
 
-            <button onClick={handleSubmit} style={{
-              width: '100%', background: C.text, color: C.bg, border: 'none', borderRadius: 10,
+            <button onClick={handleSubmit} disabled={submitting} style={{
+              width: '100%', background: submitting ? C.accent : C.text, color: C.bg, border: 'none', borderRadius: 10,
               padding: '15px 28px', fontSize: 15, fontFamily: 'Jost, sans-serif', fontWeight: 500,
-              cursor: 'pointer', letterSpacing: '.03em', transition: 'background .2s, transform .15s',
+              cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '.03em',
+              transition: 'background .2s, transform .15s', opacity: submitting ? 0.85 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             }}
-              onMouseEnter={e => e.currentTarget.style.background = C.accent}
-              onMouseLeave={e => e.currentTarget.style.background = C.text}
+              onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = C.accent }}
+              onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = C.text }}
             >
-              Run full audit — €9
+              {submitting ? (
+                <>
+                  <span style={{ width: 14, height: 14, border: '2px solid rgba(247,244,239,0.35)', borderTopColor: '#f7f4ef', borderRadius: '50%', animation: 'spin .7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                  Starting audit…
+                </>
+              ) : 'Run full audit — €9'}
             </button>
             <p style={{ fontSize: 12, color: C.light, textAlign: 'center', marginTop: 10, fontWeight: 300 }}>
               One-time · No subscription · Results in ~60 seconds

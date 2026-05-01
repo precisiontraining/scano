@@ -61,9 +61,18 @@ function processTikTok(items) {
 function processInstagram(items) {
   if (!items?.length) return null
   try {
-    const profile = items.find(i => i.followersCount !== undefined) || items[0]
+    // Apify Instagram Scraper sometimes returns all items as posts (no separate profile object).
+    // Strategy: prefer a dedicated profile item (has followersCount but no likesCount typical of posts),
+    // then fall back to the item with the highest followersCount, then items[0].
+    const profileCandidates = items.filter(i => i.followersCount !== undefined)
+    const profile = profileCandidates.find(i => i.likesCount === undefined)
+      || profileCandidates.sort((a, b) => (b.followersCount || 0) - (a.followersCount || 0))[0]
+      || items[0]
     const posts = items.filter(i => i.likesCount !== undefined)
-    const followers = profile?.followersCount || 0
+    // If every item is a post (no separate profile), pull follower count from any post that has it
+    const followers = profile?.followersCount
+      || posts.find(p => p.followersCount !== undefined)?.followersCount
+      || 0
     const totalLikes = posts.reduce((s, p) => s + (p.likesCount || 0), 0)
     const totalComments = posts.reduce((s, p) => s + (p.commentsCount || 0), 0)
     const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0
