@@ -98,8 +98,12 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
   if (liveData.benchmarkLabel) rows.push({ key: 'industry', icon: '📊', text: `Industry: ${liveData.benchmarkLabel} — comparing against benchmarks` })
   if (liveData.social) {
     const s = liveData.social
-    if (s.tiktok)    rows.push({ key: 'tiktok', icon: '📱', text: `TikTok: ${s.tiktok?.engagementRate ?? '?'}% engagement — running benchmark comparison` })
+    if (s.tiktok)   rows.push({ key: 'tiktok',  icon: '🎵', text: `TikTok: ${s.tiktok.engagementRate ?? '?'}% engagement — running benchmark comparison` })
     if (s.instagram) rows.push({ key: 'ig',     icon: '📸', text: `Instagram: ${s.instagram.followers?.toLocaleString()} followers — running benchmark comparison` })
+    if (s.youtube)   rows.push({ key: 'youtube', icon: '▶️', text: `YouTube: ${s.youtube.subscribers?.toLocaleString()} subscribers — running benchmark comparison` })
+    if (s.twitter)   rows.push({ key: 'twitter', icon: '𝕏',  text: `X/Twitter: ${s.twitter.followers?.toLocaleString()} followers — running benchmark comparison` })
+    if (s.facebook)  rows.push({ key: 'facebook', icon: '📘', text: `Facebook: ${s.facebook.followers?.toLocaleString()} followers — running benchmark comparison` })
+    if (s.linkedin)  rows.push({ key: 'linkedin', icon: '💼', text: `LinkedIn: ${(s.linkedin.connections || s.linkedin.followers || 0).toLocaleString()} connections — profile analysed` })
   }
   if (liveData.report === 'generating') rows.push({ key: 'ai', icon: '🤖', text: 'Generating AI analysis with benchmark context…' })
 
@@ -248,7 +252,7 @@ export default function App() {
         seo: scan.content?.seo || null,
         copy: scan.content?.copy || null,
         benchmarkLabel: scan.benchmarkData?.industryLabel || null,
-        social: { tiktok: scan.tiktok, instagram: scan.instagram, facebook: scan.facebook },
+        social: { tiktok: scan.tiktok, instagram: scan.instagram, youtube: scan.youtube, twitter: scan.twitter, facebook: scan.facebook, linkedin: scan.linkedin },
         report: 'generating',
       })
     } catch (err) {

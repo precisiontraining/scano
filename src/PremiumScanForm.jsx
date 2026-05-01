@@ -41,11 +41,12 @@ const platforms = [
   { key: 'youtube',   icon: '▶️', label: 'YouTube',    placeholder: '@yourchannel or youtube.com/@you' },
   { key: 'twitter',   icon: '𝕏',  label: 'X/Twitter',  placeholder: '@yourusername or x.com/you' },
   { key: 'facebook',  icon: '📘', label: 'Facebook',   placeholder: 'your-page-name or facebook.com/yourpage' },
+  { key: 'linkedin',  icon: '💼', label: 'LinkedIn',   placeholder: 'your-profile or linkedin.com/in/yourprofile', noFocus: true },
 ]
 
 export default function PremiumScanForm({ navigate, onScanStart }) {
   const [url, setUrl]           = useState('')
-  const [handles, setHandles]   = useState({ tiktok: '', instagram: '', youtube: '', twitter: '', facebook: '' })
+  const [handles, setHandles]   = useState({ tiktok: '', instagram: '', youtube: '', twitter: '', facebook: '', linkedin: '' })
   const [focusPlatform, setFocusPlatform] = useState(null)
   const [active, setActive]     = useState([])
   const [error, setError]       = useState('')
@@ -184,23 +185,25 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
                       <input className="pinp" value={handles[key]}
                         onChange={e => { setShowSocialNudge(false); setHandles(h => ({ ...h, [key]: e.target.value })) }}
                         placeholder={p.placeholder}
-                        style={{ paddingRight: isFocus ? 110 : 13 }} />
+                        style={{ paddingRight: (!p.noFocus && isFocus) ? 110 : 13 }} />
                       {/* Focus badge / button */}
-                      <button
-                        onClick={() => setFocusPlatform(isFocus ? null : key)}
-                        style={{
-                          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                          background: isFocus ? C.accent : 'transparent',
-                          border: `1px solid ${isFocus ? C.accent : 'rgba(28,25,23,0.18)'}`,
-                          borderRadius: 6, padding: '3px 9px', fontSize: 10.5, fontFamily: 'Jost,sans-serif',
-                          fontWeight: isFocus ? 500 : 300,
-                          color: isFocus ? C.bg : C.muted,
-                          cursor: 'pointer', letterSpacing: '.03em', whiteSpace: 'nowrap',
-                          transition: 'all .18s',
-                        }}
-                      >
-                        {isFocus ? '★ Deep Dive' : 'Set as focus'}
-                      </button>
+                      {!p.noFocus && (
+                        <button
+                          onClick={() => setFocusPlatform(isFocus ? null : key)}
+                          style={{
+                            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                            background: isFocus ? C.accent : 'transparent',
+                            border: `1px solid ${isFocus ? C.accent : 'rgba(28,25,23,0.18)'}`,
+                            borderRadius: 6, padding: '3px 9px', fontSize: 10.5, fontFamily: 'Jost,sans-serif',
+                            fontWeight: isFocus ? 500 : 300,
+                            color: isFocus ? C.bg : C.muted,
+                            cursor: 'pointer', letterSpacing: '.03em', whiteSpace: 'nowrap',
+                            transition: 'all .18s',
+                          }}
+                        >
+                          {isFocus ? '★ Deep Dive' : 'Set as focus'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )

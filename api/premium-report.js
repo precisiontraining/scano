@@ -17,6 +17,8 @@ function buildShallowCtx(platform, data, benchmarkData) {
       return `X/Twitter: ${fmtNum(data.followers)} followers | ${fmtNum(data.avgLikes)} avg likes`
     case 'Facebook':
       return `Facebook: ${fmtNum(data.followers)} followers | ${fmtPct(data.engagementRate)} engagement${benchmarkData?.facebookIsNewAccount ? ' [NEW ACCOUNT]' : ''}`
+    case 'LinkedIn':
+      return `LinkedIn: ${fmtNum(data.connections || data.followers)} connections | ${data.headline || 'profile found'}`
     default: return `${platform}: data available`
   }
 }
@@ -80,10 +82,10 @@ export default async function handler(req, res) {
   const { scanData, websiteUrl } = req.body
   if (!scanData) return res.status(400).json({ error: 'scanData required' })
 
-  const { website, content, tiktok, instagram, youtube, twitter, facebook, focusPlatform, benchmarkData } = scanData
+  const { website, content, tiktok, instagram, youtube, twitter, facebook, linkedin, focusPlatform, benchmarkData } = scanData
   const isSPA = content?.copy?.isSPA === true
 
-  const hasSocial = tiktok || instagram || youtube || twitter || facebook
+  const hasSocial = tiktok || instagram || youtube || twitter || facebook || linkedin
 
   // Map platform key → display name and data
   const platformMap = {
@@ -92,6 +94,7 @@ export default async function handler(req, res) {
     youtube:   { label: 'YouTube',   data: youtube },
     twitter:   { label: 'X/Twitter', data: twitter },
     facebook:  { label: 'Facebook',  data: facebook },
+    linkedin:  { label: 'LinkedIn',  data: linkedin },
   }
 
   // Build shallow context for all platforms

@@ -560,11 +560,30 @@ function calcScore(perf, content, social) {
   if (social.twitter) {
     score+=Math.min(100,Math.round(social.twitter.followers>100000?90:social.twitter.followers>10000?70:social.twitter.followers>1000?45:social.twitter.followers>100?20:8))*0.10; factors+=0.10
   }
+  if (social.linkedin) {
+    const c=social.linkedin.connections||social.linkedin.followers||0
+    score+=Math.min(100,Math.round(c>5000?85:c>1000?65:c>500?45:c>100?25:10))*0.10; factors+=0.10
+  }
   if (social.facebook) {
     const er=parseFloat(social.facebook.engagementRate)||0
     score+=Math.min(100,Math.round((er>3?50:er>1?35:er>0.5?20:8)+(social.facebook.followers>50000?50:social.facebook.followers>10000?35:social.facebook.followers>1000?20:5)))*0.10; factors+=0.10
   }
   return factors>0 ? Math.round(score/factors) : 0
+}
+
+// ─── LinkedIn processor (profile only, no deep) ───────────────────────────────
+function processLinkedIn(items) {
+  if (!items?.length) return null
+  try {
+    const profile = items[0]
+    return {
+      followers: profile.followersCount || profile.connectionsCount || 0,
+      name: profile.fullName || profile.name || '',
+      headline: profile.headline || '',
+      connections: profile.connectionsCount || 0,
+      posts: profile.posts?.length || 0,
+    }
+  } catch (e) { console.error('LinkedIn parse error:', e.message); return null }
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -579,13 +598,14 @@ export default async function handler(req, res) {
   const ytHandle      = cleanHandle(handles.youtube)
   const twitterHandle = cleanHandle(handles.twitter)
   const fbHandle      = cleanHandle(handles.facebook)
+  const linkedinHandle = cleanHandle(handles.linkedin)
 
   const deep  = (p) => focusPlatform === p
   const limit = (p, d = 30, s = 5) => deep(p) ? d : s
 
   console.log('Premium scan:', url, { focusPlatform, tiktokHandle, igHandle, ytHandle, twitterHandle, fbHandle })
 
-  const [perf, content, tiktokRaw, igRaw, ytRaw, twitterRaw, fbPageRaw, fbPostsRaw] = await Promise.all([
+  const [perf, content, tiktokRaw, igRaw, ytRaw, twitterRaw, fbPageRaw, fbPostsRaw, linkedinRaw] = await Promise.all([
     withTimeout(analyzeWebsite(url), 25000, null),
     withTimeout(analyzeContent(url), 12000, null),
     tiktokHandle  ? withTimeout(runApify('clockworks/tiktok-scraper',
@@ -600,6 +620,8 @@ export default async function handler(req, res) {
         { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}] }), 55000, null) : Promise.resolve(null),
     fbHandle      ? withTimeout(runApify('apify/facebook-posts-scraper',
         { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}], maxPosts:limit('facebook') }), 55000, null) : Promise.resolve(null),
+    linkedinHandle ? withTimeout(runApify('dev_fusion/Linkedin-Profile-Scraper',
+        { profileUrls:[`https://www.linkedin.com/in/${linkedinHandle}`] }), 55000, null) : Promise.resolve(null),
   ])
 
   if (!perf && !content) return res.status(422).json({ error:'unreachable', message:"Couldn't reach this website." })
@@ -609,6 +631,7 @@ export default async function handler(req, res) {
   const youtube   = processYouTube(ytRaw,              deep('youtube'))
   const twitter   = processTwitter(twitterRaw,         deep('twitter'))
   const facebook  = processFacebook(fbPageRaw, fbPostsRaw, deep('facebook'))
+  const linkedin  = processLinkedIn(linkedinRaw)
 
   const industry      = detectIndustry(url, content?.copy)
   const benchmarkData = buildBenchmarkInsights(industry, tiktok, instagram, youtube, twitter, facebook)
@@ -623,7 +646,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     score, website: perf, content,
-    tiktok, instagram, youtube, twitter, facebook,
+    tiktok, instagram, youtube, twitter, facebook, linkedin,
     focusPlatform, benchmarkData,
     scannedAt: new Date().toISOString(),
   })

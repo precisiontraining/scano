@@ -182,14 +182,14 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
     )
   }
 
-  const { score, website, content, tiktok, instagram, youtube, twitter, facebook, focusPlatform, benchmarkData } = scanData
+  const { score, website, content, tiktok, instagram, youtube, twitter, facebook, linkedin, focusPlatform, benchmarkData } = scanData
   const { headline, summary, websiteAnalysis, copyAnalysis, copyRewrite, brandClarity, socialAnalysis, deepAnalysis, hookAnalysis, captionRewrite, topIssues, effortPlan } = reportData
 
   const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
-  const hasSocial = tiktok || instagram || youtube || twitter || facebook
+  const hasSocial = tiktok || instagram || youtube || twitter || facebook || linkedin
 
-  const PLATFORM_ICONS = { tiktok: '🎵', instagram: '📸', youtube: '▶️', twitter: '𝕏', facebook: '📘' }
+  const PLATFORM_ICONS = { tiktok: '🎵', instagram: '📸', youtube: '▶️', twitter: '𝕏', facebook: '📘', linkedin: '💼' }
   const PLATFORM_LABELS = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', twitter: 'X/Twitter', facebook: 'Facebook' }
 
   return (
