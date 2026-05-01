@@ -248,7 +248,7 @@ export default function App() {
         seo: scan.content?.seo || null,
         copy: scan.content?.copy || null,
         benchmarkLabel: scan.benchmarkData?.industryLabel || null,
-        social: { tiktok: scan.tiktok, instagram: scan.instagram },
+        social: { tiktok: scan.tiktok, instagram: scan.instagram, facebook: scan.facebook },
         report: 'generating',
       })
     } catch (err) {
@@ -308,7 +308,7 @@ export default function App() {
   }
 
   // ── Premium scan handler ────────────────────────────────────────────────────
-  const handlePremiumScanStart = async ({ url, handles = {} }) => {
+  const handlePremiumScanStart = async ({ url, handles = {}, focusPlatform = null }) => {
     if (premiumScanning) return
     const fullUrl = url.startsWith('http') ? url : `https://${url}`
     setPremiumScanningUrl(url)
@@ -323,7 +323,7 @@ export default function App() {
       const res = await fetch('/api/premium-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl: fullUrl, handles }),
+        body: JSON.stringify({ websiteUrl: fullUrl, handles, focusPlatform }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw { code: body.error || 'generic', message: body.message }
@@ -339,7 +339,7 @@ export default function App() {
     } catch (err) {
       setPremiumScanning(false)
       setPremiumError(err.code ? err : { code: 'generic' })
-      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles })
+      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles, focusPlatform })
       navigate('/premium/report')
       return
     }
@@ -357,7 +357,7 @@ export default function App() {
     } catch (err) {
       setPremiumScanning(false)
       setPremiumError({ code: 'generic' })
-      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles })
+      premiumRetryFnRef.current = () => handlePremiumScanStart({ url, handles, focusPlatform })
       navigate('/premium/report')
       return
     }

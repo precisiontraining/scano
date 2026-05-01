@@ -182,12 +182,15 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
     )
   }
 
-  const { score, website, content, tiktok, instagram, youtube, twitter, benchmarkData } = scanData
-  const { headline, summary, websiteAnalysis, copyAnalysis, copyRewrite, brandClarity, socialAnalysis, hookAnalysis, captionRewrite, topIssues, effortPlan } = reportData
+  const { score, website, content, tiktok, instagram, youtube, twitter, facebook, focusPlatform, benchmarkData } = scanData
+  const { headline, summary, websiteAnalysis, copyAnalysis, copyRewrite, brandClarity, socialAnalysis, deepAnalysis, hookAnalysis, captionRewrite, topIssues, effortPlan } = reportData
 
   const scoreColor = score >= 70 ? C.accent : score >= 40 ? C.yellow : C.red
   const scoreLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Needs Work' : 'Critical Issues'
-  const hasSocial = tiktok || instagram || youtube || twitter
+  const hasSocial = tiktok || instagram || youtube || twitter || facebook
+
+  const PLATFORM_ICONS = { tiktok: '🎵', instagram: '📸', youtube: '▶️', twitter: '𝕏', facebook: '📘' }
+  const PLATFORM_LABELS = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', twitter: 'X/Twitter', facebook: 'Facebook' }
 
   return (
     <>
@@ -378,6 +381,66 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
                 </div>
               )}
               {socialAnalysis && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>{socialAnalysis}</p>}
+            </Card>
+          )}
+
+          {/* Deep Dive — Focus Platform */}
+          {deepAnalysis && (
+            <Card delay={0.41} visible={visible} accent>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <span style={{ fontSize: 18 }}>{PLATFORM_ICONS[focusPlatform] || '📊'}</span>
+                <div>
+                  <SectionLabel style={{ marginBottom: 2 }}>Deep dive — {deepAnalysis.platform}</SectionLabel>
+                  <span style={{ fontSize: 10.5, color: C.accent, fontWeight: 400, letterSpacing: '.04em' }}>★ Focus platform · 30 posts analysed</span>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {deepAnalysis.summary && (
+                <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, fontWeight: 300, marginBottom: 16 }}>{deepAnalysis.summary}</p>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Posting times */}
+                {deepAnalysis.postingTimeInsight && (
+                  <div style={{ background: 'rgba(42,92,69,0.04)', border: '1px solid rgba(42,92,69,0.12)', borderRadius: 10, padding: '13px 15px' }}>
+                    <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 6 }}>⏰ Best posting times</p>
+                    <p style={{ fontSize: 13, color: C.text, fontWeight: 400, lineHeight: 1.55 }}>{deepAnalysis.postingTimeInsight}</p>
+                  </div>
+                )}
+
+                {/* Content mix */}
+                {deepAnalysis.contentMixInsight && (
+                  <div style={{ background: 'rgba(28,25,23,0.025)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px' }}>
+                    <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.muted, fontWeight: 500, marginBottom: 6 }}>📊 Content mix</p>
+                    <p style={{ fontSize: 13, color: C.text, fontWeight: 400, lineHeight: 1.55 }}>{deepAnalysis.contentMixInsight}</p>
+                  </div>
+                )}
+
+                {/* Hook patterns */}
+                {deepAnalysis.hookInsight && (
+                  <div style={{ background: 'rgba(28,25,23,0.025)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px' }}>
+                    <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.muted, fontWeight: 500, marginBottom: 6 }}>🎣 What opens work best</p>
+                    <p style={{ fontSize: 13, color: C.text, fontWeight: 400, lineHeight: 1.55 }}>{deepAnalysis.hookInsight}</p>
+                  </div>
+                )}
+
+                {/* Hashtags */}
+                {deepAnalysis.hashtagInsight && (
+                  <div style={{ background: 'rgba(28,25,23,0.025)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px' }}>
+                    <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.muted, fontWeight: 500, marginBottom: 6 }}>🏷️ Hashtag strategy</p>
+                    <p style={{ fontSize: 13, color: C.text, fontWeight: 400, lineHeight: 1.55 }}>{deepAnalysis.hashtagInsight}</p>
+                  </div>
+                )}
+
+                {/* Top recommendation */}
+                {deepAnalysis.topRecommendation && (
+                  <div style={{ background: 'rgba(42,92,69,0.07)', border: '1px solid rgba(42,92,69,0.25)', borderRadius: 10, padding: '13px 15px' }}>
+                    <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 6 }}>★ Top recommendation</p>
+                    <p style={{ fontSize: 13, color: C.text, fontWeight: 500, lineHeight: 1.55 }}>{deepAnalysis.topRecommendation}</p>
+                  </div>
+                )}
+              </div>
             </Card>
           )}
 

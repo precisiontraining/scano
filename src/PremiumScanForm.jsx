@@ -40,17 +40,27 @@ const platforms = [
   { key: 'instagram', icon: '📸', label: 'Instagram',  placeholder: '@yourusername or instagram.com/you' },
   { key: 'youtube',   icon: '▶️', label: 'YouTube',    placeholder: '@yourchannel or youtube.com/@you' },
   { key: 'twitter',   icon: '𝕏',  label: 'X/Twitter',  placeholder: '@yourusername or x.com/you' },
+  { key: 'facebook',  icon: '📘', label: 'Facebook',   placeholder: 'your-page-name or facebook.com/yourpage' },
 ]
 
 export default function PremiumScanForm({ navigate, onScanStart }) {
   const [url, setUrl]           = useState('')
-  const [handles, setHandles]   = useState({ tiktok: '', instagram: '', youtube: '', twitter: '' })
+  const [handles, setHandles]   = useState({ tiktok: '', instagram: '', youtube: '', twitter: '', facebook: '' })
+  const [focusPlatform, setFocusPlatform] = useState(null)
   const [active, setActive]     = useState([])
   const [error, setError]       = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showSocialNudge, setShowSocialNudge] = useState(false)
 
-  const toggle = (key) => { setShowSocialNudge(false); setActive(a => a.includes(key) ? a.filter(k => k !== key) : [...a, key]) }
+  const toggle = (key) => {
+    setShowSocialNudge(false)
+    setActive(a => {
+      const next = a.includes(key) ? a.filter(k => k !== key) : [...a, key]
+      // If user removes the focus platform, clear focus
+      if (!next.includes(focusPlatform)) setFocusPlatform(null)
+      return next
+    })
+  }
 
   const isValidHandle = (raw) => {
     if (!raw?.trim()) return true
@@ -82,7 +92,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
     setSubmitting(true)
     const cleanHandles = {}
     active.forEach(k => { if (handles[k]?.trim()) cleanHandles[k] = handles[k].trim() })
-    onScanStart({ url: url.trim(), handles: cleanHandles })
+    onScanStart({ url: url.trim(), handles: cleanHandles, focusPlatform })
   }
 
   return (
@@ -166,17 +176,45 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
               </div>
               {active.map(key => {
                 const p = platforms.find(x => x.key === key)
+                const isFocus = focusPlatform === key
                 return (
                   <div key={key} style={{ marginBottom: 10 }}>
                     <div style={{ position: 'relative' }}>
                       <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 14 }}>{p.icon}</span>
                       <input className="pinp" value={handles[key]}
                         onChange={e => { setShowSocialNudge(false); setHandles(h => ({ ...h, [key]: e.target.value })) }}
-                        placeholder={p.placeholder} />
+                        placeholder={p.placeholder}
+                        style={{ paddingRight: isFocus ? 110 : 13 }} />
+                      {/* Focus badge / button */}
+                      <button
+                        onClick={() => setFocusPlatform(isFocus ? null : key)}
+                        style={{
+                          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                          background: isFocus ? C.accent : 'transparent',
+                          border: `1px solid ${isFocus ? C.accent : 'rgba(28,25,23,0.18)'}`,
+                          borderRadius: 6, padding: '3px 9px', fontSize: 10.5, fontFamily: 'Jost,sans-serif',
+                          fontWeight: isFocus ? 500 : 300,
+                          color: isFocus ? C.bg : C.muted,
+                          cursor: 'pointer', letterSpacing: '.03em', whiteSpace: 'nowrap',
+                          transition: 'all .18s',
+                        }}
+                      >
+                        {isFocus ? '★ Deep Dive' : 'Set as focus'}
+                      </button>
                     </div>
                   </div>
                 )
               })}
+              {active.length >= 2 && !focusPlatform && (
+                <p style={{ fontSize: 11.5, color: C.light, fontStyle: 'italic', fontWeight: 300, marginTop: 4 }}>
+                  💡 Pick one platform as your focus for a deeper analysis
+                </p>
+              )}
+              {focusPlatform && (
+                <p style={{ fontSize: 11.5, color: C.accent, fontWeight: 400, marginTop: 4 }}>
+                  ★ {platforms.find(p => p.key === focusPlatform)?.label} will get a full deep-dive analysis (30 posts, posting times, content mix, hashtags)
+                </p>
+              )}
               {active.length === 0 && (
                 <p style={{ fontSize: 12, color: C.light, fontStyle: 'italic', fontWeight: 300 }}>
                   No social media yet? No problem — we'll do a full website audit.
