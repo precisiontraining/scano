@@ -57,7 +57,7 @@ export default async function handler(req, res) {
         Messages: [
           {
             From: {
-              Email: 'hello@scano.io',
+              Email: 'simplefitplans017@gmail.com',
               Name:  'Scano',
             },
             To: [{ Email: email }],

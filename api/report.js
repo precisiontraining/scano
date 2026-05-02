@@ -41,8 +41,6 @@ export default async function handler(req, res) {
       })()
     : null
 
-  // FIX 3: Tell the AI explicitly when the site is JS-rendered so it doesn't
-  // invent "No Hero Headline" or "No H1" as critical issues from missing scraper data.
   const isSPA = content?.copy?.isSPA === true
   const spaNote = isSPA
     ? `\nIMPORTANT: This site is JavaScript-rendered (React/Vue/etc). The static scraper cannot read client-side DOM. Missing headline or H1 data is a SCRAPING LIMITATION — NOT a real website problem. Do NOT generate issues like "No Hero Headline", "Missing H1", or "No CTA" based on empty scraper fields. Base copy analysis only on data that is actually present.\n`
@@ -173,7 +171,7 @@ Return ONLY valid JSON. No markdown. No explanation. Structure:
         'HTTP-Referer': 'https://scano.io',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'anthropic/claude-sonnet-4-5',
         max_tokens: 1600,
         messages: [{ role: 'user', content: prompt }]
       })
