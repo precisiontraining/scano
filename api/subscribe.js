@@ -57,6 +57,10 @@ export default async function handler(req, res) {
         Messages: [
           {
             From: {
+              Email: 'info@precision-training.io',
+              Name:  'Scano',
+            },
+            ReplyTo: {
               Email: 'simplefitplans017@gmail.com',
               Name:  'Scano',
             },
