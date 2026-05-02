@@ -37,7 +37,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: dbError.message })
   }
 
-  const reportUrl  = `https://scano.io/report/${reportId}`
+  const BASE_URL   = process.env.NEXT_PUBLIC_BASE_URL || 'https://scano-snowy.vercel.app'
+  const reportUrl  = `${BASE_URL}/report/${reportId}`
   const websiteUrl = report?.website_url || 'your website'
   const score      = report?.scan_data?.score ?? '—'
   const scoreColor = score >= 70 ? '#2a5c45' : score >= 40 ? '#d68910' : '#c0392b'
@@ -101,7 +102,7 @@ export default async function handler(req, res) {
     <div style="border-top:1px solid rgba(28,25,23,0.08);padding-top:24px;">
       <p style="font-size:12px;color:#a09890;margin:0;line-height:1.6;">
         © 2026 Scano &nbsp;·&nbsp; You received this because you requested your audit on
-        <a href="https://scano.io" style="color:#a09890;">scano.io</a>
+        <a href="${BASE_URL}" style="color:#a09890;">Scano</a>
       </p>
     </div>
 
