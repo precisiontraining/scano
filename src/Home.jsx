@@ -145,7 +145,7 @@ function ComingSoonModal({ onClose }) {
                 onBlur={e => e.target.style.borderColor='rgba(28,25,23,0.15)'}
               />
               <button onClick={handleSubmit} disabled={sending || !email.includes('@')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'13px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:sending?'not-allowed':'pointer', opacity:(!email.includes('@')||sending)?0.6:1, transition:'all .2s' }}>
-                {sending ? 'Saving…' : 'Notify me when it's live'}
+                {sending ? 'Saving…' : 'Notify me when it\'s live'}
               </button>
             </div>
             <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:12, fontWeight:300 }}>
