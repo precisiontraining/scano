@@ -121,14 +121,6 @@ async function createPR(octokit, owner, repo, analysis) {
 }
 
 async function sendTelegramNotification(analysis, pr, runId) {
-  const approvalToken = Buffer.from(JSON.stringify({
-    runId, prNumber: pr.number, action: 'approve'
-  })).toString('base64')
-
-  const rejectToken = Buffer.from(JSON.stringify({
-    runId, prNumber: pr.number, action: 'reject'
-  })).toString('base64')
-
   const message = `🤖 *Scano Growth Agent*
 
 🔍 *Problem found:*
@@ -144,14 +136,7 @@ ${analysis.solution}
 
 🔗 [View PR](${pr.html_url})
 
-Should I merge this PR?`
-
-  const keyboard = {
-    inline_keyboard: [[
-      { text: '✅ Approve & Merge', callback_data: `approve_${approvalToken}` },
-      { text: '❌ Reject', callback_data: `reject_${rejectToken}` }
-    ]]
-  }
+Reply *approve ${runId}* or *reject ${runId}*`
 
   const response = await fetch(
     `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -161,8 +146,7 @@ Should I merge this PR?`
       body: JSON.stringify({
         chat_id: process.env.TELEGRAM_CHAT_ID,
         text: message,
-        parse_mode: 'Markdown',
-        reply_markup: keyboard
+        parse_mode: 'Markdown'
       })
     }
   )
