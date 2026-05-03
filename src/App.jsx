@@ -84,6 +84,15 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
     return 8
   })()
 
+  // Auth redirect handler
+useEffect(() => {
+  if (window.location.hash.includes('access_token') || 
+      window.location.hash.includes('type=signup')) {
+    window.history.replaceState({}, '', '/agent/dashboard')
+    setPath('/agent/dashboard')
+  }
+}, [])
+
   const prevPhase = useRef(phase)
   useEffect(() => {
     if (phase !== prevPhase.current) { prevPhase.current = phase; setPhaseKey(k => k + 1) }
