@@ -6,6 +6,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import PremiumScanForm from './PremiumScanForm.jsx'
 import PremiumReport from './PremiumReport.jsx'
 import AgentDashboard from './pages/AgentDashboard.jsx'
+import AgentAuth from './pages/AgentAuth.jsx'
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
@@ -393,9 +394,11 @@ export default function App() {
   }
 
   // ── Routes ───────────────────────────────────────────────────────────────────
-  if (path === '/impressum') return <Impressum navigate={navigate} />
-  if (path === '/privacy')   return <PrivacyPolicy navigate={navigate} />
-  if (path === '/agent')     return <AgentDashboard navigate={navigate} />
+  if (path === '/impressum')      return <Impressum navigate={navigate} />
+  if (path === '/privacy')        return <PrivacyPolicy navigate={navigate} />
+  if (path === '/agent/login')    return <AgentAuth navigate={navigate} mode="login" />
+  if (path === '/agent/register') return <AgentAuth navigate={navigate} mode="register" />
+  if (path === '/agent' || path === '/agent/dashboard') return <AgentDashboard navigate={navigate} />
 
   if (scanning) return <ScanningScreen url={scanningUrl} liveData={liveData} />
 
