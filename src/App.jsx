@@ -438,14 +438,9 @@ export default function App() {
     )
   }
 
-  // ── Premium scan form — disabled until Stripe is live ────────────────────────
-  // if (path === '/premium') {
-  //   return <PremiumScanForm navigate={navigate} onScanStart={handlePremiumScanStart} />
-  // }
-  // Redirect /premium back to home (modal handles the waitlist capture there)
+  // ── Premium scan form ────────────────────────────────────────────────────────
   if (path === '/premium') {
-    navigate('/')
-    return null
+    return <PremiumScanForm navigate={navigate} onScanStart={handlePremiumScanStart} />
   }
 
   return (
