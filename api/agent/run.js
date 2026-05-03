@@ -170,7 +170,11 @@ Reply *approve ${runId}* or *reject ${runId}*`
 }
 
 export default async function handler(req, res) {
-  if (req.headers['x-cron-secret'] !== process.env.AGENT_CRON_SECRET) {
+  // Auth: Vercel Cron oder manueller Aufruf
+  const cronSecret = req.headers['x-cron-secret']
+  const vercelCron = req.headers['x-vercel-cron']
+
+  if (!vercelCron && cronSecret !== process.env.AGENT_CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
