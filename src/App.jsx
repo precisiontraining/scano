@@ -5,6 +5,7 @@ import Impressum from './pages/Impressum.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import PremiumScanForm from './PremiumScanForm.jsx'
 import PremiumReport from './PremiumReport.jsx'
+import AgentDashboard from './pages/AgentDashboard.jsx'
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
@@ -98,10 +99,10 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
   if (liveData.benchmarkLabel) rows.push({ key: 'industry', icon: '📊', text: `Industry: ${liveData.benchmarkLabel} — comparing against benchmarks` })
   if (liveData.social) {
     const s = liveData.social
-    if (s.tiktok)   rows.push({ key: 'tiktok',  icon: '🎵', text: `TikTok: ${s.tiktok.engagementRate ?? '?'}% engagement — running benchmark comparison` })
-    if (s.instagram) rows.push({ key: 'ig',     icon: '📸', text: `Instagram: ${s.instagram.followers?.toLocaleString()} followers — running benchmark comparison` })
-    if (s.youtube)   rows.push({ key: 'youtube', icon: '▶️', text: `YouTube: ${s.youtube.subscribers?.toLocaleString()} subscribers — running benchmark comparison` })
-    if (s.twitter)   rows.push({ key: 'twitter', icon: '𝕏',  text: `X/Twitter: ${s.twitter.followers?.toLocaleString()} followers — running benchmark comparison` })
+    if (s.tiktok)    rows.push({ key: 'tiktok',   icon: '🎵', text: `TikTok: ${s.tiktok.engagementRate ?? '?'}% engagement — running benchmark comparison` })
+    if (s.instagram) rows.push({ key: 'ig',       icon: '📸', text: `Instagram: ${s.instagram.followers?.toLocaleString()} followers — running benchmark comparison` })
+    if (s.youtube)   rows.push({ key: 'youtube',  icon: '▶️', text: `YouTube: ${s.youtube.subscribers?.toLocaleString()} subscribers — running benchmark comparison` })
+    if (s.twitter)   rows.push({ key: 'twitter',  icon: '𝕏',  text: `X/Twitter: ${s.twitter.followers?.toLocaleString()} followers — running benchmark comparison` })
     if (s.facebook)  rows.push({ key: 'facebook', icon: '📘', text: `Facebook: ${s.facebook.followers?.toLocaleString()} followers — running benchmark comparison` })
     if (s.linkedin)  rows.push({ key: 'linkedin', icon: '💼', text: `LinkedIn: ${(s.linkedin.connections || s.linkedin.followers || 0).toLocaleString()} connections — profile analysed` })
   }
@@ -163,15 +164,14 @@ export default function App() {
   const [scanningUrl, setScanningUrl] = useState('')
   const [liveData, setLiveData]       = useState({})
 
-  // ── Premium state ────────────────────────────────────────────────────────────
-  const [premiumScanData, setPremiumScanData]     = useState(null)
-  const [premiumReportData, setPremiumReportData] = useState(null)
-  const [premiumWebsiteUrl, setPremiumWebsiteUrl] = useState('')
-  const [premiumReportId, setPremiumReportId]     = useState(null)
-  const [premiumScanning, setPremiumScanning]     = useState(false)
+  const [premiumScanData, setPremiumScanData]       = useState(null)
+  const [premiumReportData, setPremiumReportData]   = useState(null)
+  const [premiumWebsiteUrl, setPremiumWebsiteUrl]   = useState('')
+  const [premiumReportId, setPremiumReportId]       = useState(null)
+  const [premiumScanning, setPremiumScanning]       = useState(false)
   const [premiumScanningUrl, setPremiumScanningUrl] = useState('')
-  const [premiumLiveData, setPremiumLiveData]     = useState({})
-  const [premiumError, setPremiumError]           = useState(null)
+  const [premiumLiveData, setPremiumLiveData]       = useState({})
+  const [premiumError, setPremiumError]             = useState(null)
 
   useEffect(() => {
     const handler = () => setPath(window.location.pathname)
@@ -199,7 +199,6 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [path])
 
-  // Load premium report from UUID path
   useEffect(() => {
     const match = path.match(PREMIUM_UUID_REGEX)
     if (!match) return
@@ -283,18 +282,14 @@ export default function App() {
       return
     }
 
-    // FIX #5: Alle State-Updates + navigate BEVOR setScanning(false)
-    // Verhindert den kurzen Flash zur Landingpage, weil der Pfad
-    // schon /report ist wenn die Scanning-Overlay verschwindet.
     setScanData(scan)
     setReportData(report)
     setWebsiteUrl(url)
     setScanError(null)
     retryFnRef.current = null
-    navigate('/report')      // ← Pfad zuerst setzen
-    setScanning(false)       // ← dann Overlay ausblenden — Report wird sofort gezeigt
+    navigate('/report')
+    setScanning(false)
 
-    // Im Hintergrund speichern und URL auf UUID updaten
     try {
       const res = await fetch('/api/save-report', {
         method: 'POST',
@@ -307,11 +302,10 @@ export default function App() {
         navigate(`/report/${data.id}`)
       }
     } catch (e) {
-      console.error('Save report failed, falling back to in-memory report:', e)
+      console.error('Save report failed:', e)
     }
   }
 
-  // ── Premium scan handler ────────────────────────────────────────────────────
   const handlePremiumScanStart = async ({ url, handles = {}, focusPlatform = null }) => {
     if (premiumScanning) return
     const fullUrl = url.startsWith('http') ? url : `https://${url}`
@@ -398,8 +392,10 @@ export default function App() {
     if (fn) fn()
   }
 
+  // ── Routes ───────────────────────────────────────────────────────────────────
   if (path === '/impressum') return <Impressum navigate={navigate} />
   if (path === '/privacy')   return <PrivacyPolicy navigate={navigate} />
+  if (path === '/agent')     return <AgentDashboard navigate={navigate} />
 
   if (scanning) return <ScanningScreen url={scanningUrl} liveData={liveData} />
 
@@ -419,10 +415,8 @@ export default function App() {
     )
   }
 
-  // ── Premium scanning overlay ─────────────────────────────────────────────────
   if (premiumScanning) return <ScanningScreen url={premiumScanningUrl} liveData={premiumLiveData} isPremium />
 
-  // ── Premium report path ───────────────────────────────────────────────────────
   if (path === '/premium/report' || PREMIUM_UUID_REGEX.test(path)) {
     if (loading) return <Spinner />
     return (
@@ -438,11 +432,6 @@ export default function App() {
     )
   }
 
-  // ── Premium scan form — disabled until Stripe is live ────────────────────────
-  // if (path === '/premium') {
-  //   return <PremiumScanForm navigate={navigate} onScanStart={handlePremiumScanStart} />
-  // }
-  // Redirect /premium back to home (modal handles the waitlist capture there)
   if (path === '/premium') {
     navigate('/')
     return null
