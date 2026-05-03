@@ -54,6 +54,13 @@ async function callAI(repoContent) {
         role: 'user',
         content: `You are a web conversion optimization expert. Analyze this website code and identify the ONE most important problem hurting conversions.
 
+IMPORTANT - Do NOT suggest changes to:
+- The /premium route (intentionally disabled for now)
+- Payment or Stripe integration (not yet active)
+- Any feature that is intentionally commented out
+- Authentication or login flows
+- Focus only on: copy, UX, performance, SEO, CTAs, layout, and design issues
+
 Code:
 ${JSON.stringify(repoContent, null, 2)}
 

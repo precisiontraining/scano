@@ -23,79 +23,87 @@ async function getOctokit(installationId) {
   return new Octokit({ auth: token })
 }
 
-export default async function handler(req, res) {
-  const { callback_query } = req.body
-  if (!callback_query) return res.json({ ok: true })
+async function sendMessage(chatId, text) {
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+  })
+}
 
-  const { data: callbackData, id: callbackId } = callback_query
-  const underscoreIndex = callbackData.indexOf('_')
-  const action = callbackData.substring(0, underscoreIndex)
-  const token = callbackData.substring(underscoreIndex + 1)
-
-  const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'))
-  const { runId, prNumber } = payload
-
+async function handleApprove(runId, chatId) {
   const { data: run } = await supabase
     .from('agent_runs')
     .select('*')
     .eq('id', runId)
     .single()
 
-  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callback_query_id: callbackId })
+  if (!run) return sendMessage(chatId, '❌ Run not found.')
+  if (run.status !== 'waiting_approval') return sendMessage(chatId, '⚠️ This run is no longer waiting for approval.')
+
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('*')
+    .eq('subscription_id', run.subscription_id)
+    .single()
+
+  const octokit = await getOctokit(conn.github_installation_id)
+
+  await octokit.rest.pulls.merge({
+    owner: conn.github_repo_owner,
+    repo: conn.github_repo_name,
+    pull_number: run.pr_number,
+    merge_method: 'squash'
   })
 
-  if (action === 'approve') {
-    const { data: conn } = await supabase
-      .from('agent_connections')
-      .select('*')
-      .eq('subscription_id', run.subscription_id)
-      .single()
+  await supabase.from('agent_runs').update({ status: 'deployed' }).eq('id', runId)
 
-    const octokit = await getOctokit(conn.github_installation_id)
+  await sendMessage(chatId, '✅ PR merged! Vercel is deploying the change now.')
+}
 
-    await octokit.rest.pulls.merge({
-      owner: conn.github_repo_owner,
-      repo: conn.github_repo_name,
-      pull_number: prNumber,
-      merge_method: 'squash'
-    })
+async function handleReject(runId, chatId) {
+  const { data: run } = await supabase
+    .from('agent_runs')
+    .select('*')
+    .eq('id', runId)
+    .single()
 
-    await supabase.from('agent_runs').update({ status: 'deployed' }).eq('id', runId)
+  if (!run) return sendMessage(chatId, '❌ Run not found.')
+  if (run.status !== 'waiting_approval') return sendMessage(chatId, '⚠️ This run is no longer waiting for approval.')
 
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: callback_query.message.chat.id,
-        message_id: callback_query.message.message_id,
-        reply_markup: { inline_keyboard: [] }
-      })
-    })
+  await supabase.from('agent_runs').update({ status: 'rejected' }).eq('id', runId)
 
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: callback_query.message.chat.id,
-        text: '✅ PR merged! Vercel is deploying the change now.'
-      })
-    })
+  await sendMessage(chatId, '❌ PR rejected. The agent will analyze again on the next run.')
+}
 
-  } else {
-    await supabase.from('agent_runs').update({ status: 'rejected' }).eq('id', runId)
+export default async function handler(req, res) {
+  try {
+    const body = req.body
+    if (!body) return res.json({ ok: true })
 
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: callback_query.message.chat.id,
-        text: '❌ PR rejected. The agent will analyze again on the next run.'
-      })
-    })
+    const message = body.message
+    if (!message || !message.text) return res.json({ ok: true })
+
+    const chatId = message.chat.id
+    const text = message.text.trim().toLowerCase()
+    const parts = text.split(' ')
+
+    if (parts.length === 2 && (parts[0] === 'approve' || parts[0] === 'reject')) {
+      const action = parts[0]
+      const runId = parts[1]
+
+      if (action === 'approve') {
+        await handleApprove(runId, chatId)
+      } else {
+        await handleReject(runId, chatId)
+      }
+    } else {
+      await sendMessage(chatId, `🤖 *Scano Growth Agent*\n\nCommands:\n*approve <run-id>* - Merge the PR\n*reject <run-id>* - Reject the PR`)
+    }
+
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Telegram webhook error:', error)
+    res.status(500).json({ error: error.message })
   }
-
-  res.json({ ok: true })
 }
