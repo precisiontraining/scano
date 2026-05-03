@@ -168,6 +168,13 @@ Should I merge this PR?`
   )
 
   const data = await response.json()
+  console.log('Telegram response:', JSON.stringify(data))
+
+  if (!data.ok) {
+    console.error('Telegram error:', data.description)
+    return null
+  }
+
   return data.result.message_id
 }
 
@@ -215,13 +222,13 @@ export default async function handler(req, res) {
         analysis_result: analysis,
         pr_number: pr.number,
         pr_url: pr.html_url,
-        telegram_message_id: messageId
+        telegram_message_id: messageId || null
       }).eq('id', run.id)
     }
 
     res.json({ success: true, processed: connections.length })
   } catch (error) {
-    console.error(error)
+    console.error('Agent error:', error)
     res.status(500).json({ error: error.message })
   }
 }
