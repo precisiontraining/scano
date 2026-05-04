@@ -7,6 +7,7 @@ import PremiumScanForm from './PremiumScanForm.jsx'
 import PremiumReport from './PremiumReport.jsx'
 import AgentDashboard from './pages/AgentDashboard.jsx'
 import AgentAuth from './pages/AgentAuth.jsx'
+import AgentOnboarding from './pages/AgentOnboarding.jsx'
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
@@ -83,15 +84,6 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
     if (liveData.perf   != null)          return 25
     return 8
   })()
-
-  // Auth redirect handler
-useEffect(() => {
-  if (window.location.hash.includes('access_token') || 
-      window.location.hash.includes('type=signup')) {
-    window.history.replaceState({}, '', '/agent/dashboard')
-    setPath('/agent/dashboard')
-  }
-}, [])
 
   const prevPhase = useRef(phase)
   useEffect(() => {
@@ -182,6 +174,15 @@ export default function App() {
   const [premiumScanningUrl, setPremiumScanningUrl] = useState('')
   const [premiumLiveData, setPremiumLiveData]       = useState({})
   const [premiumError, setPremiumError]             = useState(null)
+
+  // Auth redirect handler — must be inside App, not ScanningScreen
+  useEffect(() => {
+    if (window.location.hash.includes('access_token') ||
+        window.location.hash.includes('type=signup')) {
+      window.history.replaceState({}, '', '/agent/dashboard')
+      setPath('/agent/dashboard')
+    }
+  }, [])
 
   useEffect(() => {
     const handler = () => setPath(window.location.pathname)
@@ -403,10 +404,11 @@ export default function App() {
   }
 
   // ── Routes ───────────────────────────────────────────────────────────────────
-  if (path === '/impressum')      return <Impressum navigate={navigate} />
-  if (path === '/privacy')        return <PrivacyPolicy navigate={navigate} />
-  if (path === '/agent/login')    return <AgentAuth navigate={navigate} mode="login" />
-  if (path === '/agent/register') return <AgentAuth navigate={navigate} mode="register" />
+  if (path === '/impressum')        return <Impressum navigate={navigate} />
+  if (path === '/privacy')          return <PrivacyPolicy navigate={navigate} />
+  if (path === '/agent/login')      return <AgentAuth navigate={navigate} mode="login" />
+  if (path === '/agent/register')   return <AgentAuth navigate={navigate} mode="register" />
+  if (path === '/agent/onboarding') return <AgentOnboarding navigate={navigate} />
   if (path === '/agent' || path === '/agent/dashboard') return <AgentDashboard navigate={navigate} />
 
   if (scanning) return <ScanningScreen url={scanningUrl} liveData={liveData} />
