@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import posthog from './posthog.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,6 +26,8 @@ export default async function handler(req, res) {
   if (error || !data) {
     return res.status(404).json({ error: 'Report not found' })
   }
+
+  posthog.capture({ distinctId: data.website_url, event: 'report_viewed', properties: { report_id: id } })
 
   return res.status(200).json(data)
 }
