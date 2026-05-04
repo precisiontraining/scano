@@ -51,11 +51,10 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
     }
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const today = new Date().toISOString().split('T')[0]
 
-    // Run all queries in parallel
-    const [pageviewsRes, sessionsRes, referrersRes, utmRes, deviceRes] = await Promise.all([
-      // Pageviews per page
+    const [pageviewsRes, sessionsRes, lastWeekRes, referrersRes, utmRes, deviceRes] = await Promise.all([
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -68,7 +67,6 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
           }
         })
       }),
-      // Sessions for bounce rate
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -81,7 +79,18 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
           }
         })
       }),
-      // Traffic sources / referrers
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          query: {
+            kind: 'EventsQuery',
+            select: ['properties.$session_id', 'count()'],
+            event: '$pageview',
+            after: fourteenDaysAgo, before: sevenDaysAgo,
+            limit: 2000,
+          }
+        })
+      }),
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -94,7 +103,6 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
           }
         })
       }),
-      // UTM data
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -107,7 +115,6 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
           }
         })
       }),
-      // Device types
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
         method: 'POST', headers,
         body: JSON.stringify({
@@ -122,76 +129,64 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
       }),
     ])
 
-    const [pageviews, sessions, referrers, utmData, devices] = await Promise.all([
+    const [pageviews, sessions, lastWeek, referrers, utmData, devices] = await Promise.all([
       pageviewsRes.json(),
       sessionsRes.json(),
+      lastWeekRes.json(),
       referrersRes.json(),
       utmRes.json(),
       deviceRes.json(),
     ])
 
-    // Calculate bounce rate
+    // This week metrics
     const sessionPageCounts = {}
     sessions.results?.forEach(row => {
-      const sessionId = row[0]
-      sessionPageCounts[sessionId] = (sessionPageCounts[sessionId] || 0) + 1
+      sessionPageCounts[row[0]] = (sessionPageCounts[row[0]] || 0) + 1
     })
     const uniqueSessions = Object.keys(sessionPageCounts).length
     const bouncedSessions = Object.values(sessionPageCounts).filter(c => c === 1).length
     const bounceRate = uniqueSessions > 0 ? Math.round((bouncedSessions / uniqueSessions) * 100) : 0
     const totalPageviews = pageviews.results?.reduce((sum, row) => sum + (row[1] || 0), 0) || 0
 
-    // Process traffic sources
-    const trafficSources = referrers.results
-      ?.filter(row => row[0])
-      ?.map(row => {
-        const domain = row[0]
-        const visits = row[1]
-        let platform = 'other'
-        if (domain.includes('tiktok')) platform = 'tiktok'
-        else if (domain.includes('instagram') || domain.includes('ig.me')) platform = 'instagram'
-        else if (domain.includes('youtube') || domain.includes('youtu.be')) platform = 'youtube'
-        else if (domain.includes('twitter') || domain.includes('t.co')) platform = 'twitter'
-        else if (domain.includes('facebook') || domain.includes('fb.me')) platform = 'facebook'
-        else if (domain.includes('google')) platform = 'google'
-        else if (domain.includes('linkedin')) platform = 'linkedin'
-        return { domain, visits, platform }
-      }) || []
+    // Last week
+    const lastWeekSessions = new Set(lastWeek.results?.map(r => r[0])).size || 0
+    const trafficChange = lastWeekSessions > 0
+      ? Math.round(((uniqueSessions - lastWeekSessions) / lastWeekSessions) * 100)
+      : null
 
-    // Social media breakdown
-    const socialBreakdown = {
-      tiktok: trafficSources.filter(s => s.platform === 'tiktok').reduce((sum, s) => sum + s.visits, 0),
-      instagram: trafficSources.filter(s => s.platform === 'instagram').reduce((sum, s) => sum + s.visits, 0),
-      youtube: trafficSources.filter(s => s.platform === 'youtube').reduce((sum, s) => sum + s.visits, 0),
-      twitter: trafficSources.filter(s => s.platform === 'twitter').reduce((sum, s) => sum + s.visits, 0),
-      facebook: trafficSources.filter(s => s.platform === 'facebook').reduce((sum, s) => sum + s.visits, 0),
-      google: trafficSources.filter(s => s.platform === 'google').reduce((sum, s) => sum + s.visits, 0),
-    }
+    // Traffic sources
+    const socialBreakdown = { tiktok: 0, instagram: 0, youtube: 0, twitter: 0, facebook: 0, google: 0 }
+    const trafficSources = []
+    referrers.results?.forEach(row => {
+      const domain = row[0] || ''
+      const visits = row[1]
+      if (domain) trafficSources.push({ domain, visits })
+      if (domain.includes('tiktok')) socialBreakdown.tiktok += visits
+      else if (domain.includes('instagram') || domain.includes('ig.me')) socialBreakdown.instagram += visits
+      else if (domain.includes('youtube') || domain.includes('youtu.be')) socialBreakdown.youtube += visits
+      else if (domain.includes('twitter') || domain.includes('t.co')) socialBreakdown.twitter += visits
+      else if (domain.includes('facebook') || domain.includes('fb.me')) socialBreakdown.facebook += visits
+      else if (domain.includes('google')) socialBreakdown.google += visits
+    })
     const totalSocialVisits = Object.values(socialBreakdown).reduce((sum, v) => sum + v, 0)
 
     // UTM campaigns
     const utmCampaigns = utmData.results
       ?.filter(row => row[0] || row[2])
-      ?.map(row => ({
-        source: row[0],
-        medium: row[1],
-        campaign: row[2],
-        visits: row[3]
-      })) || []
+      ?.map(row => ({ source: row[0], medium: row[1], campaign: row[2], visits: row[3] })) || []
 
     // Device breakdown
     const deviceBreakdown = {}
     devices.results?.forEach(row => {
       if (row[0]) deviceBreakdown[row[0].toLowerCase()] = row[1]
     })
-    const mobilePercent = deviceBreakdown['mobile']
+    const mobilePercent = deviceBreakdown['mobile'] && totalPageviews > 0
       ? Math.round((deviceBreakdown['mobile'] / totalPageviews) * 100)
       : null
 
     // Top pages
     const topPages = pageviews.results?.slice(0, 5).map(row => ({
-      path: row[0],
-      views: row[1]
+      path: row[0], views: row[1]
     })) || []
 
     return {
@@ -206,6 +201,8 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
         utmCampaigns: utmCampaigns.slice(0, 5),
         deviceBreakdown,
         mobilePercent,
+        trafficChange,
+        lastWeekSessions,
       }
     }
   } catch (error) {
@@ -243,7 +240,7 @@ async function getPreviousRuns(subscriptionId) {
   return data?.map(r => r.analysis_result?.problem).filter(Boolean) || []
 }
 
-async function callAI(repoContent, analytics, pageSpeed, previousFixes, websiteUrl) {
+async function callAI(repoContent, analytics, pageSpeed, previousFixes) {
   const a = analytics?.last7Days
 
   const analyticsContext = a ? `
@@ -252,6 +249,7 @@ REAL ANALYTICS DATA (last 7 days):
 - Unique sessions: ${a.uniqueVisitors}
 - Bounce rate: ${a.bounceRate}%
 - Mobile visitors: ${a.mobilePercent != null ? `${a.mobilePercent}%` : 'unknown'}
+- Traffic change vs last week: ${a.trafficChange != null ? `${a.trafficChange > 0 ? '+' : ''}${a.trafficChange}%` : 'first week'}
 - Top pages: ${a.topPages.map(p => `${p.path} (${p.views} views)`).join(', ')}
 
 TRAFFIC SOURCES:
@@ -261,18 +259,15 @@ TRAFFIC SOURCES:
 - YouTube: ${a.socialBreakdown.youtube} visits
 - Twitter/X: ${a.socialBreakdown.twitter} visits
 - Facebook: ${a.socialBreakdown.facebook} visits
-- Total social traffic: ${a.totalSocialVisits} visits
+- Total social: ${a.totalSocialVisits} visits
 ${a.utmCampaigns.length > 0 ? `
-UTM CAMPAIGNS THIS WEEK:
+UTM CAMPAIGNS:
 ${a.utmCampaigns.map(c => `- ${c.source || 'unknown'} / ${c.campaign || 'no campaign'}: ${c.visits} visits`).join('\n')}` : ''}
-${a.trafficSources.length > 0 ? `
-TOP REFERRERS:
-${a.trafficSources.map(s => `- ${s.domain}: ${s.visits} visits`).join('\n')}` : ''}
 ` : 'No analytics data available.'
 
   const pageSpeedContext = pageSpeed ? `
-PERFORMANCE DATA (mobile):
-- Performance score: ${pageSpeed.performance}/100
+PERFORMANCE (mobile):
+- Score: ${pageSpeed.performance}/100
 - LCP: ${pageSpeed.lcp}
 - CLS: ${pageSpeed.cls}
 - Total Blocking Time: ${pageSpeed.fid}
@@ -293,43 +288,34 @@ ${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
       model: 'anthropic/claude-sonnet-4-5',
       messages: [{
         role: 'user',
-        content: `You are an elite web conversion optimization expert with deep expertise in UX, performance, SEO, and data-driven CRO.
+        content: `You are an elite web conversion optimization expert.
 
-Analyze the website code AND real analytics data to identify the single highest-impact improvement this week.
+Analyze the website code AND real analytics data to find the single highest-impact improvement.
 
 ${analyticsContext}
-
 ${pageSpeedContext}
-
 ${previousFixesContext}
 
 WEBSITE CODE:
 ${JSON.stringify(repoContent, null, 2)}
 
-ANALYSIS FRAMEWORK:
-- If social traffic is high but bounce rate is high → landing page doesn't match social content/audience
-- If mobile % is high but performance is low → mobile UX is the priority
-- If a page has many views but likely low conversion → optimize that specific page
-- If TikTok/Instagram is top source → consider if the hero speaks to that audience
-- If no social traffic → SEO or CTA optimization
-- Always reference specific numbers from the data
-
 RULES:
-- Do NOT suggest: /premium route changes, Stripe integration, intentionally disabled features
-- The fix MUST be a real code change (not just advice)
-- Be specific — reference actual data points in your analysis
-- Think like a CRO expert who has studied this site for a week
+- Do NOT suggest: /premium route, Stripe, intentionally disabled features
+- The fix MUST be a real code change
+- Reference specific data points in your analysis
+- If social traffic is high but bounce rate is high → landing page doesn't match social audience
+- If mobile % is high but performance is low → mobile UX is priority
 
 Reply ONLY as JSON without Markdown:
 {
-  "problem": "specific problem referencing real data e.g. 'TikTok sends 47 visitors/week but 78% bounce — landing page doesn't match social audience expectations'",
-  "impact": "quantified impact with specific numbers from the analytics",
+  "problem": "specific problem referencing real data",
+  "impact": "quantified impact with numbers",
   "solution": "exact actionable change",
-  "expected_improvement": "realistic estimate based on the data and industry benchmarks",
-  "data_insight": "the key analytics insight that led to this recommendation",
+  "expected_improvement": "realistic estimate",
+  "data_insight": "key analytics insight",
   "file_to_edit": "exact file path",
   "code_change": {
-    "find": "exact text to be replaced",
+    "find": "exact text to replace",
     "replace": "new improved text"
   }
 }`
@@ -388,18 +374,22 @@ async function sendTelegramNotification(analysis, pr, runId, analytics) {
   const a = analytics?.last7Days
 
   let socialLine = ''
-  if (a && a.totalSocialVisits > 0) {
+  if (a?.totalSocialVisits > 0) {
     const topSocial = Object.entries(a.socialBreakdown)
       .filter(([, v]) => v > 0)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3)
       .map(([platform, visits]) => `${platform}: ${visits}`)
       .join(' · ')
-    socialLine = `📱 *Social traffic:* ${topSocial}\n`
+    socialLine = `📱 *Social:* ${topSocial}\n`
   }
 
+  const trendText = a?.trafficChange != null
+    ? ` · ${a.trafficChange > 0 ? '+' : ''}${a.trafficChange}% vs last week`
+    : ''
+
   const analyticsLine = a
-    ? `📊 *This week:* ${a.totalPageviews} pageviews · ${a.bounceRate}% bounce\n${socialLine}\n`
+    ? `📊 *This week:* ${a.totalPageviews} pageviews · ${a.bounceRate}% bounce${trendText}\n${socialLine}\n`
     : ''
 
   const message = `🤖 *Scano Growth Agent*
@@ -436,14 +426,144 @@ Reply *approve ${runId}* or *reject ${runId}*`
   )
 
   const data = await response.json()
-  console.log('Telegram response:', JSON.stringify(data))
+  if (!data.ok) console.error('Telegram error:', data.description)
+  return data.result?.message_id || null
+}
 
-  if (!data.ok) {
-    console.error('Telegram error:', data.description)
-    return null
+async function sendMidweekUpdate(chatId, analytics) {
+  const a = analytics?.last7Days
+  if (!a) return
+
+  const trendEmoji = a.trafficChange === null ? '📊'
+    : a.trafficChange > 10 ? '📈'
+    : a.trafficChange < -10 ? '📉'
+    : '➡️'
+
+  const trendText = a.trafficChange === null ? 'first week of tracking'
+    : a.trafficChange > 0 ? `+${a.trafficChange}% vs last week`
+    : `${a.trafficChange}% vs last week`
+
+  const socialLines = Object.entries(a.socialBreakdown)
+    .filter(([, v]) => v > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([platform, visits]) => {
+      const emoji = { tiktok: '🎵', instagram: '📸', youtube: '▶️', twitter: '𝕏', google: '🔍', facebook: '📘' }[platform] || '🌐'
+      return `  ${emoji} ${platform}: ${visits} visits`
+    })
+    .join('\n')
+
+  const pagesLines = a.topPages.slice(0, 3)
+    .map(p => `  • ${p.path} — ${p.views} views`)
+    .join('\n')
+
+  const bounceAssessment = a.bounceRate > 70
+    ? `⚠️ High bounce rate (${a.bounceRate}%) — agent will prioritize this Monday`
+    : a.bounceRate > 50
+    ? `🟡 Bounce rate ${a.bounceRate}% — room to improve`
+    : a.bounceRate === 0
+    ? `📊 No bounce data yet`
+    : `✅ Bounce rate ${a.bounceRate}% — looking good`
+
+  const message = `📊 *Scano — Mid-Week Check*
+_${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}_
+
+${trendEmoji} *Traffic this week*
+${a.uniqueVisitors} visitors · ${a.totalPageviews} pageviews
+${trendText}
+
+${bounceAssessment}
+
+${socialLines ? `*Top traffic sources:*\n${socialLines}` : '*No social traffic yet this week*'}
+
+${pagesLines ? `*Most visited:*\n${pagesLines}` : ''}
+
+🤖 _Watching 24/7. Monday the agent sends the next fix for your approval._`
+
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'Markdown'
+    })
+  })
+}
+
+async function handleMidweek(res) {
+  const { data: connections } = await supabase
+    .from('agent_connections')
+    .select('*, agent_subscriptions!inner(*)')
+    .eq('agent_subscriptions.status', 'active')
+
+  if (!connections || connections.length === 0) {
+    return res.json({ success: true, message: 'No active connections' })
   }
 
-  return data.result.message_id
+  for (const conn of connections) {
+    const analytics = await getPostHogAnalytics(
+      conn.posthog_api_key || process.env.POSTHOG_API_KEY,
+      conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
+      conn.posthog_host || process.env.POSTHOG_HOST
+    )
+
+    const { data: sub } = await supabase
+      .from('agent_subscriptions')
+      .select('telegram_chat_id')
+      .eq('id', conn.subscription_id)
+      .single()
+
+    const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+    await sendMidweekUpdate(chatId, analytics)
+  }
+
+  return res.json({ success: true, mode: 'midweek' })
+}
+
+async function handleFullRun(res) {
+  const { data: connections } = await supabase
+    .from('agent_connections')
+    .select('*, agent_subscriptions!inner(*)')
+    .eq('agent_subscriptions.status', 'active')
+
+  if (!connections || connections.length === 0) {
+    return res.json({ success: true, message: 'No active connections' })
+  }
+
+  for (const conn of connections) {
+    const { data: run } = await supabase
+      .from('agent_runs')
+      .insert({ subscription_id: conn.subscription_id, status: 'running' })
+      .select()
+      .single()
+
+    const octokit = await getOctokit(conn.github_installation_id)
+
+    const [repoContent, analytics, pageSpeed, previousFixes] = await Promise.all([
+      analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
+      getPostHogAnalytics(
+        conn.posthog_api_key || process.env.POSTHOG_API_KEY,
+        conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
+        conn.posthog_host || process.env.POSTHOG_HOST
+      ),
+      conn.website_url ? getPageSpeedScore(conn.website_url) : null,
+      getPreviousRuns(conn.subscription_id),
+    ])
+
+    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes)
+    const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
+    const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
+
+    await supabase.from('agent_runs').update({
+      status: 'waiting_approval',
+      analysis_result: { ...analysis, analytics_snapshot: analytics?.last7Days },
+      pr_number: pr.number,
+      pr_url: pr.html_url,
+      telegram_message_id: messageId || null
+    }).eq('id', run.id)
+  }
+
+  return res.json({ success: true, processed: connections.length })
 }
 
 export default async function handler(req, res) {
@@ -454,62 +574,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  try {
-    const { data: connections } = await supabase
-      .from('agent_connections')
-      .select('*, agent_subscriptions!inner(*)')
-      .eq('agent_subscriptions.status', 'active')
+  const isMidweek = req.query?.mode === 'midweek'
 
-    if (!connections || connections.length === 0) {
-      return res.json({ success: true, message: 'No active connections' })
-    }
-
-    for (const conn of connections) {
-      const { data: run } = await supabase
-        .from('agent_runs')
-        .insert({
-          subscription_id: conn.subscription_id,
-          status: 'running'
-        })
-        .select()
-        .single()
-
-      const octokit = await getOctokit(conn.github_installation_id)
-
-      const [repoContent, analytics, pageSpeed, previousFixes] = await Promise.all([
-        analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
-        getPostHogAnalytics(
-          conn.posthog_api_key || process.env.POSTHOG_API_KEY,
-          conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
-          conn.posthog_host || process.env.POSTHOG_HOST
-        ),
-        conn.website_url ? getPageSpeedScore(conn.website_url) : null,
-        getPreviousRuns(conn.subscription_id),
-      ])
-
-      const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes, conn.website_url)
-
-      const pr = await createPR(
-        octokit, conn.github_repo_owner, conn.github_repo_name, analysis
-      )
-
-      const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
-
-      await supabase.from('agent_runs').update({
-        status: 'waiting_approval',
-        analysis_result: {
-          ...analysis,
-          analytics_snapshot: analytics?.last7Days
-        },
-        pr_number: pr.number,
-        pr_url: pr.html_url,
-        telegram_message_id: messageId || null
-      }).eq('id', run.id)
-    }
-
-    res.json({ success: true, processed: connections.length })
-  } catch (error) {
-    console.error('Agent error:', error)
-    res.status(500).json({ error: error.message })
+  if (isMidweek) {
+    return handleMidweek(res)
   }
+
+  return handleFullRun(res)
 }

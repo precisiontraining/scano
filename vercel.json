@@ -6,7 +6,7 @@
       "schedule": "0 9 * * 1"
     },
     {
-      "path": "/api/agent/midweek",
+      "path": "/api/agent/run?mode=midweek",
       "schedule": "0 9 * * 3"
     }
   ],
