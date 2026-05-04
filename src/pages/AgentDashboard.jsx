@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -54,21 +54,6 @@ function Logo({ size = 24, color = '#2a5c45' }) {
   )
 }
 
-function StatCard({ label, value, sub, accent, delay }) {
-  return (
-    <div className="agent-card" style={{
-      animationDelay: `${delay}s`,
-      background: accent ? 'rgba(42,92,69,0.06)' : C.bgCard,
-      border: `1px solid ${accent ? 'rgba(42,92,69,0.2)' : C.border}`,
-      borderRadius: 14, padding: '22px 24px', flex: 1, minWidth: 140,
-    }}>
-      <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: accent ? C.accent : C.textLight, fontWeight: 400, marginBottom: 8 }}>{label}</p>
-      <p style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 44, fontWeight: 300, color: C.text, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6, fontWeight: 300 }}>{sub}</p>}
-    </div>
-  )
-}
-
 function StatusBadge({ status }) {
   const s = STATUS[status] || STATUS.pending
   return (
@@ -107,7 +92,6 @@ function RunDetail({ run, onClose }) {
             <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 24, letterSpacing: '-.015em', marginBottom: 20, color: C.text, lineHeight: 1.2 }}>
               {analysis.problem}
             </h3>
-
             {[
               { label: '💥 Impact', text: analysis.impact },
               { label: '✅ Solution', text: analysis.solution },
@@ -118,7 +102,6 @@ function RunDetail({ run, onClose }) {
                 <p style={{ fontSize: 14, color: C.text, fontWeight: 300, lineHeight: 1.65 }}>{item.text}</p>
               </div>
             ))}
-
             {analysis.file_to_edit && (
               <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
                 <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 5 }}>📄 File edited</p>
@@ -146,24 +129,68 @@ function RunDetail({ run, onClose }) {
 }
 
 export default function AgentDashboard({ navigate }) {
-  const [runs, setRuns] = useState([])
+  const [user, setUser]       = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [runs, setRuns]       = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [subscription, setSubscription] = useState(null)
 
+  // Check auth
   useEffect(() => {
-    fetchRuns()
-    const interval = setInterval(fetchRuns, 30000)
-    return () => clearInterval(interval)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate('/agent/login')
+        return
+      }
+      setUser(session.user)
+      setAuthLoading(false)
+    })
+
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) { navigate('/agent/login'); return }
+      setUser(session.user)
+      setAuthLoading(false)
+    })
+
+    return () => authSub.unsubscribe()
   }, [])
 
-  async function fetchRuns() {
-    const { data } = await supabase
+  // Fetch runs once user is loaded
+  useEffect(() => {
+    if (!user) return
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  async function fetchData() {
+    // Get subscription for this user
+    const { data: subs } = await supabase
+      .from('agent_subscriptions')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    setSubscription(subs)
+
+    if (!subs) { setLoading(false); return }
+
+    // Get runs for this subscription
+    const { data: runsData } = await supabase
       .from('agent_runs')
       .select('*')
+      .eq('subscription_id', subs.id)
       .order('created_at', { ascending: false })
       .limit(20)
-    if (data) setRuns(data)
+
+    if (runsData) setRuns(runsData)
     setLoading(false)
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/agent/login')
   }
 
   function timeAgo(iso) {
@@ -179,6 +206,15 @@ export default function AgentDashboard({ navigate }) {
 
   const deployed = runs.filter(r => r.status === 'deployed').length
   const pending  = runs.filter(r => r.status === 'waiting_approval').length
+
+  if (authLoading) return (
+    <>
+      <style>{CSS}</style>
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 24, height: 24, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    </>
+  )
 
   return (
     <>
@@ -199,130 +235,176 @@ export default function AgentDashboard({ navigate }) {
             <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</span>
             <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300, marginLeft: 4 }}>/ Growth Agent</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
-            <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>Active · runs every Monday</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>{user?.email}</span>
+            <button onClick={handleLogout} style={{
+              background: 'none', border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: '6px 14px', fontSize: 12, fontFamily: 'Jost, sans-serif',
+              fontWeight: 300, color: C.textMuted, cursor: 'pointer', transition: 'all .2s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted }}
+            >Log out</button>
           </div>
         </nav>
 
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 24px 0' }}>
 
-          {/* Header */}
-          <div className="agent-card" style={{ marginBottom: 40 }}>
-            <p style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Growth Agent</p>
-            <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(32px, 5vw, 56px)', letterSpacing: '-.025em', lineHeight: 1.08, color: C.text, marginBottom: 12 }}>
-              Your website,<br /><em style={{ fontStyle: 'italic', color: C.accent }}>always improving.</em>
-            </h1>
-            <p style={{ fontSize: 15, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, maxWidth: 480 }}>
-              The agent scans your repo every week, finds the biggest conversion problem, writes the fix, and sends it to you for approval.
-            </p>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
-            <StatCard label="Total Runs"      value={runs.length} sub="since setup"          delay={0.05} />
-            <StatCard label="Deployed Fixes"  value={deployed}    sub="improvements merged"  delay={0.1}  accent />
-            <StatCard label="Awaiting Review" value={pending}      sub="reply on Telegram"    delay={0.15} />
-          </div>
-
-          {/* Pending alert */}
-          {pending > 0 && (
+          {/* No subscription yet */}
+          {!loading && !subscription && (
             <div className="agent-card" style={{
-              animationDelay: '0.2s',
-              background: 'rgba(214,137,16,0.07)', border: '1px solid rgba(214,137,16,0.25)',
-              borderRadius: 14, padding: '16px 20px', marginBottom: 24,
-              display: 'flex', alignItems: 'center', gap: 12,
+              background: C.bgCard, border: `1px solid ${C.border}`,
+              borderRadius: 18, padding: '48px 32px', textAlign: 'center',
             }}>
-              <span style={{ fontSize: 18 }}>💬</span>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 2 }}>
-                  {pending} PR{pending > 1 ? 's' : ''} waiting for your approval
-                </p>
-                <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>
-                  Reply <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>approve [id]</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>reject [id]</code> to the Scano Telegram bot
-                </p>
-              </div>
+              <p style={{ fontSize: 32, marginBottom: 16 }}>🤖</p>
+              <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 12, color: C.text }}>
+                Set up your Growth Agent
+              </h2>
+              <p style={{ fontSize: 15, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 28, maxWidth: 400, margin: '0 auto 28px' }}>
+                Connect your website, GitHub repo, and let the agent start optimizing automatically every week.
+              </p>
+              <button onClick={() => navigate('/agent/onboarding')} style={{
+                background: C.text, color: C.bg, border: 'none', borderRadius: 10,
+                padding: '14px 28px', fontSize: 14, fontFamily: 'Jost, sans-serif',
+                fontWeight: 500, cursor: 'pointer', letterSpacing: '.02em', transition: 'background .2s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = C.accent}
+                onMouseLeave={e => e.currentTarget.style.background = C.text}
+              >Start setup →</button>
             </div>
           )}
 
-          {/* Runs table */}
-          <div className="agent-card" style={{
-            animationDelay: '0.2s',
-            background: C.bgCard, border: `1px solid ${C.border}`,
-            borderRadius: 16, overflow: 'hidden',
-          }}>
-            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Agent Runs</p>
-              <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>Click a row to see details</p>
-            </div>
+          {subscription && (
+            <>
+              {/* Header */}
+              <div className="agent-card" style={{ marginBottom: 40 }}>
+                <p style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Growth Agent</p>
+                <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(32px, 5vw, 56px)', letterSpacing: '-.025em', lineHeight: 1.08, color: C.text, marginBottom: 12 }}>
+                  Your website,<br /><em style={{ fontStyle: 'italic', color: C.accent }}>always improving.</em>
+                </h1>
+                <p style={{ fontSize: 15, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, maxWidth: 480 }}>
+                  The agent scans your repo every week, finds the biggest conversion problem, writes the fix, and sends it to you for approval.
+                </p>
+              </div>
 
-            {loading ? (
-              <div style={{ padding: '48px', textAlign: 'center' }}>
-                <div style={{ width: 24, height: 24, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Loading runs…</p>
+              {/* Stats */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Total Runs',      value: runs.length, sub: 'since setup',         accent: false },
+                  { label: 'Deployed Fixes',  value: deployed,    sub: 'improvements merged',  accent: true  },
+                  { label: 'Awaiting Review', value: pending,     sub: 'reply on Telegram',    accent: false },
+                ].map((s, i) => (
+                  <div key={i} className="agent-card" style={{
+                    animationDelay: `${i * 0.05}s`,
+                    background: s.accent ? 'rgba(42,92,69,0.06)' : C.bgCard,
+                    border: `1px solid ${s.accent ? 'rgba(42,92,69,0.2)' : C.border}`,
+                    borderRadius: 14, padding: '22px 24px', flex: 1, minWidth: 140,
+                  }}>
+                    <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: s.accent ? C.accent : C.textLight, fontWeight: 400, marginBottom: 8 }}>{s.label}</p>
+                    <p style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 44, fontWeight: 300, color: C.text, lineHeight: 1 }}>{s.value}</p>
+                    <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6, fontWeight: 300 }}>{s.sub}</p>
+                  </div>
+                ))}
               </div>
-            ) : runs.length === 0 ? (
-              <div style={{ padding: '48px', textAlign: 'center' }}>
-                <p style={{ fontSize: 32, marginBottom: 12 }}>🤖</p>
-                <p style={{ fontSize: 15, color: C.text, fontWeight: 400, marginBottom: 6 }}>No runs yet</p>
-                <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>The agent will run automatically every Monday at 9am.</p>
-              </div>
-            ) : (
-              runs.map((run, i) => (
-                <div key={run.id} className="run-row" onClick={() => setSelected(run)} style={{
-                  padding: '16px 24px',
-                  borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : 'none',
-                  display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-                  background: '#fff',
+
+              {/* Pending alert */}
+              {pending > 0 && (
+                <div className="agent-card" style={{
+                  animationDelay: '0.2s',
+                  background: 'rgba(214,137,16,0.07)', border: '1px solid rgba(214,137,16,0.25)',
+                  borderRadius: 14, padding: '16px 20px', marginBottom: 24,
+                  display: 'flex', alignItems: 'center', gap: 12,
                 }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 3, lineHeight: 1.4 }}>
-                      {run.analysis_result?.problem || 'Analysis pending…'}
+                  <span style={{ fontSize: 18 }}>💬</span>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 2 }}>
+                      {pending} PR{pending > 1 ? 's' : ''} waiting for your approval
                     </p>
-                    <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, fontFamily: 'DM Mono, monospace' }}>
-                      {run.id.substring(0, 8)}…
+                    <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>
+                      Reply <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>approve [id]</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>reject [id]</code> to the Scano Telegram bot
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                    <StatusBadge status={run.status} />
-                    {run.pr_url && (
-                      <a href={run.pr_url} target="_blank" rel="noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 400, whiteSpace: 'nowrap' }}>
-                        PR #{run.pr_number} ↗
-                      </a>
-                    )}
-                    <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300, whiteSpace: 'nowrap' }}>{timeAgo(run.created_at)}</span>
+                </div>
+              )}
+
+              {/* Runs table */}
+              <div className="agent-card" style={{
+                animationDelay: '0.2s',
+                background: C.bgCard, border: `1px solid ${C.border}`,
+                borderRadius: 16, overflow: 'hidden',
+              }}>
+                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Agent Runs</p>
+                  <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>Click a row to see details</p>
+                </div>
+
+                {loading ? (
+                  <div style={{ padding: '48px', textAlign: 'center' }}>
+                    <div style={{ width: 24, height: 24, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                    <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Loading runs…</p>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                ) : runs.length === 0 ? (
+                  <div style={{ padding: '48px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 32, marginBottom: 12 }}>🤖</p>
+                    <p style={{ fontSize: 15, color: C.text, fontWeight: 400, marginBottom: 6 }}>No runs yet</p>
+                    <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>The agent runs automatically every Monday at 9am.</p>
+                  </div>
+                ) : (
+                  runs.map((run, i) => (
+                    <div key={run.id} className="run-row" onClick={() => setSelected(run)} style={{
+                      padding: '16px 24px',
+                      borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : 'none',
+                      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                      background: '#fff',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 200 }}>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 3, lineHeight: 1.4 }}>
+                          {run.analysis_result?.problem || 'Analysis pending…'}
+                        </p>
+                        <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, fontFamily: 'DM Mono, monospace' }}>
+                          {run.id.substring(0, 8)}…
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                        <StatusBadge status={run.status} />
+                        {run.pr_url && (
+                          <a href={run.pr_url} target="_blank" rel="noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 400, whiteSpace: 'nowrap' }}>
+                            PR #{run.pr_number} ↗
+                          </a>
+                        )}
+                        <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300, whiteSpace: 'nowrap' }}>{timeAgo(run.created_at)}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
 
-          {/* Info box */}
-          <div className="agent-card" style={{
-            animationDelay: '0.3s',
-            marginTop: 20,
-            background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.15)',
-            borderRadius: 14, padding: '20px 24px',
-          }}>
-            <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 12 }}>How it works</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { step: '1', text: 'Every Monday at 9am, the agent reads your GitHub repo and analytics' },
-                { step: '2', text: 'Claude finds the biggest conversion problem in your code' },
-                { step: '3', text: 'It writes the fix, creates a branch, and opens a Pull Request' },
-                { step: '4', text: 'You receive a Telegram message with the problem, solution, and PR link' },
-                { step: '5', text: 'Reply approve [id] to merge it — or reject [id] to skip' },
-              ].map(item => (
-                <div key={item.step} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#fff', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.step}</div>
-                  <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{item.text}</p>
+              {/* How it works */}
+              <div className="agent-card" style={{
+                animationDelay: '0.3s', marginTop: 20,
+                background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.15)',
+                borderRadius: 14, padding: '20px 24px',
+              }}>
+                <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 12 }}>How it works</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    'Every Monday at 9am, the agent reads your GitHub repo',
+                    'Claude finds the biggest conversion problem in your code',
+                    'It writes the fix and opens a Pull Request on GitHub',
+                    'You get a Telegram message with the problem, solution, and PR link',
+                    'Reply approve [id] to merge — or reject [id] to skip',
+                  ].map((text, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#fff', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                      <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{text}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>
