@@ -4,6 +4,10 @@
     {
       "path": "/api/agent/run",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/agent/midweek",
+      "schedule": "0 9 * * 3"
     }
   ],
   "headers": [
