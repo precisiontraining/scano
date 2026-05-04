@@ -53,80 +53,140 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const today = new Date().toISOString().split('T')[0]
 
-    // Pageviews per page
-    const pageviewsRes = await fetch(
-      `${posthogHost}/api/projects/${posthogProjectId}/query/`,
-      {
-        method: 'POST',
-        headers,
+    // Run all queries in parallel
+    const [pageviewsRes, sessionsRes, referrersRes, utmRes, deviceRes] = await Promise.all([
+      // Pageviews per page
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
         body: JSON.stringify({
           query: {
             kind: 'EventsQuery',
             select: ['properties.$pathname', 'count()'],
             event: '$pageview',
-            after: sevenDaysAgo,
-            before: today,
-            limit: 10,
-            orderBy: ['count() DESC'],
+            after: sevenDaysAgo, before: today,
+            limit: 10, orderBy: ['count() DESC'],
           }
         })
-      }
-    )
-    const pageviews = await pageviewsRes.json()
-
-    // Sessions + bounce rate via sessions query
-    const sessionsRes = await fetch(
-      `${posthogHost}/api/projects/${posthogProjectId}/query/`,
-      {
-        method: 'POST',
-        headers,
+      }),
+      // Sessions for bounce rate
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
         body: JSON.stringify({
           query: {
             kind: 'EventsQuery',
             select: ['properties.$session_id', 'count()'],
             event: '$pageview',
-            after: sevenDaysAgo,
-            before: today,
-            limit: 1000,
+            after: sevenDaysAgo, before: today,
+            limit: 2000,
           }
         })
-      }
-    )
-    const sessions = await sessionsRes.json()
-
-    // Unique visitors
-    const visitorsRes = await fetch(
-      `${posthogHost}/api/projects/${posthogProjectId}/query/`,
-      {
-        method: 'POST',
-        headers,
+      }),
+      // Traffic sources / referrers
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
         body: JSON.stringify({
           query: {
             kind: 'EventsQuery',
-            select: ['distinct_id', 'count()'],
+            select: ['properties.$referring_domain', 'count()'],
             event: '$pageview',
-            after: sevenDaysAgo,
-            before: today,
-            limit: 1000,
+            after: sevenDaysAgo, before: today,
+            limit: 20, orderBy: ['count() DESC'],
           }
         })
-      }
-    )
-    const visitors = await visitorsRes.json()
+      }),
+      // UTM data
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          query: {
+            kind: 'EventsQuery',
+            select: ['properties.$utm_source', 'properties.$utm_medium', 'properties.$utm_campaign', 'count()'],
+            event: '$pageview',
+            after: sevenDaysAgo, before: today,
+            limit: 20, orderBy: ['count() DESC'],
+          }
+        })
+      }),
+      // Device types
+      fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          query: {
+            kind: 'EventsQuery',
+            select: ['properties.$device_type', 'count()'],
+            event: '$pageview',
+            after: sevenDaysAgo, before: today,
+            limit: 10, orderBy: ['count() DESC'],
+          }
+        })
+      }),
+    ])
 
-    // Calculate metrics
-    const totalPageviews = pageviews.results?.reduce((sum, row) => sum + (row[1] || 0), 0) || 0
-    const uniqueSessions = new Set(sessions.results?.map(r => r[0])).size || 0
-    const uniqueVisitors = visitors.results?.length || 0
+    const [pageviews, sessions, referrers, utmData, devices] = await Promise.all([
+      pageviewsRes.json(),
+      sessionsRes.json(),
+      referrersRes.json(),
+      utmRes.json(),
+      deviceRes.json(),
+    ])
 
-    // Single-page sessions (bounces)
+    // Calculate bounce rate
     const sessionPageCounts = {}
     sessions.results?.forEach(row => {
       const sessionId = row[0]
       sessionPageCounts[sessionId] = (sessionPageCounts[sessionId] || 0) + 1
     })
-    const bouncedSessions = Object.values(sessionPageCounts).filter(count => count === 1).length
+    const uniqueSessions = Object.keys(sessionPageCounts).length
+    const bouncedSessions = Object.values(sessionPageCounts).filter(c => c === 1).length
     const bounceRate = uniqueSessions > 0 ? Math.round((bouncedSessions / uniqueSessions) * 100) : 0
+    const totalPageviews = pageviews.results?.reduce((sum, row) => sum + (row[1] || 0), 0) || 0
+
+    // Process traffic sources
+    const trafficSources = referrers.results
+      ?.filter(row => row[0])
+      ?.map(row => {
+        const domain = row[0]
+        const visits = row[1]
+        let platform = 'other'
+        if (domain.includes('tiktok')) platform = 'tiktok'
+        else if (domain.includes('instagram') || domain.includes('ig.me')) platform = 'instagram'
+        else if (domain.includes('youtube') || domain.includes('youtu.be')) platform = 'youtube'
+        else if (domain.includes('twitter') || domain.includes('t.co')) platform = 'twitter'
+        else if (domain.includes('facebook') || domain.includes('fb.me')) platform = 'facebook'
+        else if (domain.includes('google')) platform = 'google'
+        else if (domain.includes('linkedin')) platform = 'linkedin'
+        return { domain, visits, platform }
+      }) || []
+
+    // Social media breakdown
+    const socialBreakdown = {
+      tiktok: trafficSources.filter(s => s.platform === 'tiktok').reduce((sum, s) => sum + s.visits, 0),
+      instagram: trafficSources.filter(s => s.platform === 'instagram').reduce((sum, s) => sum + s.visits, 0),
+      youtube: trafficSources.filter(s => s.platform === 'youtube').reduce((sum, s) => sum + s.visits, 0),
+      twitter: trafficSources.filter(s => s.platform === 'twitter').reduce((sum, s) => sum + s.visits, 0),
+      facebook: trafficSources.filter(s => s.platform === 'facebook').reduce((sum, s) => sum + s.visits, 0),
+      google: trafficSources.filter(s => s.platform === 'google').reduce((sum, s) => sum + s.visits, 0),
+    }
+    const totalSocialVisits = Object.values(socialBreakdown).reduce((sum, v) => sum + v, 0)
+
+    // UTM campaigns
+    const utmCampaigns = utmData.results
+      ?.filter(row => row[0] || row[2])
+      ?.map(row => ({
+        source: row[0],
+        medium: row[1],
+        campaign: row[2],
+        visits: row[3]
+      })) || []
+
+    // Device breakdown
+    const deviceBreakdown = {}
+    devices.results?.forEach(row => {
+      if (row[0]) deviceBreakdown[row[0].toLowerCase()] = row[1]
+    })
+    const mobilePercent = deviceBreakdown['mobile']
+      ? Math.round((deviceBreakdown['mobile'] / totalPageviews) * 100)
+      : null
 
     // Top pages
     const topPages = pageviews.results?.slice(0, 5).map(row => ({
@@ -137,10 +197,15 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
     return {
       last7Days: {
         totalPageviews,
-        uniqueVisitors,
-        uniqueSessions,
+        uniqueVisitors: uniqueSessions,
         bounceRate,
         topPages,
+        trafficSources: trafficSources.slice(0, 8),
+        socialBreakdown,
+        totalSocialVisits,
+        utmCampaigns: utmCampaigns.slice(0, 5),
+        deviceBreakdown,
+        mobilePercent,
       }
     }
   } catch (error) {
@@ -171,7 +236,7 @@ async function getPreviousRuns(subscriptionId) {
     .from('agent_runs')
     .select('analysis_result')
     .eq('subscription_id', subscriptionId)
-    .eq('status', 'deployed')
+    .in('status', ['deployed', 'waiting_approval'])
     .order('created_at', { ascending: false })
     .limit(5)
 
@@ -179,24 +244,42 @@ async function getPreviousRuns(subscriptionId) {
 }
 
 async function callAI(repoContent, analytics, pageSpeed, previousFixes, websiteUrl) {
-  const analyticsContext = analytics ? `
+  const a = analytics?.last7Days
+
+  const analyticsContext = a ? `
 REAL ANALYTICS DATA (last 7 days):
-- Total pageviews: ${analytics.last7Days.totalPageviews}
-- Unique visitors: ${analytics.last7Days.uniqueVisitors}
-- Bounce rate: ${analytics.last7Days.bounceRate}%
-- Top pages: ${analytics.last7Days.topPages.map(p => `${p.path} (${p.views} views)`).join(', ')}
+- Total pageviews: ${a.totalPageviews}
+- Unique sessions: ${a.uniqueVisitors}
+- Bounce rate: ${a.bounceRate}%
+- Mobile visitors: ${a.mobilePercent != null ? `${a.mobilePercent}%` : 'unknown'}
+- Top pages: ${a.topPages.map(p => `${p.path} (${p.views} views)`).join(', ')}
+
+TRAFFIC SOURCES:
+- Google: ${a.socialBreakdown.google} visits
+- TikTok: ${a.socialBreakdown.tiktok} visits
+- Instagram: ${a.socialBreakdown.instagram} visits
+- YouTube: ${a.socialBreakdown.youtube} visits
+- Twitter/X: ${a.socialBreakdown.twitter} visits
+- Facebook: ${a.socialBreakdown.facebook} visits
+- Total social traffic: ${a.totalSocialVisits} visits
+${a.utmCampaigns.length > 0 ? `
+UTM CAMPAIGNS THIS WEEK:
+${a.utmCampaigns.map(c => `- ${c.source || 'unknown'} / ${c.campaign || 'no campaign'}: ${c.visits} visits`).join('\n')}` : ''}
+${a.trafficSources.length > 0 ? `
+TOP REFERRERS:
+${a.trafficSources.map(s => `- ${s.domain}: ${s.visits} visits`).join('\n')}` : ''}
 ` : 'No analytics data available.'
 
   const pageSpeedContext = pageSpeed ? `
-PERFORMANCE DATA:
-- Mobile performance score: ${pageSpeed.performance}/100
-- LCP (Largest Contentful Paint): ${pageSpeed.lcp}
-- CLS (Cumulative Layout Shift): ${pageSpeed.cls}
+PERFORMANCE DATA (mobile):
+- Performance score: ${pageSpeed.performance}/100
+- LCP: ${pageSpeed.lcp}
+- CLS: ${pageSpeed.cls}
 - Total Blocking Time: ${pageSpeed.fid}
-` : 'No performance data available.'
+` : ''
 
   const previousFixesContext = previousFixes.length > 0 ? `
-ALREADY FIXED (do NOT suggest these again):
+ALREADY FIXED — DO NOT SUGGEST THESE AGAIN:
 ${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 ` : ''
 
@@ -210,9 +293,9 @@ ${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
       model: 'anthropic/claude-sonnet-4-5',
       messages: [{
         role: 'user',
-        content: `You are an elite web conversion optimization expert with deep knowledge of UX, performance, SEO, and data-driven optimization.
+        content: `You are an elite web conversion optimization expert with deep expertise in UX, performance, SEO, and data-driven CRO.
 
-Your job: Analyze the website code AND real analytics data to find the single highest-impact improvement.
+Analyze the website code AND real analytics data to identify the single highest-impact improvement this week.
 
 ${analyticsContext}
 
@@ -223,26 +306,31 @@ ${previousFixesContext}
 WEBSITE CODE:
 ${JSON.stringify(repoContent, null, 2)}
 
+ANALYSIS FRAMEWORK:
+- If social traffic is high but bounce rate is high → landing page doesn't match social content/audience
+- If mobile % is high but performance is low → mobile UX is the priority
+- If a page has many views but likely low conversion → optimize that specific page
+- If TikTok/Instagram is top source → consider if the hero speaks to that audience
+- If no social traffic → SEO or CTA optimization
+- Always reference specific numbers from the data
+
 RULES:
-- Use the analytics data to identify WHERE users are dropping off
-- High bounce rate = prioritize above-the-fold experience
-- If a page has many views but likely low conversion, focus there
-- Do NOT suggest changes to: /premium route, Stripe integration, intentionally disabled features
-- Focus on: copy, CTAs, performance, UX, mobile experience, trust signals
-- Be specific - reference actual data in your analysis
-- The fix must be implementable as a code change
+- Do NOT suggest: /premium route changes, Stripe integration, intentionally disabled features
+- The fix MUST be a real code change (not just advice)
+- Be specific — reference actual data points in your analysis
+- Think like a CRO expert who has studied this site for a week
 
 Reply ONLY as JSON without Markdown:
 {
-  "problem": "specific problem with data reference e.g. '${analytics?.last7Days?.bounceRate || 'High'}% bounce rate suggests users leave before seeing the CTA'",
-  "impact": "why this hurts conversions with specific numbers",
-  "solution": "exact change to make",
-  "expected_improvement": "realistic estimate based on the data",
+  "problem": "specific problem referencing real data e.g. 'TikTok sends 47 visitors/week but 78% bounce — landing page doesn't match social audience expectations'",
+  "impact": "quantified impact with specific numbers from the analytics",
+  "solution": "exact actionable change",
+  "expected_improvement": "realistic estimate based on the data and industry benchmarks",
   "data_insight": "the key analytics insight that led to this recommendation",
-  "file_to_edit": "which file",
+  "file_to_edit": "exact file path",
   "code_change": {
-    "find": "exact text to replace",
-    "replace": "new text"
+    "find": "exact text to be replaced",
+    "replace": "new improved text"
   }
 }`
       }]
@@ -297,8 +385,21 @@ async function createPR(octokit, owner, repo, analysis) {
 }
 
 async function sendTelegramNotification(analysis, pr, runId, analytics) {
-  const analyticsLine = analytics
-    ? `📊 *This week:* ${analytics.last7Days.uniqueVisitors} visitors · ${analytics.last7Days.bounceRate}% bounce rate\n\n`
+  const a = analytics?.last7Days
+
+  let socialLine = ''
+  if (a && a.totalSocialVisits > 0) {
+    const topSocial = Object.entries(a.socialBreakdown)
+      .filter(([, v]) => v > 0)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([platform, visits]) => `${platform}: ${visits}`)
+      .join(' · ')
+    socialLine = `📱 *Social traffic:* ${topSocial}\n`
+  }
+
+  const analyticsLine = a
+    ? `📊 *This week:* ${a.totalPageviews} pageviews · ${a.bounceRate}% bounce\n${socialLine}\n`
     : ''
 
   const message = `🤖 *Scano Growth Agent*
@@ -375,12 +476,13 @@ export default async function handler(req, res) {
 
       const octokit = await getOctokit(conn.github_installation_id)
 
-      // Run all data gathering in parallel
       const [repoContent, analytics, pageSpeed, previousFixes] = await Promise.all([
         analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
-        conn.posthog_api_key
-          ? getPostHogAnalytics(conn.posthog_api_key, conn.posthog_project_id, conn.posthog_host)
-          : getPostHogAnalytics(process.env.POSTHOG_API_KEY, process.env.POSTHOG_PROJECT_ID, process.env.POSTHOG_HOST),
+        getPostHogAnalytics(
+          conn.posthog_api_key || process.env.POSTHOG_API_KEY,
+          conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
+          conn.posthog_host || process.env.POSTHOG_HOST
+        ),
         conn.website_url ? getPageSpeedScore(conn.website_url) : null,
         getPreviousRuns(conn.subscription_id),
       ])
@@ -395,7 +497,10 @@ export default async function handler(req, res) {
 
       await supabase.from('agent_runs').update({
         status: 'waiting_approval',
-        analysis_result: { ...analysis, analytics_snapshot: analytics?.last7Days },
+        analysis_result: {
+          ...analysis,
+          analytics_snapshot: analytics?.last7Days
+        },
         pr_number: pr.number,
         pr_url: pr.html_url,
         telegram_message_id: messageId || null
