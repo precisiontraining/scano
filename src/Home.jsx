@@ -372,6 +372,162 @@ function WhatWeCheck() {
   )
 }
 
+function GrowthAgentSection({ navigate }) {
+  const [ref, visible] = useReveal()
+
+  const features = [
+    {
+      icon: '📊',
+      title: 'Data-driven fixes',
+      desc: 'The agent reads your real analytics — bounce rates, traffic sources, top pages — and uses that data to find the highest-impact improvement every week.'
+    },
+    {
+      icon: '🔀',
+      title: 'Writes the code for you',
+      desc: 'It doesn\'t just tell you what to fix. It writes the actual code change, opens a Pull Request on GitHub, and waits for your approval.'
+    },
+    {
+      icon: '📱',
+      title: 'Approve from Telegram',
+      desc: 'You get a Telegram message every Monday with the problem, the solution, and a preview link. One reply to approve — done.'
+    },
+    {
+      icon: '📈',
+      title: 'Tracks the impact',
+      desc: 'After each fix, the agent measures what actually changed. Did bounce rate drop? Did conversions go up? It learns and improves over time.'
+    },
+  ]
+
+  return (
+    <section style={{ background: '#1c1917', padding: '96px 24px' }}>
+      <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+
+        {/* Header */}
+        <div ref={ref} style={{ marginBottom: 64, opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(20px)', transition: 'all .6s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
+            <span style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(247,244,239,0.5)', fontWeight: 400 }}>New — Growth Agent</span>
+          </div>
+          <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(32px, 5vw, 60px)', letterSpacing: '-.025em', lineHeight: 1.08, color: '#f7f4ef', marginBottom: 20 }}>
+            Your website,<br />
+            <em style={{ fontStyle: 'italic', color: '#a8c5b0' }}>always improving.</em>
+          </h2>
+          <p style={{ fontSize: 17, color: 'rgba(247,244,239,0.55)', lineHeight: 1.72, fontWeight: 300, maxWidth: 520 }}>
+            A semi-autonomous AI agent that analyzes your analytics, writes conversion fixes, and deploys them — with your approval. Every week, automatically.
+          </p>
+        </div>
+
+        {/* Features grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 2, marginBottom: 48 }}>
+          {features.map((f, i) => (
+            <div key={i} style={{
+              background: 'rgba(247,244,239,0.04)',
+              border: '1px solid rgba(247,244,239,0.08)',
+              borderRadius: i === 0 ? '14px 0 0 14px' : i === features.length - 1 ? '0 14px 14px 0' : '0',
+              padding: '32px 28px',
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'none' : 'translateY(16px)',
+              transition: `all .55s ease ${i * 0.1}s`,
+            }}>
+              <div style={{ fontSize: 24, marginBottom: 16 }}>{f.icon}</div>
+              <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 20, color: '#f7f4ef', marginBottom: 10, letterSpacing: '-.01em' }}>{f.title}</h3>
+              <p style={{ fontSize: 14, color: 'rgba(247,244,239,0.5)', lineHeight: 1.72, fontWeight: 300 }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* How it works */}
+        <div style={{
+          background: 'rgba(247,244,239,0.04)',
+          border: '1px solid rgba(247,244,239,0.08)',
+          borderRadius: 16, padding: '32px 36px',
+          marginBottom: 48,
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'none' : 'translateY(16px)',
+          transition: 'all .6s ease .3s',
+        }}>
+          <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(247,244,239,0.35)', fontWeight: 400, marginBottom: 24 }}>How it works</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {[
+              { step: 'Monday 9am', text: 'Agent reads your analytics + scans your code' },
+              { step: 'Minutes later', text: 'Claude identifies the #1 conversion problem this week' },
+              { step: 'Instantly', text: 'Writes the fix and opens a GitHub Pull Request with a preview' },
+              { step: 'You decide', text: 'Telegram message arrives — reply approve to ship it' },
+              { step: 'Wednesday', text: 'Mid-week check: traffic update, bounce rate, social sources' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: 'flex', gap: 20, alignItems: 'flex-start',
+                paddingBottom: i < 4 ? 20 : 0,
+                marginBottom: i < 4 ? 20 : 0,
+                borderBottom: i < 4 ? '1px solid rgba(247,244,239,0.06)' : 'none',
+              }}>
+                <div style={{ width: 110, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(247,244,239,0.35)', fontWeight: 300, letterSpacing: '.03em' }}>{item.step}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#2a5c45', flexShrink: 0 }} />
+                  <p style={{ fontSize: 14, color: 'rgba(247,244,239,0.75)', fontWeight: 300, lineHeight: 1.5 }}>{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 20,
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'none' : 'translateY(16px)',
+          transition: 'all .6s ease .4s',
+        }}>
+          <div>
+            <p style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 26, color: '#f7f4ef', letterSpacing: '-.015em', marginBottom: 6 }}>
+              Ready to let the agent work?
+            </p>
+            <p style={{ fontSize: 14, color: 'rgba(247,244,239,0.4)', fontWeight: 300 }}>
+              Set up in 5 minutes. Runs every Monday automatically.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate('/agent/register')}
+              style={{
+                background: '#f7f4ef', color: '#1c1917',
+                border: 'none', borderRadius: 10,
+                padding: '14px 28px', fontSize: 14,
+                fontFamily: 'Jost, sans-serif', fontWeight: 500,
+                cursor: 'pointer', letterSpacing: '.02em',
+                transition: 'all .2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#2a5c45'; e.currentTarget.style.color = '#fff' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#f7f4ef'; e.currentTarget.style.color = '#1c1917' }}
+            >
+              Start Growth Agent
+            </button>
+            <button
+              onClick={() => navigate('/agent/login')}
+              style={{
+                background: 'transparent', color: 'rgba(247,244,239,0.5)',
+                border: '1px solid rgba(247,244,239,0.15)', borderRadius: 10,
+                padding: '14px 28px', fontSize: 14,
+                fontFamily: 'Jost, sans-serif', fontWeight: 300,
+                cursor: 'pointer', letterSpacing: '.02em',
+                transition: 'all .2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(247,244,239,0.35)'; e.currentTarget.style.color = '#f7f4ef' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(247,244,239,0.15)'; e.currentTarget.style.color = 'rgba(247,244,239,0.5)' }}
+            >
+              Log in
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  )
+}
+
 // ─── Sample report helpers ─────────────────────────────────────────────────────
 function SampleMiniBar({ label, value, color }) {
   return (
@@ -912,6 +1068,7 @@ export default function Home({ navigate, onScanStart }) {
       <Nav navigate={navigate} openModal={openModal} />
       <Hero onScanStart={onScanStart} />
       <WhatWeCheck />
+      <GrowthAgentSection navigate={navigate} />
       <SampleReport navigate={navigate} openModal={openModal} />
       <Pricing navigate={navigate} openModal={openModal} />
       <FAQ />
