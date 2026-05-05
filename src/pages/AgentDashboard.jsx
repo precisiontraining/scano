@@ -336,7 +336,7 @@ export default function AgentDashboard({ navigate }) {
         }}>
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
             <Logo size={22} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
             <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300, marginLeft: 4 }}>/ Growth Agent</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -446,7 +446,7 @@ export default function AgentDashboard({ navigate }) {
                       {pending} PR{pending > 1 ? 's' : ''} waiting for your approval
                     </p>
                     <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>
-                      Reply <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>approve [id]</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>reject [id]</code> to the Scano Telegram bot
+                      Reply <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>approve [id]</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 4 }}>reject [id]</code> to the Velyr Telegram bot
                     </p>
                   </div>
                 </div>

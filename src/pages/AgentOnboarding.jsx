@@ -330,7 +330,7 @@ function Step2({ onNext, onBack }) {
             }}>
               {appInstalled ? '✓' : '1'}
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Install the Scano GitHub App</p>
+            <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Install the Velyr GitHub App</p>
           </div>
           {appInstalled && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />}
         </div>
@@ -343,7 +343,7 @@ function Step2({ onNext, onBack }) {
         </p>
         <div style={{ paddingLeft: 32, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <a
-            href="https://github.com/apps/scano-growth-agent/installations/new"
+            href="https://github.com/apps/velyr-growth-agent/installations/new"
             target="_blank"
             rel="noreferrer"
             onClick={() => setTimeout(() => setAppInstalled(true), 3000)}
@@ -545,7 +545,7 @@ export default function AgentOnboarding({ navigate }) {
         <div style={{ width: '100%', maxWidth: 520 }}>
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 40, cursor: 'pointer', justifyContent: 'center' }}>
             <Logo size={22} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
             <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>/ Growth Agent Setup</span>
           </div>
 

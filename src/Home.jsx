@@ -116,7 +116,7 @@ function ComingSoonModal({ onClose }) {
       await fetch('https://formsubmit.co/ajax/simplefitplans017@gmail.com', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ email, subject: 'Scano — Full Report Waitlist', message: `New waitlist signup: ${email}` })
+        body: JSON.stringify({ email, subject: 'Velyr — Full Report Waitlist', message: `New waitlist signup: ${email}` })
       })
     } catch (e) { /* silent fail — still show success */ }
     setSent(true)
@@ -187,7 +187,7 @@ function Nav({ navigate, openModal }) {
     }}>
       <div onClick={() => navigate('/')} style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer' }}>
         <Logo size={24} />
-        <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Scano</span>
+        <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Velyr</span>
       </div>
       <div className="nav-ctas" style={{ display:'flex', alignItems:'center', gap:8 }}>
         <button className="nav-cta-ghost" onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
@@ -982,7 +982,7 @@ function FAQ() {
   const [open, setOpen] = useState(null)
   const items = [
     { q:'Do I need an account?', a:"No. You can scan your business and see your score without creating an account. The full report is a one-time €9 payment — no login, no subscription." },
-    { q:'Which platforms does Scano support?', a:"Website, TikTok, Instagram, YouTube, X (Twitter), Facebook, and LinkedIn. You don't need all of them — just add what you have. For the full report you can pick one platform as your \"focus\" for a deeper analysis." },
+    { q:'Which platforms does Velyr support?', a:"Website, TikTok, Instagram, YouTube, X (Twitter), Facebook, and LinkedIn. You don't need all of them — just add what you have. For the full report you can pick one platform as your \"focus\" for a deeper analysis." },
     { q:'What does the deep dive include?', a:"For your focus platform, we analyse 30 posts instead of 5. You get: best posting times based on your actual data, a breakdown of which content types and hook styles perform best for you, a hashtag analysis showing which tags drive the most engagement, and one concrete top recommendation." },
     { q:'How accurate is the analysis?', a:"We use real scraped data from your profiles — actual engagement rates, real posts, real timestamps. The AI interprets this data and identifies patterns. It's not perfect, but it's based on what actually happens in your account, not generic advice." },
     { q:'Free vs. full report — what\'s the real difference?', a:"The free scan gives you your score, website analysis, social stats, benchmark comparisons, and your 2 most critical issues. The full report (€9, one-time) adds all 5 issues with exact copy-paste fixes, the deep social dive on your focus platform, hook-by-hook analysis of your posts, a caption rewrite, and brand clarity scoring." },
@@ -1041,9 +1041,9 @@ function Footer({ navigate }) {
       <div className="footer-inner" style={{ maxWidth:1060, margin:'0 auto', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <Logo size={20} />
-          <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:16, color:C.text }}>Scano</span>
+          <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:16, color:C.text }}>Velyr</span>
         </div>
-        <p style={{ fontSize:13, color:C.textLight, fontWeight:300 }}>© 2026 Scano</p>
+        <p style={{ fontSize:13, color:C.textLight, fontWeight:300 }}>© 2026 Velyr</p>
         <div style={{ display:'flex', gap:20 }}>
           {[{ label:'Privacy Policy', path:'/privacy' }, { label:'Impressum', path:'/impressum' }].map(l => (
             <button key={l.label} onClick={() => navigate(l.path)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textLight, fontFamily:'Jost,sans-serif', fontWeight:300, transition:'color .2s' }}
