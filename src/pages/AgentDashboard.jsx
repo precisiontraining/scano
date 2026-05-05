@@ -21,12 +21,12 @@ const C = {
 
 const STATUS = {
   running:          { label: 'Running',          color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)'  },
-  waiting_approval: { label: 'Awaiting Approval', color: C.yellow, bg: 'rgba(214,137,16,0.08)',  border: 'rgba(214,137,16,0.25)' },
-  deployed:         { label: 'Deployed',          color: C.green,  bg: 'rgba(30,132,73,0.07)',   border: 'rgba(30,132,73,0.2)'   },
-  rejected:         { label: 'Rejected',          color: C.red,    bg: 'rgba(192,57,43,0.07)',   border: 'rgba(192,57,43,0.2)'   },
-  failed:           { label: 'Failed',            color: C.red,    bg: 'rgba(192,57,43,0.07)',   border: 'rgba(192,57,43,0.2)'   },
-  pending:          { label: 'Pending',           color: C.textLight, bg: 'rgba(28,25,23,0.04)', border: C.border                },
-  approved:         { label: 'Approved',          color: C.green,  bg: 'rgba(30,132,73,0.07)',   border: 'rgba(30,132,73,0.2)'   },
+  waiting_approval: { label: 'Awaiting Approval', color: '#d68910', bg: 'rgba(214,137,16,0.08)',  border: 'rgba(214,137,16,0.25)' },
+  deployed:         { label: 'Deployed',          color: '#1e8449', bg: 'rgba(30,132,73,0.07)',   border: 'rgba(30,132,73,0.2)'   },
+  rejected:         { label: 'Rejected',          color: '#c0392b', bg: 'rgba(192,57,43,0.07)',   border: 'rgba(192,57,43,0.2)'   },
+  failed:           { label: 'Failed',            color: '#c0392b', bg: 'rgba(192,57,43,0.07)',   border: 'rgba(192,57,43,0.2)'   },
+  pending:          { label: 'Pending',           color: '#a09890', bg: 'rgba(28,25,23,0.04)',    border: 'rgba(28,25,23,0.09)'   },
+  approved:         { label: 'Approved',          color: '#1e8449', bg: 'rgba(30,132,73,0.07)',   border: 'rgba(30,132,73,0.2)'   },
 }
 
 const CSS = `
@@ -93,6 +93,7 @@ function RunDetail({ run, onClose }) {
               {analysis.problem}
             </h3>
             {[
+              { label: '💡 Data Insight', text: analysis.data_insight },
               { label: '💥 Impact', text: analysis.impact },
               { label: '✅ Solution', text: analysis.solution },
               { label: '📈 Expected improvement', text: analysis.expected_improvement },
@@ -106,6 +107,25 @@ function RunDetail({ run, onClose }) {
               <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
                 <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 5 }}>📄 File edited</p>
                 <p style={{ fontSize: 13, color: C.text, fontFamily: 'DM Mono, monospace' }}>{analysis.file_to_edit}</p>
+              </div>
+            )}
+            {analysis.analytics_snapshot && (
+              <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
+                <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 8 }}>📊 Analytics at time of run</p>
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                  <div>
+                    <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>Pageviews</p>
+                    <p style={{ fontSize: 16, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{analysis.analytics_snapshot.totalPageviews ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>Bounce Rate</p>
+                    <p style={{ fontSize: 16, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{analysis.analytics_snapshot.bounceRate != null ? `${analysis.analytics_snapshot.bounceRate}%` : '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>Sessions</p>
+                    <p style={{ fontSize: 16, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{analysis.analytics_snapshot.uniqueVisitors ?? '—'}</p>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -128,21 +148,60 @@ function RunDetail({ run, onClose }) {
   )
 }
 
-export default function AgentDashboard({ navigate }) {
-  const [user, setUser]       = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [runs, setRuns]       = useState([])
-  const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState(null)
-  const [subscription, setSubscription] = useState(null)
+function DeleteConfirmModal({ onConfirm, onCancel, loading }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: 'rgba(28,25,23,0.45)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }} onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 18, padding: '32px 28px',
+        maxWidth: 420, width: '100%',
+        boxShadow: '0 24px 80px rgba(28,25,23,0.18)',
+      }}>
+        <p style={{ fontSize: 28, marginBottom: 12 }}>⚠️</p>
+        <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 24, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
+          Delete your account?
+        </h3>
+        <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 24 }}>
+          This will permanently delete your account, all agent runs, and all connected data. This cannot be undone.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onCancel} style={{
+            flex: 1, background: 'transparent', color: C.text,
+            border: `1px solid ${C.border}`, borderRadius: 10,
+            padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif',
+            fontWeight: 400, cursor: 'pointer',
+          }}>Cancel</button>
+          <button onClick={onConfirm} disabled={loading} style={{
+            flex: 1, background: C.red, color: '#fff',
+            border: 'none', borderRadius: 10,
+            padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif',
+            fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+          }}>
+            {loading ? 'Deleting…' : 'Yes, delete everything'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  // Check auth
+export default function AgentDashboard({ navigate }) {
+  const [user, setUser]               = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [runs, setRuns]               = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [selected, setSelected]       = useState(null)
+  const [subscription, setSubscription] = useState(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate('/agent/login')
-        return
-      }
+      if (!session) { navigate('/agent/login'); return }
       setUser(session.user)
       setAuthLoading(false)
     })
@@ -156,7 +215,6 @@ export default function AgentDashboard({ navigate }) {
     return () => authSub.unsubscribe()
   }, [])
 
-  // Fetch runs once user is loaded
   useEffect(() => {
     if (!user) return
     fetchData()
@@ -165,7 +223,6 @@ export default function AgentDashboard({ navigate }) {
   }, [user])
 
   async function fetchData() {
-    // Get subscription for this user
     const { data: subs } = await supabase
       .from('agent_subscriptions')
       .select('*')
@@ -176,7 +233,6 @@ export default function AgentDashboard({ navigate }) {
 
     if (!subs) { setLoading(false); return }
 
-    // Get runs for this subscription
     const { data: runsData } = await supabase
       .from('agent_runs')
       .select('*')
@@ -186,6 +242,47 @@ export default function AgentDashboard({ navigate }) {
 
     if (runsData) setRuns(runsData)
     setLoading(false)
+  }
+
+  async function getToken() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token
+  }
+
+  async function handleTogglePause() {
+    setActionLoading(true)
+    const token = await getToken()
+    const action = subscription?.status === 'paused' ? 'resume' : 'pause'
+
+    const res = await fetch(`/api/agent/run?action=${action}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    const data = await res.json()
+    if (data.success) {
+      setSubscription(prev => ({ ...prev, status: data.status }))
+    }
+    setActionLoading(false)
+  }
+
+  async function handleDeleteAccount() {
+    setActionLoading(true)
+    const token = await getToken()
+
+    const res = await fetch('/api/agent/run?action=delete', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    const data = await res.json()
+    if (data.success) {
+      await supabase.auth.signOut()
+      navigate('/')
+    } else {
+      setActionLoading(false)
+      setShowDeleteConfirm(false)
+    }
   }
 
   async function handleLogout() {
@@ -220,6 +317,13 @@ export default function AgentDashboard({ navigate }) {
     <>
       <style>{CSS}</style>
       {selected && <RunDetail run={selected} onClose={() => setSelected(null)} />}
+      {showDeleteConfirm && (
+        <DeleteConfirmModal
+          onConfirm={handleDeleteAccount}
+          onCancel={() => setShowDeleteConfirm(false)}
+          loading={actionLoading}
+        />
+      )}
 
       <div style={{ minHeight: '100vh', background: C.bg, padding: '0 0 80px' }}>
 
@@ -250,7 +354,7 @@ export default function AgentDashboard({ navigate }) {
 
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 24px 0' }}>
 
-          {/* No subscription yet */}
+          {/* No subscription */}
           {!loading && !subscription && (
             <div className="agent-card" style={{
               background: C.bgCard, border: `1px solid ${C.border}`,
@@ -261,7 +365,7 @@ export default function AgentDashboard({ navigate }) {
                 Set up your Growth Agent
               </h2>
               <p style={{ fontSize: 15, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 28, maxWidth: 400, margin: '0 auto 28px' }}>
-                Connect your website, GitHub repo, and let the agent start optimizing automatically every week.
+                Connect your website and GitHub repo to start optimizing automatically.
               </p>
               <button onClick={() => navigate('/agent/onboarding')} style={{
                 background: C.text, color: C.bg, border: 'none', borderRadius: 10,
@@ -283,16 +387,37 @@ export default function AgentDashboard({ navigate }) {
                   Your website,<br /><em style={{ fontStyle: 'italic', color: C.accent }}>always improving.</em>
                 </h1>
                 <p style={{ fontSize: 15, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, maxWidth: 480 }}>
-                  The agent scans your repo every week, finds the biggest conversion problem, writes the fix, and sends it to you for approval.
+                  The agent scans your repo every week, finds the biggest conversion problem, writes the fix, and sends it for your approval.
                 </p>
               </div>
+
+              {/* Paused banner */}
+              {subscription.status === 'paused' && (
+                <div className="agent-card" style={{
+                  animationDelay: '0.1s',
+                  background: 'rgba(214,137,16,0.07)', border: '1px solid rgba(214,137,16,0.25)',
+                  borderRadius: 14, padding: '16px 20px', marginBottom: 24,
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}>
+                  <span style={{ fontSize: 18 }}>⏸</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 2 }}>Agent is paused</p>
+                    <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>The agent won't run on Monday. Your data is safe. Resume anytime.</p>
+                  </div>
+                  <button onClick={handleTogglePause} disabled={actionLoading} style={{
+                    background: C.accent, color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '8px 16px', fontSize: 13, fontFamily: 'Jost, sans-serif',
+                    fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+                  }}>Resume</button>
+                </div>
+              )}
 
               {/* Stats */}
               <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
                 {[
-                  { label: 'Total Runs',      value: runs.length, sub: 'since setup',         accent: false },
-                  { label: 'Deployed Fixes',  value: deployed,    sub: 'improvements merged',  accent: true  },
-                  { label: 'Awaiting Review', value: pending,     sub: 'reply on Telegram',    accent: false },
+                  { label: 'Total Runs',      value: runs.length, sub: 'since setup',        accent: false },
+                  { label: 'Deployed Fixes',  value: deployed,    sub: 'improvements merged', accent: true  },
+                  { label: 'Awaiting Review', value: pending,     sub: 'reply on Telegram',   accent: false },
                 ].map((s, i) => (
                   <div key={i} className="agent-card" style={{
                     animationDelay: `${i * 0.05}s`,
@@ -390,17 +515,74 @@ export default function AgentDashboard({ navigate }) {
                 <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 12 }}>How it works</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
-                    'Every Monday at 9am, the agent reads your GitHub repo',
+                    'Every Monday at 9am, the agent reads your GitHub repo + analytics',
                     'Claude finds the biggest conversion problem in your code',
                     'It writes the fix and opens a Pull Request on GitHub',
-                    'You get a Telegram message with the problem, solution, and PR link',
-                    'Reply approve [id] to merge — or reject [id] to skip',
+                    'You get a Telegram message — reply approve [id] to merge',
+                    'Every Wednesday you get a mid-week analytics update',
                   ].map((text, i) => (
                     <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#fff', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                       <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{text}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Settings */}
+              <div className="agent-card" style={{
+                animationDelay: '0.4s', marginTop: 20,
+                background: C.bgCard, border: `1px solid ${C.border}`,
+                borderRadius: 14, overflow: 'hidden',
+              }}>
+                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Settings</p>
+                </div>
+
+                {/* Pause / Resume */}
+                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 4 }}>
+                      {subscription.status === 'paused' ? '⏸ Agent is paused' : '▶ Agent is active'}
+                    </p>
+                    <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+                      {subscription.status === 'paused'
+                        ? 'Resume to let the agent run again every Monday.'
+                        : 'Pause if you want to stop the agent temporarily without losing your data.'}
+                    </p>
+                  </div>
+                  <button onClick={handleTogglePause} disabled={actionLoading} style={{
+                    background: subscription.status === 'paused' ? C.accent : 'transparent',
+                    color: subscription.status === 'paused' ? '#fff' : C.textMuted,
+                    border: `1px solid ${subscription.status === 'paused' ? C.accent : C.border}`,
+                    borderRadius: 8, padding: '9px 18px', fontSize: 13,
+                    fontFamily: 'Jost, sans-serif', fontWeight: 400,
+                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                    opacity: actionLoading ? 0.6 : 1,
+                    transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>
+                    {actionLoading ? '...' : subscription.status === 'paused' ? 'Resume Agent' : 'Pause Agent'}
+                  </button>
+                </div>
+
+                {/* Delete */}
+                <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: C.red, marginBottom: 4 }}>Delete account</p>
+                    <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+                      Permanently deletes your account and all data. This cannot be undone.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowDeleteConfirm(true)} style={{
+                    background: 'transparent', color: C.red,
+                    border: '1px solid rgba(192,57,43,0.3)',
+                    borderRadius: 8, padding: '9px 18px', fontSize: 13,
+                    fontFamily: 'Jost, sans-serif', fontWeight: 400,
+                    cursor: 'pointer', transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.06)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >Delete account</button>
                 </div>
               </div>
             </>

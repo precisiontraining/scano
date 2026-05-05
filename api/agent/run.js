@@ -1,6 +1,51 @@
 import { createClient } from '@supabase/supabase-js'
 import { App } from '@octokit/app'
 import { Octokit } from '@octokit/rest'
+export default async function handler(req, res) {
+  const cronSecret = req.headers['x-cron-secret']
+  const vercelCron = req.headers['x-vercel-cron']
+  const action = req.query?.action
+
+  // Account actions — authenticated via Bearer token
+  if (action === 'pause' || action === 'resume' || action === 'delete') {
+    const authHeader = req.headers.authorization
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' })
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' })
+
+    if (action === 'pause') {
+      await supabase.from('agent_subscriptions').update({ status: 'paused' }).eq('auth_user_id', user.id)
+      return res.json({ success: true, status: 'paused' })
+    }
+
+    if (action === 'resume') {
+      await supabase.from('agent_subscriptions').update({ status: 'active' }).eq('auth_user_id', user.id)
+      return res.json({ success: true, status: 'active' })
+    }
+
+    if (action === 'delete') {
+      const { data: subs } = await supabase.from('agent_subscriptions').select('id').eq('auth_user_id', user.id)
+      const subIds = subs?.map(s => s.id) || []
+      if (subIds.length > 0) {
+        await supabase.from('agent_runs').delete().in('subscription_id', subIds)
+        await supabase.from('agent_connections').delete().in('subscription_id', subIds)
+        await supabase.from('agent_subscriptions').delete().in('id', subIds)
+      }
+      await supabase.auth.admin.deleteUser(user.id)
+      return res.json({ success: true })
+    }
+  }
+
+  if (!vercelCron && cronSecret !== process.env.AGENT_CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const isMidweek = req.query?.mode === 'midweek'
+  if (isMidweek) return handleMidweek(res)
+  return handleFullRun(res)
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
