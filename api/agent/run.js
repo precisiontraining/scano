@@ -285,6 +285,22 @@ async function getPreviousRuns(subscriptionId) {
   return data?.map(r => r.analysis_result?.problem).filter(Boolean) || []
 }
 
+// ─── IMPACT CALCULATION HELPERS ──────────────────────────────────────────────
+// Estimates monthly revenue impact from a conversion rate improvement.
+// bounceRate: 0–100, conversionLift: 0–1 (e.g. 0.15 = 15%), visitors: weekly unique visitors
+function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderValue = 47) {
+  if (!visitors || visitors < 10) return null
+  const monthlyVisitors = visitors * 4.3
+  // Conservative estimate: assume 2% base conversion if not known
+  const baseConversionRate = 0.02
+  const currentConversions = monthlyVisitors * (1 - bounceRate / 100) * baseConversionRate
+  const newConversions = currentConversions * (1 + conversionLift)
+  const additionalConversions = newConversions - currentConversions
+  const revenueMin = Math.round(additionalConversions * avgOrderValue * 0.7)
+  const revenueMax = Math.round(additionalConversions * avgOrderValue * 1.3)
+  return { revenueMin, revenueMax, additionalConversions: Math.round(additionalConversions) }
+}
+
 async function callAI(repoContent, analytics, pageSpeed, previousFixes) {
   const a = analytics?.last7Days
 
@@ -351,6 +367,23 @@ RULES:
 - If social traffic is high but bounce rate is high → landing page doesn't match social audience
 - If mobile % is high but performance is low → mobile UX is priority
 
+IMPACT PREDICTION RULES:
+- conversion_lift_min and conversion_lift_max: realistic percentage POINTS improvement (e.g. 8 means +8 percentage points on conversion rate). Base on the specific change type:
+  * Headline/CTA copy changes: 8–25
+  * Social proof additions: 10–20
+  * Performance improvements: 5–15
+  * Mobile UX fixes: 10–30 (if mobile % is high)
+  * Trust signals: 5–12
+- Be conservative. Do NOT invent numbers you can't justify from the data.
+
+RISK SCORING RULES:
+- risk_level: "low" | "medium" | "high"
+  * low = text/copy change, zero chance of breaking layout
+  * medium = component change, might affect other elements
+  * high = structural/logic change, needs careful testing
+- effort_estimate: "15min" | "1h" | "half-day" | "full-day"
+- rollback_safe: true if the change can trivially be reverted
+
 Reply ONLY as JSON without Markdown:
 {
   "problem": "specific problem referencing real data",
@@ -362,6 +395,18 @@ Reply ONLY as JSON without Markdown:
   "code_change": {
     "find": "exact text to replace",
     "replace": "new improved text"
+  },
+  "impact_prediction": {
+    "conversion_lift_min": 8,
+    "conversion_lift_max": 18,
+    "confidence": "medium",
+    "confidence_reason": "one sentence why this range is realistic based on the data"
+  },
+  "risk_score": {
+    "risk_level": "low",
+    "effort_estimate": "15min",
+    "rollback_safe": true,
+    "risk_reason": "one sentence explaining the risk level"
   }
 }`
       }]
@@ -370,7 +415,19 @@ Reply ONLY as JSON without Markdown:
 
   const data = await response.json()
   const text = data.choices[0].message.content
-  return JSON.parse(text.replace(/```json|```/g, '').trim())
+  const analysis = JSON.parse(text.replace(/```json|```/g, '').trim())
+
+  // Attach server-side revenue estimate using real traffic data
+  if (a?.uniqueVisitors && analysis.impact_prediction) {
+    const lift = analysis.impact_prediction.conversion_lift_min / 100
+    analysis.impact_prediction.revenue_estimate = estimateRevenueImpact(
+      a.uniqueVisitors,
+      a.bounceRate,
+      lift
+    )
+  }
+
+  return analysis
 }
 
 async function createPR(octokit, owner, repo, analysis) {
@@ -404,10 +461,21 @@ async function createPR(octokit, owner, repo, analysis) {
     branch: branchName
   })
 
+  const riskEmoji = { low: '🟢', medium: '🟡', high: '🔴' }[analysis.risk_score?.risk_level] || '⚪'
+  const prBody = [
+    `## Problem\n${analysis.problem}`,
+    `## Data Insight\n${analysis.data_insight || 'N/A'}`,
+    `## Why this matters\n${analysis.impact}`,
+    `## Solution\n${analysis.solution}`,
+    `## Expected Improvement\n${analysis.expected_improvement}`,
+    analysis.impact_prediction ? `## Impact Prediction\n- Conversion lift: +${analysis.impact_prediction.conversion_lift_min}–${analysis.impact_prediction.conversion_lift_max}%\n- Confidence: ${analysis.impact_prediction.confidence}\n- Reason: ${analysis.impact_prediction.confidence_reason}` : '',
+    analysis.risk_score ? `## Risk Assessment\n${riskEmoji} Risk: **${analysis.risk_score.risk_level}** | Effort: ${analysis.risk_score.effort_estimate} | Rollback safe: ${analysis.risk_score.rollback_safe ? 'Yes ✅' : 'No ⚠️'}\n${analysis.risk_score.risk_reason}` : '',
+  ].filter(Boolean).join('\n\n')
+
   const { data: pr } = await octokit.rest.pulls.create({
     owner, repo,
     title: `🤖 Agent: ${analysis.problem}`,
-    body: `## Problem\n${analysis.problem}\n\n## Data Insight\n${analysis.data_insight || 'N/A'}\n\n## Why this matters\n${analysis.impact}\n\n## Solution\n${analysis.solution}\n\n## Expected Improvement\n${analysis.expected_improvement}`,
+    body: prBody,
     head: branchName,
     base: 'main'
   })
@@ -437,7 +505,33 @@ async function sendTelegramNotification(analysis, pr, runId, analytics) {
     ? `📊 *This week:* ${a.totalPageviews} pageviews · ${a.bounceRate}% bounce${trendText}\n${socialLine}\n`
     : ''
 
-  const message = `🤖 *Scano Growth Agent*
+  // ── Impact Prediction Block ───────────────────────────────────────────────
+  let impactBlock = ''
+  if (analysis.impact_prediction) {
+    const ip = analysis.impact_prediction
+    const confidenceEmoji = { high: '🎯', medium: '📐', low: '🔮' }[ip.confidence] || '📐'
+
+    let revLine = ''
+    if (ip.revenue_estimate) {
+      const { revenueMin, revenueMax } = ip.revenue_estimate
+      revLine = `💶 *Revenue impact:* +${revenueMin}–${revenueMax} €/month\n`
+    }
+
+    impactBlock = `${confidenceEmoji} *Impact Prediction* _(${ip.confidence} confidence)_
+📈 Conversion lift: +${ip.conversion_lift_min}–${ip.conversion_lift_max}%
+${revLine}_${ip.confidence_reason}_\n\n`
+  }
+
+  // ── Risk Score Block ──────────────────────────────────────────────────────
+  let riskBlock = ''
+  if (analysis.risk_score) {
+    const rs = analysis.risk_score
+    const riskEmoji = { low: '🟢', medium: '🟡', high: '🔴' }[rs.risk_level] || '⚪'
+    const rollbackText = rs.rollback_safe ? '✅ Rollback safe' : '⚠️ Needs care'
+    riskBlock = `${riskEmoji} *Risk:* ${rs.risk_level.toUpperCase()} · ⏱ ${rs.effort_estimate} · ${rollbackText}\n_${rs.risk_reason}_\n\n`
+  }
+
+  const message = `🤖 *Velyr Growth Agent*
 
 ${analyticsLine}🔍 *Problem found:*
 ${analysis.problem}
@@ -448,7 +542,7 @@ ${analysis.data_insight || 'Based on code analysis'}
 💥 *Impact:*
 ${analysis.impact}
 
-✅ *Solution:*
+${impactBlock}${riskBlock}✅ *Solution:*
 ${analysis.solution}
 
 📈 *Expected improvement:* ${analysis.expected_improvement}
@@ -509,7 +603,7 @@ async function sendMidweekUpdate(chatId, analytics) {
     ? `📊 No bounce data yet`
     : `✅ Bounce rate ${a.bounceRate}% — looking good`
 
-  const message = `📊 *Scano — Mid-Week Check*
+  const message = `📊 *Velyr — Mid-Week Update*
 _${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}_
 
 ${trendEmoji} *Traffic this week*
@@ -522,7 +616,7 @@ ${socialLines ? `*Top traffic sources:*\n${socialLines}` : '*No social traffic y
 
 ${pagesLines ? `*Most visited:*\n${pagesLines}` : ''}
 
-🤖 _Watching 24/7. Monday the agent sends the next fix for your approval._`
+🤖 _Watching 24/7. Every Monday the agent sends the next fix for your approval._`
 
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
@@ -601,7 +695,10 @@ async function handleFullRun(res) {
 
     await supabase.from('agent_runs').update({
       status: 'waiting_approval',
-      analysis_result: { ...analysis, analytics_snapshot: analytics?.last7Days },
+      analysis_result: {
+        ...analysis,
+        analytics_snapshot: analytics?.last7Days
+      },
       pr_number: pr.number,
       pr_url: pr.html_url,
       telegram_message_id: messageId || null
