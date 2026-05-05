@@ -610,20 +610,3 @@ async function handleFullRun(res) {
 
   return res.json({ success: true, processed: connections.length })
 }
-
-export default async function handler(req, res) {
-  const cronSecret = req.headers['x-cron-secret']
-  const vercelCron = req.headers['x-vercel-cron']
-
-  if (!vercelCron && cronSecret !== process.env.AGENT_CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  const isMidweek = req.query?.mode === 'midweek'
-
-  if (isMidweek) {
-    return handleMidweek(res)
-  }
-
-  return handleFullRun(res)
-}
