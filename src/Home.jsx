@@ -113,7 +113,7 @@ function ComingSoonModal({ onClose }) {
     if (!email.trim() || !email.includes('@')) return
     setSending(true)
     try {
-      await fetch('https://formsubmit.co/ajax/simplefitplans017@gmail.com', {
+      await fetch('https://formsubmit.co/ajax/info@velyr.io', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ email, subject: 'Velyr — Full Report Waitlist', message: `New waitlist signup: ${email}` })
@@ -149,7 +149,7 @@ function ComingSoonModal({ onClose }) {
               </button>
             </div>
             <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:12, fontWeight:300 }}>
-              No spam. Unsubscribe any time. Questions? <a href="mailto:scan.info@gmail.com" style={{ color:C.accent, textDecoration:'none' }}>scan.info</a>
+              No spam. Unsubscribe any time. Questions? <a href="mailto:info@velyr.io" style={{ color:C.accent, textDecoration:'none' }}>scan.info</a>
             </p>
           </>
         ) : (

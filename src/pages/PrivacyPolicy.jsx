@@ -50,7 +50,7 @@ export default function PrivacyPolicy({ navigate }) {
 
           <div style={block}>
             <h2>Who we are</h2>
-            <p>Scano is operated by Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München, Germany. If you have any questions about this privacy policy, you can contact us at <a href="mailto:simplefitplans017@gmail.com">scan.info</a>.</p>
+            <p>Scano is operated by Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München, Germany. If you have any questions about this privacy policy, you can contact us at <a href="mailto:info@velyr.io">info@velyr.io</a>.</p>
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid rgba(28,25,23,0.09)', margin: '8px 0 36px' }} />
@@ -127,7 +127,7 @@ export default function PrivacyPolicy({ navigate }) {
               <li>The right to data portability.</li>
               <li>The right to withdraw consent at any time, without affecting the lawfulness of processing before withdrawal.</li>
             </ul>
-            <p style={{ marginTop: 12 }}>To exercise any of these rights, contact us at <a href="mailto:simplefitplans017@gmail.com">scan.info</a>. We will respond within 30 days.</p>
+            <p style={{ marginTop: 12 }}>To exercise any of these rights, contact us at <a href="mailto:info@velyr.io">info@velyr.io</a>. We will respond within 30 days.</p>
           </div>
 
           <div style={block}>

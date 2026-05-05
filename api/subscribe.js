@@ -58,11 +58,11 @@ export default async function handler(req, res) {
         Messages: [
           {
             From: {
-              Email: 'info@precision-training.io',
+              Email: 'info@velyr.io',
               Name:  'Scano',
             },
             ReplyTo: {
-              Email: 'simplefitplans017@gmail.com',
+              Email: 'info@velyr.io',
               Name:  'Scano',
             },
             To: [{ Email: email }],

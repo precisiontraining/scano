@@ -54,7 +54,7 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Kontakt</span>
-            <p>E-Mail: <a href="mailto:simplefitplans017@gmail.com">scan.info</a></p>
+            <p>E-Mail: <a href="mailto:info@velyr.io">info@velyr.io</a></p>
           </div>
 
           <div style={block}>
@@ -92,7 +92,7 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Verantwortlicher</span>
-            <p>Verantwortlicher im Sinne der DSGVO ist Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München. Kontakt: <a href="mailto:simplefitplans017@gmail.com">scan.info</a></p>
+            <p>Verantwortlicher im Sinne der DSGVO ist Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München. Kontakt: <a href="mailto:info@velyr.io">info@velyr.io</a></p>
           </div>
 
           <div style={block}>
