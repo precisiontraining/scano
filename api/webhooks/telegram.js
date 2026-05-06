@@ -58,11 +58,11 @@ async function handleApprove(runId, chatId) {
     merge_method: 'squash'
   })
 
-  await supabase.from('agent_runs').update({ status: 'deployed' }).eq('id', runId)
+  await supabase.from('agent_runs').update({ status: 'deployed', completed_at: new Date().toISOString() }).eq('id', runId)
 
   await sendMessage(
     chatId,
-    `✅ *PR merged!* Vercel is deploying the change now.\n\n_The agent will track impact and update your Business DNA once A/B data comes in._`
+    `✅ *PR merged!* Vercel is deploying the change now.\n\n_The agent will check impact after 48h and auto-rollback if metrics drop._`
   )
 }
 
@@ -149,7 +149,7 @@ async function handleStatus(chatId) {
 
   const statusEmoji = {
     pending: '⏳', running: '🔄', waiting_approval: '⏸',
-    approved: '✅', rejected: '❌', deployed: '🚀', failed: '💥'
+    approved: '✅', rejected: '❌', deployed: '🚀', failed: '💥', rolled_back: '🔄'
   }
 
   const lines = runs?.map(r => {
@@ -174,8 +174,20 @@ async function handleStatus(chatId) {
     return `🔬 ${t.summary} — results on ${evalDate}`
   }) ?? []
 
+  // ── PHASE 3: Show competitor URLs ──
+  const { data: competitors } = await supabase
+    .from('agent_competitor_urls')
+    .select('url, active')
+    .eq('subscription_id', sub.id)
+    .limit(5)
+
+  const competitorLines = competitors?.map(c =>
+    `${c.active ? '🟢' : '⚫'} ${c.url}`
+  ) ?? []
+
   let msg = `📊 *Velyr Agent Status*\n\n*Last 5 runs:*\n${lines.join('\n') || '_No runs yet_'}`
   if (abLines.length) msg += `\n\n*A/B Tests:*\n${abLines.join('\n')}`
+  if (competitorLines.length) msg += `\n\n*Tracked Competitors:*\n${competitorLines.join('\n')}`
 
   await sendMessage(chatId, msg)
 }
@@ -202,6 +214,63 @@ async function handleNote(runId, reason, chatId) {
   })
 
   await sendMessage(chatId, `🧬 *Note saved to Business DNA.*\n_"${reason}"_\n\nThe agent will factor this in on the next run.`)
+}
+
+// ─── PHASE 3: ADD/REMOVE COMPETITOR ──────────────────────────────────────────
+async function handleAddCompetitor(url, chatId) {
+  const { data: sub } = await supabase
+    .from('agent_subscriptions')
+    .select('id')
+    .eq('status', 'active')
+    .limit(1)
+    .single()
+
+  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+
+  // Validate URL
+  try {
+    new URL(url)
+  } catch {
+    return sendMessage(chatId, `❌ Invalid URL: \`${url}\`\n\nUsage: *competitor add https://example.com*`)
+  }
+
+  // Max 2 competitors
+  const { data: existing } = await supabase
+    .from('agent_competitor_urls')
+    .select('id')
+    .eq('subscription_id', sub.id)
+    .eq('active', true)
+
+  if (existing && existing.length >= 2) {
+    return sendMessage(chatId, `⚠️ You already have 2 competitors tracked (maximum).\n\nRemove one first: *competitor remove <url>*`)
+  }
+
+  await supabase.from('agent_competitor_urls').upsert({
+    subscription_id: sub.id,
+    url,
+    active: true,
+  }, { onConflict: 'subscription_id,url' })
+
+  await sendMessage(chatId, `✅ *Competitor added:* \`${url}\`\n\nThe agent will scan this site on every Monday run and suggest differentiation opportunities.`)
+}
+
+async function handleRemoveCompetitor(url, chatId) {
+  const { data: sub } = await supabase
+    .from('agent_subscriptions')
+    .select('id')
+    .eq('status', 'active')
+    .limit(1)
+    .single()
+
+  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+
+  await supabase
+    .from('agent_competitor_urls')
+    .update({ active: false })
+    .eq('subscription_id', sub.id)
+    .ilike('url', `%${url}%`)
+
+  await sendMessage(chatId, `🗑️ *Competitor removed.* The agent will no longer scan that URL.`)
 }
 
 // ─── MAIN HANDLER ────────────────────────────────────────────────────────────
@@ -233,6 +302,17 @@ export default async function handler(req, res) {
     } else if (cmd === 'note' && parts.length >= 3) {
       await handleNote(parts[1], parts.slice(2).join(' '), chatId)
 
+    } else if (cmd === 'competitor' && parts.length >= 3) {
+      const subCmd = parts[1].toLowerCase()
+      const url = parts[2]
+      if (subCmd === 'add') {
+        await handleAddCompetitor(url, chatId)
+      } else if (subCmd === 'remove') {
+        await handleRemoveCompetitor(url, chatId)
+      } else {
+        await sendMessage(chatId, `❓ Unknown competitor command.\n\n*competitor add <url>* — track a competitor\n*competitor remove <url>* — stop tracking`)
+      }
+
     } else {
       await sendMessage(
         chatId,
@@ -242,7 +322,9 @@ export default async function handler(req, res) {
         `*reject <run-id>* — skip this change\n` +
         `*note <run-id> <reason>* — add a manual learning\n` +
         `*dna* — view your Business DNA\n` +
-        `*status* — last runs & A/B tests`
+        `*status* — last runs, A/B tests & competitors\n` +
+        `*competitor add <url>* — track a competitor site\n` +
+        `*competitor remove <url>* — stop tracking`
       )
     }
 

@@ -47,6 +47,8 @@ export default async function handler(req, res) {
 
   if (mode === 'evaluate_ab') return handleEvaluateAB(res)
   if (mode === 'midweek') return handleMidweek(res)
+  if (mode === 'rollback_check') return handleRollbackCheck(res)
+  if (mode === 'weekly_summary') return handleWeeklySummary(res)
   return handleFullRun(res)
 }
 
@@ -445,6 +447,428 @@ async function handleEvaluateAB(res) {
   return res.json({ success: true, evaluated: tests.length })
 }
 
+// ─── PHASE 3: ROLLBACK AUTOMATION ────────────────────────────────────────────
+async function handleRollbackCheck(res) {
+  // Find runs deployed 48h ago that haven't been rolled back yet
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const ninetyTwoHoursAgo = new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString()
+
+  const { data: deployedRuns } = await supabase
+    .from('agent_runs')
+    .select('*')
+    .eq('status', 'deployed')
+    .gte('completed_at', ninetyTwoHoursAgo)
+    .lte('completed_at', fortyEightHoursAgo)
+
+  if (!deployedRuns || deployedRuns.length === 0) {
+    return res.json({ success: true, message: 'No runs to evaluate for rollback' })
+  }
+
+  for (const run of deployedRuns) {
+    try {
+      const { data: conn } = await supabase
+        .from('agent_connections')
+        .select('*')
+        .eq('subscription_id', run.subscription_id)
+        .single()
+
+      const apiKey = conn?.posthog_api_key || process.env.POSTHOG_API_KEY
+      const projectId = conn?.posthog_project_id || process.env.POSTHOG_PROJECT_ID
+      const host = conn?.posthog_host || process.env.POSTHOG_HOST || 'https://eu.posthog.com'
+
+      if (!apiKey || !projectId) continue
+
+      // Get bounce rate before and after deploy
+      const deployedAt = new Date(run.completed_at)
+      const twoDaysBefore = new Date(deployedAt - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const deployedDate = deployedAt.toISOString().split('T')[0]
+      const twoDaysAfter = new Date(deployedAt.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+      const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+
+      const [beforeRes, afterRes] = await Promise.all([
+        fetch(`${host}/api/projects/${projectId}/query/`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            query: {
+              kind: 'EventsQuery',
+              select: ['properties.$session_id', 'count()'],
+              event: '$pageview',
+              after: twoDaysBefore, before: deployedDate,
+              limit: 2000,
+            }
+          })
+        }),
+        fetch(`${host}/api/projects/${projectId}/query/`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            query: {
+              kind: 'EventsQuery',
+              select: ['properties.$session_id', 'count()'],
+              event: '$pageview',
+              after: deployedDate, before: twoDaysAfter,
+              limit: 2000,
+            }
+          })
+        }),
+      ])
+
+      const [before, after] = await Promise.all([beforeRes.json(), afterRes.json()])
+
+      const calcBounceRate = (results) => {
+        const counts = {}
+        results?.forEach(row => { counts[row[0]] = (counts[row[0]] || 0) + 1 })
+        const total = Object.keys(counts).length
+        const bounced = Object.values(counts).filter(c => c === 1).length
+        return total > 10 ? Math.round((bounced / total) * 100) : null
+      }
+
+      const bounceBefore = calcBounceRate(before.results)
+      const bounceAfter = calcBounceRate(after.results)
+
+      if (bounceBefore === null || bounceAfter === null) continue
+
+      // Rollback trigger: bounce rate increased by 15+ percentage points
+      const bounceDelta = bounceAfter - bounceBefore
+      const shouldRollback = bounceDelta >= 15
+
+      // Save impact metric regardless
+      await supabase.from('impact_metrics').insert({
+        run_id: run.id,
+        metric_type: 'bounce_rate',
+        value_before: bounceBefore,
+        value_after: bounceAfter,
+        measured_at: new Date().toISOString(),
+      })
+
+      // Save learning either way
+      await saveLearning(
+        run.subscription_id,
+        run.id,
+        run.analysis_result?.change_type || 'other',
+        run.analysis_result?.problem || 'Unknown change',
+        shouldRollback ? 'negative' : 'positive',
+        'bounce_rate',
+        -bounceDelta, // negative delta = more bouncing = bad
+        'high'
+      )
+
+      if (shouldRollback) {
+        // Perform rollback via GitHub — revert the squash commit
+        const octokit = await getOctokit(conn.github_installation_id)
+        const owner = conn.github_repo_owner
+        const repo = conn.github_repo_name
+
+        try {
+          // Get commit history to find the agent commit
+          const { data: commits } = await octokit.rest.repos.listCommits({
+            owner, repo, per_page: 10
+          })
+
+          const agentCommit = commits.find(c => c.commit.message.startsWith('fix:') && c.commit.message.includes(run.analysis_result?.problem?.slice(0, 30)))
+
+          if (agentCommit) {
+            // Create a revert commit
+            const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: 'heads/main' })
+            const branchName = `agent/rollback-${run.id.slice(0, 8)}`
+
+            await octokit.rest.git.createRef({
+              owner, repo,
+              ref: `refs/heads/${branchName}`,
+              sha: ref.object.sha
+            })
+
+            // Get the file as it was before the agent commit (parent commit)
+            const parentSha = agentCommit.parents[0]?.sha
+            if (parentSha && run.analysis_result?.file_to_edit) {
+              const { data: originalFile } = await octokit.rest.repos.getContent({
+                owner, repo,
+                path: run.analysis_result.file_to_edit,
+                ref: parentSha
+              })
+
+              const { data: currentFile } = await octokit.rest.repos.getContent({
+                owner, repo,
+                path: run.analysis_result.file_to_edit,
+              })
+
+              await octokit.rest.repos.createOrUpdateFileContents({
+                owner, repo,
+                path: run.analysis_result.file_to_edit,
+                message: `revert: rollback agent change (bounce rate +${bounceDelta}%)`,
+                content: originalFile.content,
+                sha: currentFile.sha,
+                branch: branchName
+              })
+
+              const { data: pr } = await octokit.rest.pulls.create({
+                owner, repo,
+                title: `🔄 Auto-Rollback: ${run.analysis_result?.problem}`,
+                body: `## Automatic Rollback\n\nThis rollback was triggered because the bounce rate increased by **+${bounceDelta}%** in the 48h after deployment.\n\n- Bounce rate before: ${bounceBefore}%\n- Bounce rate after: ${bounceAfter}%\n\n**Learning saved to Business DNA.** The agent will avoid similar changes going forward.`,
+                head: branchName,
+                base: 'main'
+              })
+
+              await octokit.rest.pulls.merge({
+                owner, repo,
+                pull_number: pr.number,
+                merge_method: 'squash'
+              })
+
+              await supabase.from('agent_runs').update({ status: 'rolled_back' }).eq('id', run.id)
+
+              // Notify via Telegram
+              await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: process.env.TELEGRAM_CHAT_ID,
+                  text: `🔄 *Velyr Auto-Rollback Triggered*\n\n*Change:* ${run.analysis_result?.problem}\n\n📉 *Reason:* Bounce rate went from ${bounceBefore}% → ${bounceAfter}% (+${bounceDelta}% in 48h)\n\n✅ Reverted automatically. Business DNA updated — agent won't repeat this pattern.\n\n_Run ID: \`${run.id.slice(0, 8)}\`_`,
+                  parse_mode: 'Markdown'
+                })
+              })
+            }
+          }
+        } catch (rollbackErr) {
+          console.error('Rollback execution failed:', rollbackErr)
+          // Still notify even if auto-rollback failed
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: process.env.TELEGRAM_CHAT_ID,
+              text: `⚠️ *Velyr Rollback Alert*\n\n*Change:* ${run.analysis_result?.problem}\n\n📉 Bounce rate increased by +${bounceDelta}% after deploy (${bounceBefore}% → ${bounceAfter}%).\n\n❌ Auto-rollback failed — please revert manually.\n\n_Run ID: \`${run.id.slice(0, 8)}\`_`,
+              parse_mode: 'Markdown'
+            })
+          })
+        }
+      } else if (bounceDelta <= -5) {
+        // Positive result — notify
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: process.env.TELEGRAM_CHAT_ID,
+            text: `📈 *Velyr Impact Check — Positive Result*\n\n*Change:* ${run.analysis_result?.problem}\n\n✅ Bounce rate improved: ${bounceBefore}% → ${bounceAfter}% (${bounceDelta}%)\n\nLearning saved to Business DNA.`,
+            parse_mode: 'Markdown'
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Rollback check error for run', run.id, err)
+    }
+  }
+
+  return res.json({ success: true, checked: deployedRuns.length })
+}
+
+// ─── PHASE 3: COMPETITOR AWARENESS ────────────────────────────────────────────
+async function fetchCompetitorData(competitorUrls) {
+  if (!competitorUrls || competitorUrls.length === 0) return null
+
+  const results = []
+
+  for (const url of competitorUrls.slice(0, 2)) {
+    try {
+      // Fetch competitor page HTML (basic, no JS rendering)
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VelyrBot/1.0)' },
+        signal: AbortSignal.timeout(5000)
+      })
+      const html = await res.text()
+
+      // Extract meaningful text: title, h1, h2, meta description, CTAs
+      const title = html.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]?.trim() || ''
+      const metaDesc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1]?.trim() || ''
+      const h1s = [...html.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 3)
+      const h2s = [...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 5)
+      const buttons = [...html.matchAll(/<button[^>]*>(.*?)<\/button>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 5)
+      const anchors = [...html.matchAll(/<a[^>]+>(.*?)<\/a>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(s => s.length > 2 && s.length < 40).slice(0, 8)
+
+      results.push({
+        url,
+        title,
+        metaDesc,
+        headlines: [...h1s, ...h2s].slice(0, 6),
+        ctas: [...buttons, ...anchors].slice(0, 6),
+      })
+    } catch (err) {
+      console.error('Competitor fetch failed for', url, err.message)
+    }
+  }
+
+  return results.length > 0 ? results : null
+}
+
+async function getCompetitorUrls(subscriptionId) {
+  const { data } = await supabase
+    .from('agent_competitor_urls')
+    .select('url')
+    .eq('subscription_id', subscriptionId)
+    .eq('active', true)
+    .limit(2)
+
+  return data?.map(r => r.url) || []
+}
+
+// ─── PHASE 3: WEEKLY EXECUTIVE SUMMARY ────────────────────────────────────────
+async function handleWeeklySummary(res) {
+  const { data: connections } = await supabase
+    .from('agent_connections')
+    .select('*, agent_subscriptions!inner(*)')
+    .eq('agent_subscriptions.status', 'active')
+
+  if (!connections || connections.length === 0) {
+    return res.json({ success: true, message: 'No active connections' })
+  }
+
+  for (const conn of connections) {
+    try {
+      const subscriptionId = conn.subscription_id
+
+      // Get analytics for the past week
+      const analytics = await getPostHogAnalytics(
+        conn.posthog_api_key || process.env.POSTHOG_API_KEY,
+        conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
+        conn.posthog_host || process.env.POSTHOG_HOST
+      )
+
+      // Get all runs from the past week
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: weekRuns } = await supabase
+        .from('agent_runs')
+        .select('*')
+        .eq('subscription_id', subscriptionId)
+        .gte('created_at', oneWeekAgo)
+        .order('created_at', { ascending: false })
+
+      // Get completed A/B tests from the past week
+      const { data: completedABTests } = await supabase
+        .from('agent_ab_tests')
+        .select('*')
+        .eq('subscription_id', subscriptionId)
+        .eq('status', 'completed')
+        .gte('created_at', oneWeekAgo)
+
+      // Get impact metrics for deployed runs this week
+      const deployedRunIds = weekRuns?.filter(r => r.status === 'deployed' || r.status === 'rolled_back').map(r => r.id) || []
+      let impactMetrics = []
+      if (deployedRunIds.length > 0) {
+        const { data: metrics } = await supabase
+          .from('impact_metrics')
+          .select('*')
+          .in('run_id', deployedRunIds)
+        impactMetrics = metrics || []
+      }
+
+      // Get DNA / learnings count
+      const { data: allLearnings } = await supabase
+        .from('agent_learnings')
+        .select('outcome, delta, metric_type')
+        .eq('subscription_id', subscriptionId)
+
+      const totalLearnings = allLearnings?.length || 0
+      const winLearnings = allLearnings?.filter(l => l.outcome === 'positive') || []
+      const avgPositiveDelta = winLearnings.length > 0
+        ? Math.round(winLearnings.reduce((sum, l) => sum + (l.delta || 0), 0) / winLearnings.length)
+        : null
+
+      // Build summary message
+      const a = analytics?.last7Days
+      const deployed = weekRuns?.filter(r => r.status === 'deployed').length || 0
+      const rolledBack = weekRuns?.filter(r => r.status === 'rolled_back').length || 0
+      const rejected = weekRuns?.filter(r => r.status === 'rejected').length || 0
+      const pending = weekRuns?.filter(r => r.status === 'waiting_approval').length || 0
+
+      const trendEmoji = !a?.trafficChange ? '📊'
+        : a.trafficChange > 10 ? '📈'
+        : a.trafficChange < -10 ? '📉'
+        : '➡️'
+
+      const trendText = a?.trafficChange == null ? 'First week of tracking'
+        : a.trafficChange > 0 ? `+${a.trafficChange}% vs previous week`
+        : `${a.trafficChange}% vs previous week`
+
+      const bounceText = !a ? '—'
+        : a.bounceRate === 0 ? 'No data'
+        : a.bounceRate > 70 ? `⚠️ ${a.bounceRate}% (high)`
+        : a.bounceRate > 50 ? `🟡 ${a.bounceRate}%`
+        : `✅ ${a.bounceRate}%`
+
+      // Best metric change from impact_metrics this week
+      let bestMetricLine = ''
+      if (impactMetrics.length > 0) {
+        const bounceMetrics = impactMetrics.filter(m => m.metric_type === 'bounce_rate' && m.value_before && m.value_after)
+        if (bounceMetrics.length > 0) {
+          const best = bounceMetrics.sort((a, b) => (a.value_before - a.value_after) - (b.value_before - b.value_after))[0]
+          const improvement = Math.round(best.value_before - best.value_after)
+          if (improvement > 0) {
+            bestMetricLine = `\n📉 Best result: bounce rate −${improvement}% after agent change`
+          }
+        }
+      }
+
+      // A/B test summary
+      let abSummary = ''
+      if (completedABTests && completedABTests.length > 0) {
+        const winners = completedABTests.filter(t => t.winner === 'treatment')
+        abSummary = `\n🔬 *A/B Tests:* ${completedABTests.length} completed · ${winners.length} won`
+        if (winners.length > 0) {
+          const avgLift = Math.round(winners.reduce((sum, t) => sum + (t.delta_pct || 0), 0) / winners.length)
+          abSummary += ` · avg +${avgLift}% lift`
+        }
+      }
+
+      const dnaSummary = totalLearnings > 0
+        ? `\n🧬 *Business DNA:* ${totalLearnings} learnings${avgPositiveDelta ? ` · avg +${avgPositiveDelta}% on wins` : ''}`
+        : ''
+
+      const deployedChanges = weekRuns?.filter(r => r.status === 'deployed').map(r =>
+        `  ✅ ${r.analysis_result?.problem?.slice(0, 60) || 'Change deployed'}`
+      ).join('\n') || ''
+
+      const rolledBackChanges = weekRuns?.filter(r => r.status === 'rolled_back').map(r =>
+        `  🔄 ${r.analysis_result?.problem?.slice(0, 60) || 'Rolled back'}`
+      ).join('\n') || ''
+
+      const message = `📋 *Velyr — Weekly Executive Summary*
+_Week of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}_
+
+${trendEmoji} *Traffic*
+${a ? `${a.uniqueVisitors} visitors · ${a.totalPageviews} pageviews` : 'No data'}
+${trendText}
+Bounce rate: ${bounceText}${bestMetricLine}
+
+🤖 *Agent Activity This Week*
+• Deployed: ${deployed} change${deployed !== 1 ? 's' : ''}
+• Rolled back: ${rolledBack}
+• Rejected: ${rejected}
+• Awaiting approval: ${pending}
+${deployedChanges ? `\n*Deployed changes:*\n${deployedChanges}` : ''}${rolledBackChanges ? `\n*Rolled back:*\n${rolledBackChanges}` : ''}${abSummary}${dnaSummary}
+
+_Next run: Monday · Reply *status* for details_`
+
+      const { data: sub } = await supabase
+        .from('agent_subscriptions')
+        .select('telegram_chat_id')
+        .eq('id', subscriptionId)
+        .single()
+
+      const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
+      })
+    } catch (err) {
+      console.error('Weekly summary error for subscription', conn.subscription_id, err)
+    }
+  }
+
+  return res.json({ success: true, mode: 'weekly_summary' })
+}
+
 // ─── IMPACT CALCULATION ──────────────────────────────────────────────────────
 function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderValue = 47) {
   if (!visitors || visitors < 10) return null
@@ -458,7 +882,7 @@ function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderVal
   return { revenueMin, revenueMax, additionalConversions: Math.round(additionalConversions) }
 }
 
-async function callAI(repoContent, analytics, pageSpeed, previousFixes, dna) {
+async function callAI(repoContent, analytics, pageSpeed, previousFixes, dna, competitorData) {
   const a = analytics?.last7Days
 
   const analyticsContext = a ? `
@@ -506,6 +930,19 @@ What did NOT work (avoid repeating these):
 ${dna.lossesText}
 ` : ''
 
+  // ── PHASE 3: Competitor context ──
+  const competitorContext = competitorData && competitorData.length > 0 ? `
+COMPETITOR INTELLIGENCE:
+${competitorData.map(c => `
+Competitor: ${c.url}
+- Title: ${c.title}
+- Meta description: ${c.metaDesc}
+- Headlines: ${c.headlines.join(' | ')}
+- CTAs/Links: ${c.ctas.join(' | ')}
+`).join('\n')}
+Use this to suggest DIFFERENTIATION opportunities. Where is the user's site weaker or less compelling than competitors? Where can they stand out?
+` : ''
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -524,6 +961,7 @@ ${analyticsContext}
 ${pageSpeedContext}
 ${previousFixesContext}
 ${dnaContext}
+${competitorContext}
 
 WEBSITE CODE:
 ${JSON.stringify(repoContent, null, 2)}
@@ -535,6 +973,7 @@ RULES:
 - If social traffic is high but bounce rate is high → landing page doesn't match social audience
 - If mobile % is high but performance is low → mobile UX is priority
 - Respect the Business DNA: double down on what worked, avoid what didn't
+- If competitor data is available: suggest a differentiation angle that makes the user's site stand out
 
 IMPACT PREDICTION RULES:
 - conversion_lift_min and conversion_lift_max: realistic percentage POINTS improvement. Base on change type:
@@ -543,6 +982,7 @@ IMPACT PREDICTION RULES:
   * Performance improvements: 5–15
   * Mobile UX fixes: 10–30 (if mobile % is high)
   * Trust signals: 5–12
+  * Differentiation vs competitor: 8–20
 - Be conservative. Do NOT invent numbers you can't justify from the data.
 
 RISK SCORING RULES:
@@ -561,7 +1001,8 @@ Reply ONLY as JSON without Markdown:
   "expected_improvement": "realistic estimate",
   "data_insight": "key analytics insight",
   "file_to_edit": "exact file path",
-  "change_type": "headline|cta|copy|layout|pricing|trust|navigation|performance|other",
+  "change_type": "headline|cta|copy|layout|pricing|trust|navigation|performance|differentiation|other",
+  "competitor_insight": "if competitor data was used, one sentence on the differentiation angle. Otherwise null.",
   "code_change": {
     "find": "exact text to replace",
     "replace": "new improved text"
@@ -637,6 +1078,7 @@ async function createPR(octokit, owner, repo, analysis) {
     `## Why this matters\n${analysis.impact}`,
     `## Solution\n${analysis.solution}`,
     `## Expected Improvement\n${analysis.expected_improvement}`,
+    analysis.competitor_insight ? `## Competitor Differentiation\n${analysis.competitor_insight}` : '',
     analysis.impact_prediction ? `## Impact Prediction\n- Conversion lift: +${analysis.impact_prediction.conversion_lift_min}–${analysis.impact_prediction.conversion_lift_max}%\n- Confidence: ${analysis.impact_prediction.confidence}\n- Reason: ${analysis.impact_prediction.confidence_reason}` : '',
     analysis.risk_score ? `## Risk Assessment\n${riskEmoji} Risk: **${analysis.risk_score.risk_level}** | Effort: ${analysis.risk_score.effort_estimate} | Rollback safe: ${analysis.risk_score.rollback_safe ? 'Yes ✅' : 'No ⚠️'}\n${analysis.risk_score.risk_reason}` : '',
   ].filter(Boolean).join('\n\n')
@@ -696,6 +1138,11 @@ ${revLine}_${ip.confidence_reason}_\n\n`
     riskBlock = `${riskEmoji} *Risk:* ${rs.risk_level.toUpperCase()} · ⏱ ${rs.effort_estimate} · ${rollbackText}\n_${rs.risk_reason}_\n\n`
   }
 
+  // ── PHASE 3: Competitor insight line ──
+  const competitorLine = analysis.competitor_insight
+    ? `🔍 *Competitor angle:* ${analysis.competitor_insight}\n\n`
+    : ''
+
   const message = `🤖 *Velyr Growth Agent*
 
 ${analyticsLine}🔍 *Problem found:*
@@ -707,7 +1154,7 @@ ${analysis.data_insight || 'Based on code analysis'}
 💥 *Impact:*
 ${analysis.impact}
 
-${impactBlock}${riskBlock}✅ *Solution:*
+${impactBlock}${riskBlock}${competitorLine}✅ *Solution:*
 ${analysis.solution}
 
 📈 *Expected improvement:* ${analysis.expected_improvement}
@@ -839,8 +1286,10 @@ async function handleFullRun(res) {
 
     const octokit = await getOctokit(conn.github_installation_id)
 
-    // ── PHASE 2: fetchBusinessDNA added to parallel fetches ──
-    const [repoContent, analytics, pageSpeed, previousFixes, dna] = await Promise.all([
+    // ── PHASE 3: competitor URLs added to parallel fetches ──
+    const competitorUrls = await getCompetitorUrls(conn.subscription_id)
+
+    const [repoContent, analytics, pageSpeed, previousFixes, dna, competitorData] = await Promise.all([
       analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
       getPostHogAnalytics(
         conn.posthog_api_key || process.env.POSTHOG_API_KEY,
@@ -850,9 +1299,10 @@ async function handleFullRun(res) {
       conn.website_url ? getPageSpeedScore(conn.website_url) : null,
       getPreviousRuns(conn.subscription_id),
       fetchBusinessDNA(conn.subscription_id),
+      competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
     ])
 
-    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes, dna)
+    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes, dna, competitorData)
     const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
     const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
 
