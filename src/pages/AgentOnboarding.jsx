@@ -24,6 +24,7 @@ const CSS = `
   @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
   .ob-card { animation: fadeUp .4s ease both; }
   .ob-inp {
     width: 100%; background: #fff; border: 1px solid rgba(28,25,23,0.12); border-radius: 10px;
@@ -33,6 +34,7 @@ const CSS = `
   }
   .ob-inp:focus { border-color: rgba(42,92,69,0.4); box-shadow: 0 0 0 3px rgba(42,92,69,0.08); }
   .ob-inp::placeholder { color: #b0a89e; }
+  .ob-inp:disabled { opacity: 0.5; cursor: not-allowed; }
   .ob-btn {
     width: 100%; background: #1c1917; color: #f7f4ef; border: none; border-radius: 10px;
     padding: 15px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 15px;
@@ -48,6 +50,26 @@ const CSS = `
   }
   .ob-btn-ghost:hover { border-color: rgba(28,25,23,0.3); background: rgba(28,25,23,0.03); }
   .req-item { transition: all .3s ease; }
+  .code-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    letter-spacing: .15em;
+    color: #2a5c45;
+    background: rgba(42,92,69,0.07);
+    border: 1px solid rgba(42,92,69,0.2);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    user-select: all;
+  }
+  .tg-open-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; background: #229ED9; color: #fff; border: none; border-radius: 10px;
+    padding: 15px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 15px;
+    cursor: pointer; transition: background .2s, transform .15s; letter-spacing: .03em;
+    text-decoration: none;
+  }
+  .tg-open-btn:hover { background: #1a8cbf; transform: translateY(-1px); }
 `
 
 function Logo({ size = 24, color = '#2a5c45' }) {
@@ -60,6 +82,14 @@ function Logo({ size = 24, color = '#2a5c45' }) {
       <line x1="16" y1="25" x2="16" y2="30" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
       <line x1="2"  y1="16" x2="7"  y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
       <line x1="25" y1="16" x2="30" y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
+    </svg>
+  )
+}
+
+function TelegramIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.48 13.618l-2.95-.924c-.64-.203-.658-.64.135-.954l11.57-4.461c.537-.194 1.006.131.659.942z"/>
     </svg>
   )
 }
@@ -82,7 +112,7 @@ function StepIndicator({ current, total }) {
           </div>
           {i < total - 1 && (
             <div style={{
-              width: 24, height: 1,
+              width: 20, height: 1,
               background: i < current ? C.accent : C.border,
               transition: 'background .3s',
             }} />
@@ -93,43 +123,28 @@ function StepIndicator({ current, total }) {
   )
 }
 
+// ─── STEP 0: Requirements ────────────────────────────────────────────────────
 function Step0({ onNext }) {
-  const [checks, setChecks] = useState({
-    github: null,
-    vercel: null,
-    react: null,
-    admin: null,
-  })
+  const [checks, setChecks] = useState({ github: null, vercel: null, react: null, admin: null })
 
   const requirements = [
     {
-      key: 'github',
-      icon: '🐙',
-      title: 'GitHub account + repo',
+      key: 'github', icon: '🐙', title: 'GitHub account + repo',
       desc: "Your website's code must be in a GitHub repository.",
-      fixText: 'Create a free GitHub account',
-      fixUrl: 'https://github.com/signup',
+      fixText: 'Create a free GitHub account', fixUrl: 'https://github.com/signup',
     },
     {
-      key: 'vercel',
-      icon: '▲',
-      title: 'Deployed via Vercel',
+      key: 'vercel', icon: '▲', title: 'Deployed via Vercel',
       desc: 'Your site must be connected to Vercel for automatic deployment after each approved fix.',
-      fixText: 'Connect your repo to Vercel (free)',
-      fixUrl: 'https://vercel.com/new',
+      fixText: 'Connect your repo to Vercel (free)', fixUrl: 'https://vercel.com/new',
     },
     {
-      key: 'react',
-      icon: '⚛️',
-      title: 'React, Next.js, or Vite project',
+      key: 'react', icon: '⚛️', title: 'React, Next.js, or Vite project',
       desc: 'The agent writes React/JSX code. Shopify, Wix, Squarespace and similar builders are not supported.',
-      fixText: null,
-      notSupportedText: 'Shopify, Wix, Squarespace, Webflow are not supported',
+      fixText: null, notSupportedText: 'Shopify, Wix, Squarespace, Webflow are not supported',
     },
     {
-      key: 'admin',
-      icon: '🔑',
-      title: 'Admin access to the repo',
+      key: 'admin', icon: '🔑', title: 'Admin access to the repo',
       desc: 'You need to be able to install GitHub Apps and merge Pull Requests.',
       fixText: null,
     },
@@ -138,9 +153,7 @@ function Step0({ onNext }) {
   const allChecked = Object.values(checks).every(v => v === true)
   const hasBlocker = Object.values(checks).some(v => v === false)
 
-  const toggle = (key, value) => {
-    setChecks(prev => ({ ...prev, [key]: prev[key] === value ? null : value }))
-  }
+  const toggle = (key, value) => setChecks(prev => ({ ...prev, [key]: prev[key] === value ? null : value }))
 
   return (
     <div>
@@ -157,12 +170,10 @@ function Step0({ onNext }) {
           const status = checks[req.key]
           const isYes = status === true
           const isNo = status === false
-
           return (
             <div key={req.key} className="req-item" style={{
               border: `1px solid ${isYes ? 'rgba(42,92,69,0.3)' : isNo ? 'rgba(192,57,43,0.3)' : C.border}`,
-              borderRadius: 12,
-              background: isYes ? 'rgba(42,92,69,0.04)' : isNo ? 'rgba(192,57,43,0.04)' : '#fff',
+              borderRadius: 12, background: isYes ? 'rgba(42,92,69,0.04)' : isNo ? 'rgba(192,57,43,0.04)' : '#fff',
               overflow: 'hidden',
             }}>
               <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -171,50 +182,25 @@ function Step0({ onNext }) {
                   <p style={{ fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 3 }}>{req.title}</p>
                   <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{req.desc}</p>
                   {isNo && req.fixUrl && (
-                    <a href={req.fixUrl} target="_blank" rel="noreferrer" style={{
-                      display: 'inline-block', marginTop: 8,
-                      fontSize: 12, color: C.accent, fontWeight: 400,
-                      textDecoration: 'none', borderBottom: '1px solid rgba(42,92,69,0.3)',
-                    }}>
+                    <a href={req.fixUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8, fontSize: 12, color: C.accent, fontWeight: 400, textDecoration: 'none', borderBottom: '1px solid rgba(42,92,69,0.3)' }}>
                       {req.fixText} →
                     </a>
                   )}
                   {isNo && req.notSupportedText && (
-                    <p style={{ fontSize: 12, color: C.red, marginTop: 8, fontWeight: 300 }}>
-                      ✕ {req.notSupportedText}
-                    </p>
+                    <p style={{ fontSize: 12, color: C.red, marginTop: 8, fontWeight: 300 }}>✕ {req.notSupportedText}</p>
                   )}
                 </div>
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {status !== null && (
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: isYes ? '#22c55e' : C.red,
-                      boxShadow: isYes ? '0 0 6px #22c55e' : `0 0 6px ${C.red}`,
-                      animation: 'pulse 2s ease infinite',
-                    }} />
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: isYes ? '#22c55e' : C.red, boxShadow: isYes ? '0 0 6px #22c55e' : `0 0 6px ${C.red}`, animation: 'pulse 2s ease infinite' }} />
                   )}
                 </div>
               </div>
               <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
-                <button onClick={() => toggle(req.key, true)} style={{
-                  flex: 1, padding: '10px', fontSize: 13,
-                  fontFamily: 'Jost, sans-serif', fontWeight: isYes ? 500 : 300,
-                  background: isYes ? 'rgba(42,92,69,0.08)' : 'transparent',
-                  color: isYes ? C.accent : C.textMuted,
-                  border: 'none', borderRight: `1px solid ${C.border}`,
-                  cursor: 'pointer', transition: 'all .2s',
-                }}>
+                <button onClick={() => toggle(req.key, true)} style={{ flex: 1, padding: '10px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: isYes ? 500 : 300, background: isYes ? 'rgba(42,92,69,0.08)' : 'transparent', color: isYes ? C.accent : C.textMuted, border: 'none', borderRight: `1px solid ${C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
                   ✓ Yes, I have this
                 </button>
-                <button onClick={() => toggle(req.key, false)} style={{
-                  flex: 1, padding: '10px', fontSize: 13,
-                  fontFamily: 'Jost, sans-serif', fontWeight: isNo ? 500 : 300,
-                  background: isNo ? 'rgba(192,57,43,0.06)' : 'transparent',
-                  color: isNo ? C.red : C.textMuted,
-                  border: 'none',
-                  cursor: 'pointer', transition: 'all .2s',
-                }}>
+                <button onClick={() => toggle(req.key, false)} style={{ flex: 1, padding: '10px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: isNo ? 500 : 300, background: isNo ? 'rgba(192,57,43,0.06)' : 'transparent', color: isNo ? C.red : C.textMuted, border: 'none', cursor: 'pointer', transition: 'all .2s' }}>
                   ✕ I don't have this
                 </button>
               </div>
@@ -229,7 +215,6 @@ function Step0({ onNext }) {
           <p style={{ fontSize: 13, color: C.accent, fontWeight: 400 }}>You're all set! Let's get started.</p>
         </div>
       )}
-
       {hasBlocker && !allChecked && (
         <div style={{ background: 'rgba(192,57,43,0.06)', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 10, padding: '13px 16px', marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: C.red, fontWeight: 400, marginBottom: 4 }}>Some requirements are missing.</p>
@@ -246,6 +231,7 @@ function Step0({ onNext }) {
   )
 }
 
+// ─── STEP 1: Website ─────────────────────────────────────────────────────────
 function Step1({ onNext, onBack }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
@@ -258,7 +244,7 @@ function Step1({ onNext, onBack }) {
 
   return (
     <div>
-      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 1 of 3</p>
+      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 1 of 4</p>
       <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
         Your website
       </h2>
@@ -268,13 +254,7 @@ function Step1({ onNext, onBack }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6, letterSpacing: '.03em' }}>Website URL</label>
-          <input
-            className="ob-inp"
-            placeholder="yourwebsite.com"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleNext()}
-          />
+          <input className="ob-inp" placeholder="yourwebsite.com" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleNext()} />
         </div>
         {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
         <div style={{ height: 8 }} />
@@ -287,6 +267,7 @@ function Step1({ onNext, onBack }) {
   )
 }
 
+// ─── STEP 2: GitHub ──────────────────────────────────────────────────────────
 function Step2({ onNext, onBack }) {
   const [installationId, setInstallationId] = useState('')
   const [repoOwner, setRepoOwner] = useState('')
@@ -304,7 +285,7 @@ function Step2({ onNext, onBack }) {
 
   return (
     <div>
-      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 2 of 3</p>
+      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 2 of 4</p>
       <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
         Connect GitHub
       </h2>
@@ -312,22 +293,10 @@ function Step2({ onNext, onBack }) {
         The agent reads your code and creates Pull Requests with fixes — directly in your repo.
       </p>
 
-      <div style={{
-        border: `1px solid ${appInstalled ? 'rgba(42,92,69,0.3)' : C.border}`,
-        background: appInstalled ? 'rgba(42,92,69,0.04)' : '#fff',
-        borderRadius: 12, padding: '16px 18px', marginBottom: 12,
-        transition: 'all .3s',
-      }}>
+      <div style={{ border: `1px solid ${appInstalled ? 'rgba(42,92,69,0.3)' : C.border}`, background: appInstalled ? 'rgba(42,92,69,0.04)' : '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 12, transition: 'all .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 22, height: 22, borderRadius: '50%',
-              background: appInstalled ? C.accent : 'transparent',
-              border: `1px solid ${appInstalled ? C.accent : C.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, color: appInstalled ? '#fff' : C.textLight, fontWeight: 500,
-              flexShrink: 0,
-            }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', background: appInstalled ? C.accent : 'transparent', border: `1px solid ${appInstalled ? C.accent : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: appInstalled ? '#fff' : C.textLight, fontWeight: 500, flexShrink: 0 }}>
               {appInstalled ? '✓' : '1'}
             </div>
             <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Install the Velyr GitHub App</p>
@@ -342,17 +311,8 @@ function Step2({ onNext, onBack }) {
           — copy that number.
         </p>
         <div style={{ paddingLeft: 32, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <a
-            href="https://github.com/apps/velyr-growth-agent/installations/new"
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => setTimeout(() => setAppInstalled(true), 3000)}
-            style={{
-              display: 'inline-block', background: C.text, color: '#fff',
-              borderRadius: 8, padding: '9px 16px', fontSize: 13,
-              fontFamily: 'Jost, sans-serif', fontWeight: 500,
-              textDecoration: 'none', transition: 'background .2s',
-            }}
+          <a href="https://github.com/apps/velyr-growth-agent/installations/new" target="_blank" rel="noreferrer" onClick={() => setTimeout(() => setAppInstalled(true), 3000)}
+            style={{ display: 'inline-block', background: C.text, color: '#fff', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 500, textDecoration: 'none', transition: 'background .2s' }}
             onMouseEnter={e => e.currentTarget.style.background = C.accent}
             onMouseLeave={e => e.currentTarget.style.background = C.text}
           >
@@ -366,19 +326,9 @@ function Step2({ onNext, onBack }) {
         </div>
       </div>
 
-      <div style={{
-        border: `1px solid ${C.border}`,
-        background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 16,
-        opacity: appInstalled ? 1 : 0.5,
-        transition: 'opacity .3s',
-      }}>
+      <div style={{ border: `1px solid ${C.border}`, background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 16, opacity: appInstalled ? 1 : 0.5, transition: 'opacity .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: 'transparent', border: `1px solid ${C.border}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, color: C.textLight, fontWeight: 500, flexShrink: 0,
-          }}>2</div>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'transparent', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.textLight, fontWeight: 500, flexShrink: 0 }}>2</div>
           <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Enter your details</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -393,9 +343,7 @@ function Step2({ onNext, onBack }) {
           <div>
             <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>
               Installation ID
-              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 300 }}>
-                (the number in the URL: /installations/<strong>12345678</strong>)
-              </span>
+              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 300 }}>(the number in the URL: /installations/<strong>12345678</strong>)</span>
             </label>
             <input className="ob-inp" placeholder="e.g. 129153460" value={installationId} onChange={e => setInstallationId(e.target.value)} disabled={!appInstalled} />
           </div>
@@ -403,7 +351,6 @@ function Step2({ onNext, onBack }) {
       </div>
 
       {error && <p style={{ fontSize: 13, color: C.red, marginBottom: 12 }}>{error}</p>}
-
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="ob-btn-ghost" onClick={onBack} style={{ flex: '0 0 auto', width: 'auto', padding: '14px 20px' }}>← Back</button>
         <button className="ob-btn" onClick={handleNext} disabled={!appInstalled}>Continue →</button>
@@ -412,7 +359,8 @@ function Step2({ onNext, onBack }) {
   )
 }
 
-function Step3({ onNext, onBack, loading }) {
+// ─── STEP 3: Analytics ───────────────────────────────────────────────────────
+function Step3({ onNext, onBack }) {
   const [posthogKey, setPosthogKey] = useState('')
   const [posthogProjectId, setPosthogProjectId] = useState('')
   const [skip, setSkip] = useState(false)
@@ -426,7 +374,7 @@ function Step3({ onNext, onBack, loading }) {
 
   return (
     <div>
-      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 3 of 3</p>
+      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 3 of 4</p>
       <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
         Connect Analytics
       </h2>
@@ -439,9 +387,7 @@ function Step3({ onNext, onBack, loading }) {
           <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 4 }}>
             <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.7 }}>
               Don't have PostHog?{' '}
-              <a href="https://posthog.com" target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: 'none', fontWeight: 400 }}>
-                Create a free account →
-              </a>
+              <a href="https://posthog.com" target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: 'none', fontWeight: 400 }}>Create a free account →</a>
               <br />
               Then install it on your site and create a Personal API Key with "Performing analytics queries" permission.
             </p>
@@ -469,14 +415,137 @@ function Step3({ onNext, onBack, loading }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="ob-btn-ghost" onClick={onBack} style={{ flex: '0 0 auto', width: 'auto', padding: '14px 20px' }}>← Back</button>
-        <button className="ob-btn" onClick={handleNext} disabled={loading}>
-          {loading ? 'Setting up…' : 'Launch Growth Agent 🚀'}
+        <button className="ob-btn" onClick={handleNext}>Continue →</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── STEP 4: Telegram ────────────────────────────────────────────────────────
+function Step4({ onNext, onBack, loading }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [botOpened, setBotOpened] = useState(false)
+
+  const handleNext = async () => {
+    const trimmed = code.trim().toUpperCase()
+    if (!trimmed) { setError('Please enter your verification code.'); return }
+    if (!trimmed.startsWith('VELYR-') || trimmed.length < 12) {
+      setError('Invalid code format. It should look like VELYR-XXXXXX.')
+      return
+    }
+
+    setVerifying(true)
+    setError('')
+
+    // Verify code exists and is not expired/used
+    const { data: record, error: dbError } = await supabase
+      .from('telegram_verification_codes')
+      .select('*')
+      .eq('code', trimmed)
+      .eq('used', false)
+      .gt('expires_at', new Date().toISOString())
+      .single()
+
+    if (dbError || !record) {
+      setVerifying(false)
+      setError('Code not found or expired. Please go back to Telegram and type /start again.')
+      return
+    }
+
+    setVerifying(false)
+    onNext({ telegramCode: trimmed, telegramChatId: record.chat_id })
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 4 of 4</p>
+      <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
+        Connect Telegram
+      </h2>
+      <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 24 }}>
+        The agent sends you weekly reports and PR approvals via Telegram. Connect it in 2 steps.
+      </p>
+
+      {/* Step 1: Open bot */}
+      <div style={{
+        border: `1px solid ${botOpened ? 'rgba(42,92,69,0.3)' : C.border}`,
+        background: botOpened ? 'rgba(42,92,69,0.04)' : '#fff',
+        borderRadius: 12, padding: '16px 18px', marginBottom: 12, transition: 'all .3s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: botOpened ? C.accent : 'transparent',
+            border: `1px solid ${botOpened ? C.accent : C.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, color: botOpened ? '#fff' : C.textLight, fontWeight: 500, flexShrink: 0,
+          }}>
+            {botOpened ? '✓' : '1'}
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Open @VelyrBot and send /start</p>
+        </div>
+        <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6, paddingLeft: 32, marginBottom: 14 }}>
+          The bot will send you a 6-character verification code. You'll need it in step 2.
+        </p>
+        <div style={{ paddingLeft: 32 }}>
+          <a
+            href="https://t.me/VelyrBot"
+            target="_blank"
+            rel="noreferrer"
+            className="tg-open-btn"
+            style={{ display: 'inline-flex', width: 'auto', padding: '9px 18px' }}
+            onClick={() => setTimeout(() => setBotOpened(true), 2000)}
+          >
+            <TelegramIcon size={16} />
+            Open @VelyrBot
+          </a>
+        </div>
+      </div>
+
+      {/* Step 2: Enter code */}
+      <div style={{
+        border: `1px solid ${C.border}`, background: '#fff',
+        borderRadius: 12, padding: '16px 18px', marginBottom: 16,
+        opacity: botOpened ? 1 : 0.5, transition: 'opacity .3s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'transparent', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.textLight, fontWeight: 500, flexShrink: 0 }}>2</div>
+          <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Enter your verification code</p>
+        </div>
+        <div style={{ paddingLeft: 32 }}>
+          <input
+            className="ob-inp"
+            placeholder="VELYR-XXXXXX"
+            value={code}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            disabled={!botOpened}
+            style={{ fontFamily: 'DM Mono, monospace', letterSpacing: '.08em', fontSize: 16 }}
+            onKeyDown={e => e.key === 'Enter' && handleNext()}
+          />
+        </div>
+      </div>
+
+      {!botOpened && (
+        <button onClick={() => setBotOpened(true)} style={{ background: 'none', border: 'none', fontSize: 12, color: C.textLight, cursor: 'pointer', fontFamily: 'Jost, sans-serif', fontWeight: 300, padding: '0 0 16px', textDecoration: 'underline' }}>
+          Already have a code
+        </button>
+      )}
+
+      {error && <p style={{ fontSize: 13, color: C.red, marginBottom: 12 }}>{error}</p>}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="ob-btn-ghost" onClick={onBack} style={{ flex: '0 0 auto', width: 'auto', padding: '14px 20px' }}>← Back</button>
+        <button className="ob-btn" onClick={handleNext} disabled={loading || verifying || !botOpened}>
+          {verifying ? 'Verifying…' : loading ? 'Setting up…' : 'Launch Growth Agent 🚀'}
         </button>
       </div>
     </div>
   )
 }
 
+// ─── ROOT ────────────────────────────────────────────────────────────────────
 export default function AgentOnboarding({ navigate }) {
   const [step, setStep] = useState(0)
   const [user, setUser] = useState(null)
@@ -494,13 +563,15 @@ export default function AgentOnboarding({ navigate }) {
   const handleStep0 = () => setStep(1)
   const handleStep1 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(2) }
   const handleStep2 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(3) }
+  const handleStep3 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(4) }
 
-  const handleStep3 = async (data) => {
+  const handleStep4 = async (data) => {
     setLoading(true)
     setError('')
     const allData = { ...formData, ...data }
 
     try {
+      // 1. Create subscription
       const { data: sub, error: subError } = await supabase
         .from('agent_subscriptions')
         .insert({
@@ -515,6 +586,7 @@ export default function AgentOnboarding({ navigate }) {
 
       if (subError) throw subError
 
+      // 2. Create connection (with telegram_chat_id)
       const { error: connError } = await supabase
         .from('agent_connections')
         .insert({
@@ -526,9 +598,16 @@ export default function AgentOnboarding({ navigate }) {
           posthog_api_key: allData.posthogKey || null,
           posthog_project_id: allData.posthogProjectId || null,
           posthog_host: 'https://eu.posthog.com',
+          telegram_chat_id: allData.telegramChatId,
         })
 
       if (connError) throw connError
+
+      // 3. Mark verification code as used
+      await supabase
+        .from('telegram_verification_codes')
+        .update({ used: true })
+        .eq('code', allData.telegramCode)
 
       navigate('/agent/dashboard')
     } catch (err) {
@@ -550,11 +629,12 @@ export default function AgentOnboarding({ navigate }) {
           </div>
 
           <div className="ob-card" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
-            <StepIndicator current={step} total={4} />
+            <StepIndicator current={step} total={5} />
             {step === 0 && <Step0 onNext={handleStep0} />}
             {step === 1 && <Step1 onNext={handleStep1} onBack={() => setStep(0)} />}
             {step === 2 && <Step2 onNext={handleStep2} onBack={() => setStep(1)} />}
-            {step === 3 && <Step3 onNext={handleStep3} onBack={() => setStep(2)} loading={loading} />}
+            {step === 3 && <Step3 onNext={handleStep3} onBack={() => setStep(2)} />}
+            {step === 4 && <Step4 onNext={handleStep4} onBack={() => setStep(3)} loading={loading} />}
             {error && (
               <div style={{ marginTop: 16, background: 'rgba(192,57,43,0.06)', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 8, padding: '10px 13px', fontSize: 13, color: C.red }}>
                 {error}

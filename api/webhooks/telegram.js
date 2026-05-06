@@ -23,12 +23,71 @@ async function getOctokit(installationId) {
   return new Octokit({ auth: token })
 }
 
-async function sendMessage(chatId, text) {
+async function sendMessage(chatId, text, extra = {}) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown', ...extra })
   })
+}
+
+// ─── HELPER: Generate unique verification code ────────────────────────────────
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (0/O, 1/I)
+  let code = 'VELYR-'
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return code
+}
+
+// ─── /start — Onboarding verification ────────────────────────────────────────
+async function handleStart(message) {
+  const chatId = message.chat.id
+  const username = message.from?.username || null
+  const firstName = message.from?.first_name || 'there'
+
+  // Delete any old unused codes for this chat_id
+  await supabase
+    .from('telegram_verification_codes')
+    .delete()
+    .eq('chat_id', chatId)
+    .eq('used', false)
+
+  // Generate a new unique code
+  let code
+  let attempts = 0
+  while (attempts < 10) {
+    const candidate = generateCode()
+    const { data: existing } = await supabase
+      .from('telegram_verification_codes')
+      .select('id')
+      .eq('code', candidate)
+      .single()
+    if (!existing) { code = candidate; break }
+    attempts++
+  }
+
+  if (!code) {
+    return sendMessage(chatId, '❌ Something went wrong generating your code. Please try again.')
+  }
+
+  // Save code to DB
+  await supabase.from('telegram_verification_codes').insert({
+    code,
+    chat_id: chatId,
+    telegram_username: username,
+  })
+
+  await sendMessage(
+    chatId,
+    `👋 *Hi ${firstName}!*\n\n` +
+    `Welcome to *Velyr Growth Agent*.\n\n` +
+    `Your verification code is:\n\n` +
+    `\`${code}\`\n\n` +
+    `Copy this code and paste it into the setup wizard on velyr.io to connect your Telegram.\n\n` +
+    `_This code expires in 30 minutes._`
+  )
 }
 
 // ─── APPROVE ────────────────────────────────────────────────────────────────
@@ -88,19 +147,29 @@ async function handleReject(runId, chatId) {
 
 // ─── BUSINESS DNA ─────────────────────────────────────────────────────────────
 async function handleDNA(chatId) {
-  const { data: sub } = await supabase
-    .from('agent_subscriptions')
-    .select('id')
-    .eq('status', 'active')
-    .limit(1)
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('subscription_id')
+    .eq('telegram_chat_id', chatId)
     .single()
 
-  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = conn?.subscription_id
+
+  if (!subId) {
+    // Fallback: first active subscription
+    const { data: sub } = await supabase
+      .from('agent_subscriptions')
+      .select('id')
+      .eq('status', 'active')
+      .limit(1)
+      .single()
+    if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  }
 
   const { data: learnings } = await supabase
     .from('agent_learnings')
     .select('*')
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .order('created_at', { ascending: false })
     .limit(20)
 
@@ -131,19 +200,28 @@ async function handleDNA(chatId) {
 
 // ─── STATUS ──────────────────────────────────────────────────────────────────
 async function handleStatus(chatId) {
-  const { data: sub } = await supabase
-    .from('agent_subscriptions')
-    .select('id')
-    .eq('status', 'active')
-    .limit(1)
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('subscription_id')
+    .eq('telegram_chat_id', chatId)
     .single()
 
-  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = conn?.subscription_id
+
+  if (!subId) {
+    const { data: sub } = await supabase
+      .from('agent_subscriptions')
+      .select('id')
+      .eq('status', 'active')
+      .limit(1)
+      .single()
+    if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  }
 
   const { data: runs } = await supabase
     .from('agent_runs')
     .select('id, status, pr_url, created_at')
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .order('created_at', { ascending: false })
     .limit(5)
 
@@ -162,7 +240,7 @@ async function handleStatus(chatId) {
   const { data: abTests } = await supabase
     .from('agent_ab_tests')
     .select('summary, status, winner, delta_pct, evaluate_after')
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .order('created_at', { ascending: false })
     .limit(3)
 
@@ -174,11 +252,10 @@ async function handleStatus(chatId) {
     return `🔬 ${t.summary} — results on ${evalDate}`
   }) ?? []
 
-  // ── PHASE 3: Show competitor URLs ──
   const { data: competitors } = await supabase
     .from('agent_competitor_urls')
     .select('url, active')
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .limit(5)
 
   const competitorLines = competitors?.map(c =>
@@ -192,7 +269,7 @@ async function handleStatus(chatId) {
   await sendMessage(chatId, msg)
 }
 
-// ─── NOTE (manual learning) ──────────────────────────────────────────────────
+// ─── NOTE ─────────────────────────────────────────────────────────────────────
 async function handleNote(runId, reason, chatId) {
   const { data: run } = await supabase
     .from('agent_runs')
@@ -216,29 +293,25 @@ async function handleNote(runId, reason, chatId) {
   await sendMessage(chatId, `🧬 *Note saved to Business DNA.*\n_"${reason}"_\n\nThe agent will factor this in on the next run.`)
 }
 
-// ─── PHASE 3: ADD/REMOVE COMPETITOR ──────────────────────────────────────────
+// ─── COMPETITOR ───────────────────────────────────────────────────────────────
 async function handleAddCompetitor(url, chatId) {
-  const { data: sub } = await supabase
-    .from('agent_subscriptions')
-    .select('id')
-    .eq('status', 'active')
-    .limit(1)
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('subscription_id')
+    .eq('telegram_chat_id', chatId)
     .single()
 
-  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = conn?.subscription_id
+  if (!subId) return sendMessage(chatId, '❌ No active subscription found.')
 
-  // Validate URL
-  try {
-    new URL(url)
-  } catch {
+  try { new URL(url) } catch {
     return sendMessage(chatId, `❌ Invalid URL: \`${url}\`\n\nUsage: *competitor add https://example.com*`)
   }
 
-  // Max 2 competitors
   const { data: existing } = await supabase
     .from('agent_competitor_urls')
     .select('id')
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .eq('active', true)
 
   if (existing && existing.length >= 2) {
@@ -246,7 +319,7 @@ async function handleAddCompetitor(url, chatId) {
   }
 
   await supabase.from('agent_competitor_urls').upsert({
-    subscription_id: sub.id,
+    subscription_id: subId,
     url,
     active: true,
   }, { onConflict: 'subscription_id,url' })
@@ -255,25 +328,25 @@ async function handleAddCompetitor(url, chatId) {
 }
 
 async function handleRemoveCompetitor(url, chatId) {
-  const { data: sub } = await supabase
-    .from('agent_subscriptions')
-    .select('id')
-    .eq('status', 'active')
-    .limit(1)
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('subscription_id')
+    .eq('telegram_chat_id', chatId)
     .single()
 
-  if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = conn?.subscription_id
+  if (!subId) return sendMessage(chatId, '❌ No active subscription found.')
 
   await supabase
     .from('agent_competitor_urls')
     .update({ active: false })
-    .eq('subscription_id', sub.id)
+    .eq('subscription_id', subId)
     .ilike('url', `%${url}%`)
 
   await sendMessage(chatId, `🗑️ *Competitor removed.* The agent will no longer scan that URL.`)
 }
 
-// ─── MAIN HANDLER ────────────────────────────────────────────────────────────
+// ─── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   try {
     const body = req.body
@@ -287,7 +360,11 @@ export default async function handler(req, res) {
     const parts = text.split(' ')
     const cmd = parts[0].toLowerCase()
 
-    if (cmd === 'approve' && parts.length === 2) {
+    // /start — always respond, no auth needed
+    if (cmd === '/start' || cmd === 'start') {
+      await handleStart(message)
+
+    } else if (cmd === 'approve' && parts.length === 2) {
       await handleApprove(parts[1], chatId)
 
     } else if (cmd === 'reject' && parts.length === 2) {
