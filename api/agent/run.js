@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { App } from '@octokit/app'
 import { Octokit } from '@octokit/rest'
+
 export default async function handler(req, res) {
   const cronSecret = req.headers['x-cron-secret']
   const vercelCron = req.headers['x-vercel-cron']
@@ -42,8 +43,10 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const isMidweek = req.query?.mode === 'midweek'
-  if (isMidweek) return handleMidweek(res)
+  const mode = req.query?.mode
+
+  if (mode === 'evaluate_ab') return handleEvaluateAB(res)
+  if (mode === 'midweek') return handleMidweek(res)
   return handleFullRun(res)
 }
 
@@ -183,7 +186,6 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
       deviceRes.json(),
     ])
 
-    // This week metrics
     const sessionPageCounts = {}
     sessions.results?.forEach(row => {
       sessionPageCounts[row[0]] = (sessionPageCounts[row[0]] || 0) + 1
@@ -193,13 +195,11 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
     const bounceRate = uniqueSessions > 0 ? Math.round((bouncedSessions / uniqueSessions) * 100) : 0
     const totalPageviews = pageviews.results?.reduce((sum, row) => sum + (row[1] || 0), 0) || 0
 
-    // Last week
     const lastWeekSessions = new Set(lastWeek.results?.map(r => r[0])).size || 0
     const trafficChange = lastWeekSessions > 0
       ? Math.round(((uniqueSessions - lastWeekSessions) / lastWeekSessions) * 100)
       : null
 
-    // Traffic sources
     const socialBreakdown = { tiktok: 0, instagram: 0, youtube: 0, twitter: 0, facebook: 0, google: 0 }
     const trafficSources = []
     referrers.results?.forEach(row => {
@@ -215,12 +215,10 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
     })
     const totalSocialVisits = Object.values(socialBreakdown).reduce((sum, v) => sum + v, 0)
 
-    // UTM campaigns
     const utmCampaigns = utmData.results
       ?.filter(row => row[0] || row[2])
       ?.map(row => ({ source: row[0], medium: row[1], campaign: row[2], visits: row[3] })) || []
 
-    // Device breakdown
     const deviceBreakdown = {}
     devices.results?.forEach(row => {
       if (row[0]) deviceBreakdown[row[0].toLowerCase()] = row[1]
@@ -229,7 +227,6 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
       ? Math.round((deviceBreakdown['mobile'] / totalPageviews) * 100)
       : null
 
-    // Top pages
     const topPages = pageviews.results?.slice(0, 5).map(row => ({
       path: row[0], views: row[1]
     })) || []
@@ -285,13 +282,173 @@ async function getPreviousRuns(subscriptionId) {
   return data?.map(r => r.analysis_result?.problem).filter(Boolean) || []
 }
 
-// ─── IMPACT CALCULATION HELPERS ──────────────────────────────────────────────
-// Estimates monthly revenue impact from a conversion rate improvement.
-// bounceRate: 0–100, conversionLift: 0–1 (e.g. 0.15 = 15%), visitors: weekly unique visitors
+// ─── PHASE 2: BUSINESS DNA / MEMORY ─────────────────────────────────────────
+async function fetchBusinessDNA(subscriptionId) {
+  const { data } = await supabase
+    .from('agent_learnings')
+    .select('*')
+    .eq('subscription_id', subscriptionId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (!data || data.length === 0) return null
+
+  const wins = data.filter(l => l.outcome === 'positive')
+  const losses = data.filter(l => l.outcome === 'negative')
+  const fmtDelta = d => (d > 0 ? `+${d}%` : `${d}%`)
+
+  return {
+    winsText: wins.map(l => `• ${l.change_type}: ${l.summary} (${fmtDelta(l.delta)} ${l.metric_type})`).join('\n') || 'None yet',
+    lossesText: losses.map(l => `• ${l.change_type}: ${l.summary} (${fmtDelta(l.delta)} ${l.metric_type})`).join('\n') || 'None yet',
+  }
+}
+
+async function saveLearning(subscriptionId, runId, changeType, summary, outcome, metricType, delta, confidence) {
+  await supabase.from('agent_learnings').insert({
+    subscription_id: subscriptionId,
+    run_id: runId,
+    change_type: changeType,
+    summary,
+    outcome,
+    metric_type: metricType,
+    delta,
+    confidence,
+  })
+}
+
+// ─── PHASE 2: A/B TESTING ────────────────────────────────────────────────────
+async function createABTest(conn, runId, analysis) {
+  const apiKey = conn.posthog_api_key || process.env.POSTHOG_API_KEY
+  const projectId = conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID
+  const host = conn.posthog_host || process.env.POSTHOG_HOST || 'https://eu.posthog.com'
+  if (!apiKey || !projectId) return null
+
+  const flagKey = `velyr-ab-${runId.slice(0, 8)}`
+
+  try {
+    const res = await fetch(`${host}/api/projects/${projectId}/feature_flags/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: flagKey,
+        name: `[Velyr A/B] ${analysis.problem}`,
+        active: true,
+        filters: {
+          groups: [{ properties: [], rollout_percentage: 50 }],
+          multivariate: {
+            variants: [
+              { key: 'control', name: 'Control (original)', rollout_percentage: 50 },
+              { key: 'treatment', name: 'Treatment (Velyr)', rollout_percentage: 50 }
+            ]
+          }
+        }
+      })
+    })
+
+    const flag = await res.json()
+
+    await supabase.from('agent_ab_tests').insert({
+      run_id: runId,
+      subscription_id: conn.subscription_id,
+      posthog_flag_key: flagKey,
+      posthog_flag_id: flag.id,
+      change_type: analysis.change_type || 'other',
+      summary: analysis.problem,
+      status: 'running',
+      evaluate_after: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    })
+
+    return flagKey
+  } catch (err) {
+    console.error('A/B test creation failed:', err)
+    return null
+  }
+}
+
+// ─── PHASE 2: EVALUATE A/B TESTS ─────────────────────────────────────────────
+async function handleEvaluateAB(res) {
+  const { data: tests } = await supabase
+    .from('agent_ab_tests')
+    .select('*')
+    .eq('status', 'running')
+    .lt('evaluate_after', new Date().toISOString())
+
+  if (!tests || tests.length === 0) {
+    return res.json({ success: true, message: 'No A/B tests to evaluate' })
+  }
+
+  for (const test of tests) {
+    try {
+      const { data: conn } = await supabase
+        .from('agent_connections')
+        .select('*')
+        .eq('subscription_id', test.subscription_id)
+        .single()
+
+      const apiKey = conn?.posthog_api_key || process.env.POSTHOG_API_KEY
+      const projectId = conn?.posthog_project_id || process.env.POSTHOG_PROJECT_ID
+      const host = conn?.posthog_host || process.env.POSTHOG_HOST || 'https://eu.posthog.com'
+      if (!apiKey) continue
+
+      const flagRes = await fetch(
+        `${host}/api/projects/${projectId}/feature_flags/${test.posthog_flag_id}/`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      )
+      const flagData = await flagRes.json()
+      const results = flagData?.experiment_results?.result
+      if (!results) continue
+
+      const controlRate = results.control?.conversion_rate ?? 0
+      const treatmentRate = results.treatment?.conversion_rate ?? 0
+
+      let winner = null
+      let delta = 0
+      if (treatmentRate > controlRate * 1.05) {
+        winner = 'treatment'
+        delta = Math.round(((treatmentRate - controlRate) / (controlRate || 1)) * 100)
+      } else if (controlRate > treatmentRate * 1.05) {
+        winner = 'control'
+        delta = -Math.round(((controlRate - treatmentRate) / (controlRate || 1)) * 100)
+      }
+      if (!winner) continue
+
+      await saveLearning(
+        test.subscription_id, test.run_id,
+        test.change_type, test.summary,
+        winner === 'treatment' ? 'positive' : 'negative',
+        'conversion_rate', delta, 'high'
+      )
+
+      await supabase
+        .from('agent_ab_tests')
+        .update({ status: 'completed', winner, delta_pct: delta })
+        .eq('id', test.id)
+
+      const outcomeMsg = winner === 'treatment'
+        ? `✅ *A/B Test Winner: Treatment*\n📈 +${delta}% conversion lift confirmed.\nSaved to your Business DNA.`
+        : `📊 *A/B Result: Control Won*\n📉 Change did not improve conversions (${delta}%).\nLearning saved — agent will avoid similar patterns.`
+
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text: `🤖 *Velyr Growth Agent — A/B Result*\n\n*${test.summary}*\n\n${outcomeMsg}`,
+          parse_mode: 'Markdown'
+        })
+      })
+    } catch (err) {
+      console.error('A/B evaluate error for test', test.id, err)
+    }
+  }
+
+  return res.json({ success: true, evaluated: tests.length })
+}
+
+// ─── IMPACT CALCULATION ──────────────────────────────────────────────────────
 function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderValue = 47) {
   if (!visitors || visitors < 10) return null
   const monthlyVisitors = visitors * 4.3
-  // Conservative estimate: assume 2% base conversion if not known
   const baseConversionRate = 0.02
   const currentConversions = monthlyVisitors * (1 - bounceRate / 100) * baseConversionRate
   const newConversions = currentConversions * (1 + conversionLift)
@@ -301,7 +458,7 @@ function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderVal
   return { revenueMin, revenueMax, additionalConversions: Math.round(additionalConversions) }
 }
 
-async function callAI(repoContent, analytics, pageSpeed, previousFixes) {
+async function callAI(repoContent, analytics, pageSpeed, previousFixes, dna) {
   const a = analytics?.last7Days
 
   const analyticsContext = a ? `
@@ -339,6 +496,16 @@ ALREADY FIXED — DO NOT SUGGEST THESE AGAIN:
 ${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 ` : ''
 
+  // ── PHASE 2: Business DNA injected into prompt ──
+  const dnaContext = dna ? `
+BUSINESS DNA (past learnings — respect these):
+What worked well (double down on these patterns):
+${dna.winsText}
+
+What did NOT work (avoid repeating these):
+${dna.lossesText}
+` : ''
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -356,6 +523,7 @@ Analyze the website code AND real analytics data to find the single highest-impa
 ${analyticsContext}
 ${pageSpeedContext}
 ${previousFixesContext}
+${dnaContext}
 
 WEBSITE CODE:
 ${JSON.stringify(repoContent, null, 2)}
@@ -366,9 +534,10 @@ RULES:
 - Reference specific data points in your analysis
 - If social traffic is high but bounce rate is high → landing page doesn't match social audience
 - If mobile % is high but performance is low → mobile UX is priority
+- Respect the Business DNA: double down on what worked, avoid what didn't
 
 IMPACT PREDICTION RULES:
-- conversion_lift_min and conversion_lift_max: realistic percentage POINTS improvement (e.g. 8 means +8 percentage points on conversion rate). Base on the specific change type:
+- conversion_lift_min and conversion_lift_max: realistic percentage POINTS improvement. Base on change type:
   * Headline/CTA copy changes: 8–25
   * Social proof additions: 10–20
   * Performance improvements: 5–15
@@ -392,6 +561,7 @@ Reply ONLY as JSON without Markdown:
   "expected_improvement": "realistic estimate",
   "data_insight": "key analytics insight",
   "file_to_edit": "exact file path",
+  "change_type": "headline|cta|copy|layout|pricing|trust|navigation|performance|other",
   "code_change": {
     "find": "exact text to replace",
     "replace": "new improved text"
@@ -417,7 +587,6 @@ Reply ONLY as JSON without Markdown:
   const text = data.choices[0].message.content
   const analysis = JSON.parse(text.replace(/```json|```/g, '').trim())
 
-  // Attach server-side revenue estimate using real traffic data
   if (a?.uniqueVisitors && analysis.impact_prediction) {
     const lift = analysis.impact_prediction.conversion_lift_min / 100
     analysis.impact_prediction.revenue_estimate = estimateRevenueImpact(
@@ -505,24 +674,20 @@ async function sendTelegramNotification(analysis, pr, runId, analytics) {
     ? `📊 *This week:* ${a.totalPageviews} pageviews · ${a.bounceRate}% bounce${trendText}\n${socialLine}\n`
     : ''
 
-  // ── Impact Prediction Block ───────────────────────────────────────────────
   let impactBlock = ''
   if (analysis.impact_prediction) {
     const ip = analysis.impact_prediction
     const confidenceEmoji = { high: '🎯', medium: '📐', low: '🔮' }[ip.confidence] || '📐'
-
     let revLine = ''
     if (ip.revenue_estimate) {
       const { revenueMin, revenueMax } = ip.revenue_estimate
       revLine = `💶 *Revenue impact:* +${revenueMin}–${revenueMax} €/month\n`
     }
-
     impactBlock = `${confidenceEmoji} *Impact Prediction* _(${ip.confidence} confidence)_
 📈 Conversion lift: +${ip.conversion_lift_min}–${ip.conversion_lift_max}%
 ${revLine}_${ip.confidence_reason}_\n\n`
   }
 
-  // ── Risk Score Block ──────────────────────────────────────────────────────
   let riskBlock = ''
   if (analysis.risk_score) {
     const rs = analysis.risk_score
@@ -621,11 +786,7 @@ ${pagesLines ? `*Most visited:*\n${pagesLines}` : ''}
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: message,
-      parse_mode: 'Markdown'
-    })
+    body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
   })
 }
 
@@ -678,7 +839,8 @@ async function handleFullRun(res) {
 
     const octokit = await getOctokit(conn.github_installation_id)
 
-    const [repoContent, analytics, pageSpeed, previousFixes] = await Promise.all([
+    // ── PHASE 2: fetchBusinessDNA added to parallel fetches ──
+    const [repoContent, analytics, pageSpeed, previousFixes, dna] = await Promise.all([
       analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
       getPostHogAnalytics(
         conn.posthog_api_key || process.env.POSTHOG_API_KEY,
@@ -687,9 +849,10 @@ async function handleFullRun(res) {
       ),
       conn.website_url ? getPageSpeedScore(conn.website_url) : null,
       getPreviousRuns(conn.subscription_id),
+      fetchBusinessDNA(conn.subscription_id),
     ])
 
-    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes)
+    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes, dna)
     const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
     const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
 
@@ -703,6 +866,9 @@ async function handleFullRun(res) {
       pr_url: pr.html_url,
       telegram_message_id: messageId || null
     }).eq('id', run.id)
+
+    // ── PHASE 2: Start A/B test ──
+    await createABTest(conn, run.id, analysis)
   }
 
   return res.json({ success: true, processed: connections.length })
