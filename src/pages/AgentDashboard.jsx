@@ -27,6 +27,12 @@ const STATUS = {
   failed:           { label: 'Failed',            color: '#c0392b', bg: 'rgba(192,57,43,0.07)',   border: 'rgba(192,57,43,0.2)'   },
   pending:          { label: 'Pending',           color: '#a09890', bg: 'rgba(28,25,23,0.04)',    border: 'rgba(28,25,23,0.09)'   },
   approved:         { label: 'Approved',          color: '#1e8449', bg: 'rgba(30,132,73,0.07)',   border: 'rgba(30,132,73,0.2)'   },
+  rolled_back:      { label: 'Rolled Back',       color: '#6b6460', bg: 'rgba(107,100,96,0.08)',  border: 'rgba(107,100,96,0.2)'  },
+}
+
+const PAGE_TYPE_EMOJI = {
+  landing: '🏠', pricing: '💰', checkout: '🛒', blog: '📝',
+  about: 'ℹ️', lead_magnet: '🎁', auth: '🔐', dashboard: '📊', other: '📄'
 }
 
 const CSS = `
@@ -38,6 +44,10 @@ const CSS = `
   .agent-card { animation: fadeUp .4s ease both; }
   .run-row { transition: background .15s; cursor: pointer; }
   .run-row:hover { background: rgba(42,92,69,0.03) !important; }
+  .tab-btn { transition: all .2s; cursor: pointer; }
+  .tag-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(28,25,23,0.06); border:1px solid rgba(28,25,23,0.12); border-radius:20px; padding:4px 10px; font-size:12px; }
+  .tag-remove { cursor:pointer; color:#a09890; font-size:14px; line-height:1; }
+  .tag-remove:hover { color:#c0392b; }
 `
 
 function Logo({ size = 24, color = '#2a5c45' }) {
@@ -68,6 +78,7 @@ function StatusBadge({ status }) {
 
 function RunDetail({ run, onClose }) {
   const analysis = run.analysis_result || {}
+  const funnel = run.funnel_analysis
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
@@ -97,6 +108,7 @@ function RunDetail({ run, onClose }) {
               { label: '💥 Impact', text: analysis.impact },
               { label: '✅ Solution', text: analysis.solution },
               { label: '📈 Expected improvement', text: analysis.expected_improvement },
+              { label: '🔍 Competitor angle', text: analysis.competitor_insight },
             ].map((item, i) => item.text && (
               <div key={i} style={{ background: 'rgba(28,25,23,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
                 <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 5 }}>{item.label}</p>
@@ -109,6 +121,27 @@ function RunDetail({ run, onClose }) {
                 <p style={{ fontSize: 13, color: C.text, fontFamily: 'DM Mono, monospace' }}>{analysis.file_to_edit}</p>
               </div>
             )}
+
+            {/* Funnel snapshot in run detail */}
+            {funnel && (
+              <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
+                <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 8 }}>🗺️ Funnel at time of run</p>
+                <p style={{ fontSize: 13, color: C.text, fontWeight: 300 }}>{funnel.totalPages} pages detected</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {Object.entries(funnel.pageTypes || {}).map(([type, count]) => (
+                    <span key={type} style={{ fontSize: 11, background: 'rgba(42,92,69,0.07)', border: '1px solid rgba(42,92,69,0.15)', borderRadius: 6, padding: '2px 8px', color: C.accent }}>
+                      {PAGE_TYPE_EMOJI[type] || '📄'} {type}: {count}
+                    </span>
+                  ))}
+                </div>
+                {funnel.biggestDropOff && (
+                  <p style={{ fontSize: 12, color: C.yellow, marginTop: 8 }}>
+                    ⚠️ Biggest drop-off: {funnel.biggestDropOff.filePath} ({funnel.biggestDropOff.dropOffScore}%)
+                  </p>
+                )}
+              </div>
+            )}
+
             {analysis.analytics_snapshot && (
               <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
                 <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 8 }}>📊 Analytics at time of run</p>
@@ -189,6 +222,285 @@ function DeleteConfirmModal({ onConfirm, onCancel, loading }) {
   )
 }
 
+// ─── BRAND GUARDRAILS PANEL ────────────────────────────────────────────────────
+function GuardrailsPanel({ subscriptionId }) {
+  const [guardrails, setGuardrails] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Form state
+  const [tone, setTone] = useState('')
+  const [forbidden, setForbidden] = useState([])
+  const [forbiddenInput, setForbiddenInput] = useState('')
+  const [protected_, setProtected] = useState([])
+  const [protectedInput, setProtectedInput] = useState('')
+  const [customRules, setCustomRules] = useState('')
+
+  useEffect(() => {
+    if (!subscriptionId) return
+    supabase.from('agent_brand_guardrails')
+      .select('*')
+      .eq('subscription_id', subscriptionId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setTone(data.tone || '')
+          setForbidden(data.forbidden_patterns || [])
+          setProtected(data.protected_elements || [])
+          setCustomRules(data.custom_rules || '')
+          setGuardrails(data)
+        }
+      })
+  }, [subscriptionId])
+
+  function addTag(list, setList, input, setInput) {
+    const val = input.trim()
+    if (val && !list.includes(val)) setList([...list, val])
+    setInput('')
+  }
+
+  function removeTag(list, setList, val) {
+    setList(list.filter(v => v !== val))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await supabase.from('agent_brand_guardrails').upsert({
+      subscription_id: subscriptionId,
+      tone: tone || null,
+      forbidden_patterns: forbidden,
+      protected_elements: protected_,
+      custom_rules: customRules || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'subscription_id' })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const inputStyle = {
+    width: '100%', background: 'rgba(28,25,23,0.03)', border: `1px solid ${C.border}`,
+    borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'Jost, sans-serif',
+    fontWeight: 300, color: C.text, outline: 'none',
+  }
+
+  const labelStyle = {
+    fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase',
+    color: C.textLight, fontWeight: 500, display: 'block', marginBottom: 8,
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 20 }}>
+          Brand guardrails tell the agent what it can and cannot change. These rules are enforced on every run — the agent will reject any suggestion that violates them.
+        </p>
+      </div>
+
+      {/* Tone */}
+      <div>
+        <label style={labelStyle}>Tone of voice</label>
+        <input
+          value={tone}
+          onChange={e => setTone(e.target.value)}
+          placeholder='e.g. "friendly but direct", "professional, no fluff"'
+          style={inputStyle}
+        />
+      </div>
+
+      {/* Forbidden patterns */}
+      <div>
+        <label style={labelStyle}>Never do these</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {forbidden.map(tag => (
+            <span key={tag} className="tag-pill">
+              {tag}
+              <span className="tag-remove" onClick={() => removeTag(forbidden, setForbidden, tag)}>×</span>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={forbiddenInput}
+            onChange={e => setForbiddenInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTag(forbidden, setForbidden, forbiddenInput, setForbiddenInput)}
+            placeholder='e.g. "clickbait headlines" — press Enter to add'
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={() => addTag(forbidden, setForbidden, forbiddenInput, setForbiddenInput)} style={{
+            background: C.text, color: C.bg, border: 'none', borderRadius: 8,
+            padding: '10px 14px', fontSize: 13, fontFamily: 'Jost, sans-serif',
+            fontWeight: 400, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>Add</button>
+        </div>
+      </div>
+
+      {/* Protected elements */}
+      <div>
+        <label style={labelStyle}>Never change these</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {protected_.map(tag => (
+            <span key={tag} className="tag-pill">
+              {tag}
+              <span className="tag-remove" onClick={() => removeTag(protected_, setProtected, tag)}>×</span>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={protectedInput}
+            onChange={e => setProtectedInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTag(protected_, setProtected, protectedInput, setProtectedInput)}
+            placeholder='e.g. "brand colors", "logo placement" — press Enter to add'
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={() => addTag(protected_, setProtected, protectedInput, setProtectedInput)} style={{
+            background: C.text, color: C.bg, border: 'none', borderRadius: 8,
+            padding: '10px 14px', fontSize: 13, fontFamily: 'Jost, sans-serif',
+            fontWeight: 400, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>Add</button>
+        </div>
+      </div>
+
+      {/* Custom rules */}
+      <div>
+        <label style={labelStyle}>Additional rules (freeform)</label>
+        <textarea
+          value={customRules}
+          onChange={e => setCustomRules(e.target.value)}
+          placeholder='Any other instructions for the agent...'
+          rows={3}
+          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+        />
+      </div>
+
+      <button onClick={handleSave} disabled={saving} style={{
+        background: saved ? C.green : C.accent, color: '#fff',
+        border: 'none', borderRadius: 10, padding: '13px',
+        fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 500,
+        cursor: saving ? 'not-allowed' : 'pointer',
+        opacity: saving ? 0.7 : 1, transition: 'background .3s',
+      }}>
+        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Guardrails'}
+      </button>
+    </div>
+  )
+}
+
+// ─── FUNNEL OVERVIEW PANEL ────────────────────────────────────────────────────
+function FunnelPanel({ subscriptionId }) {
+  const [funnelPages, setFunnelPages] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!subscriptionId) return
+
+    // Get most recent funnel pages
+    supabase.from('agent_funnel_pages')
+      .select('*')
+      .eq('subscription_id', subscriptionId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => {
+        if (data) {
+          // Deduplicate by page_path, keep most recent
+          const seen = new Set()
+          const unique = data.filter(p => {
+            if (seen.has(p.page_path)) return false
+            seen.add(p.page_path)
+            return true
+          })
+          setFunnelPages(unique)
+        }
+        setLoading(false)
+      })
+  }, [subscriptionId])
+
+  if (loading) return (
+    <div style={{ padding: '32px', textAlign: 'center' }}>
+      <div style={{ width: 20, height: 20, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+    </div>
+  )
+
+  if (funnelPages.length === 0) return (
+    <div style={{ padding: '32px', textAlign: 'center' }}>
+      <p style={{ fontSize: 32, marginBottom: 12 }}>🗺️</p>
+      <p style={{ fontSize: 15, color: C.text, fontWeight: 400, marginBottom: 6 }}>No funnel data yet</p>
+      <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Funnel analysis runs automatically every Monday with the agent.</p>
+    </div>
+  )
+
+  // Group by type for summary
+  const byType = {}
+  funnelPages.forEach(p => {
+    if (!byType[p.page_type]) byType[p.page_type] = []
+    byType[p.page_type].push(p)
+  })
+
+  const biggestOpportunity = [...funnelPages]
+    .filter(p => p.drop_off_score > 0)
+    .sort((a, b) => b.drop_off_score - a.drop_off_score)[0]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {biggestOpportunity && (
+        <div style={{
+          background: 'rgba(214,137,16,0.07)', border: '1px solid rgba(214,137,16,0.25)',
+          borderRadius: 12, padding: '16px 18px',
+        }}>
+          <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.yellow, fontWeight: 500, marginBottom: 6 }}>⚠️ Biggest Drop-off</p>
+          <p style={{ fontSize: 14, color: C.text, fontWeight: 400, marginBottom: 3 }}>
+            {PAGE_TYPE_EMOJI[biggestOpportunity.page_type]} {biggestOpportunity.page_path}
+          </p>
+          <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+            {biggestOpportunity.drop_off_score}% of visitors drop off here · {biggestOpportunity.views_7d} views/week
+          </p>
+          <p style={{ fontSize: 12, color: C.textLight, marginTop: 6, fontStyle: 'italic' }}>
+            The agent will prioritize this page on the next run.
+          </p>
+        </div>
+      )}
+
+      {/* Page list */}
+      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
+          <p style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{funnelPages.length} pages detected in your repo</p>
+        </div>
+        {funnelPages.map((page, i) => {
+          const dropOffColor = page.drop_off_score >= 60 ? C.red
+            : page.drop_off_score >= 30 ? C.yellow
+            : C.green
+          return (
+            <div key={page.id} style={{
+              padding: '14px 18px',
+              borderBottom: i < funnelPages.length - 1 ? `1px solid ${C.border}` : 'none',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{PAGE_TYPE_EMOJI[page.page_type] || '📄'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, color: C.text, fontFamily: 'DM Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {page.page_path}
+                </p>
+                <p style={{ fontSize: 11, color: C.textLight, marginTop: 2, textTransform: 'capitalize' }}>{page.page_type}</p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                {page.views_7d > 0 && (
+                  <p style={{ fontSize: 13, color: C.text, fontWeight: 400 }}>{page.views_7d} views</p>
+                )}
+                {page.drop_off_score > 0 && (
+                  <p style={{ fontSize: 11, color: dropOffColor, marginTop: 2 }}>
+                    {page.drop_off_score}% drop-off
+                  </p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function AgentDashboard({ navigate }) {
   const [user, setUser]               = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -198,6 +510,7 @@ export default function AgentDashboard({ navigate }) {
   const [subscription, setSubscription] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [activeTab, setActiveTab]     = useState('runs') // 'runs' | 'funnel' | 'guardrails' | 'settings'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -303,6 +616,13 @@ export default function AgentDashboard({ navigate }) {
 
   const deployed = runs.filter(r => r.status === 'deployed').length
   const pending  = runs.filter(r => r.status === 'waiting_approval').length
+
+  const tabs = [
+    { id: 'runs',       label: 'Runs' },
+    { id: 'funnel',     label: '🗺️ Funnel' },
+    { id: 'guardrails', label: '🛡️ Brand Guardrails' },
+    { id: 'settings',   label: 'Settings' },
+  ]
 
   if (authLoading) return (
     <>
@@ -452,57 +772,143 @@ export default function AgentDashboard({ navigate }) {
                 </div>
               )}
 
-              {/* Runs table */}
+              {/* Tabs */}
               <div className="agent-card" style={{
                 animationDelay: '0.2s',
                 background: C.bgCard, border: `1px solid ${C.border}`,
                 borderRadius: 16, overflow: 'hidden',
               }}>
-                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Agent Runs</p>
-                  <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>Click a row to see details</p>
+                {/* Tab bar */}
+                <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, padding: '0 8px' }}>
+                  {tabs.map(tab => (
+                    <button key={tab.id} className="tab-btn" onClick={() => setActiveTab(tab.id)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: '16px 16px', fontSize: 13,
+                      fontFamily: 'Jost, sans-serif', fontWeight: activeTab === tab.id ? 500 : 300,
+                      color: activeTab === tab.id ? C.text : C.textLight,
+                      borderBottom: `2px solid ${activeTab === tab.id ? C.accent : 'transparent'}`,
+                      marginBottom: -1,
+                    }}>{tab.label}</button>
+                  ))}
                 </div>
 
-                {loading ? (
-                  <div style={{ padding: '48px', textAlign: 'center' }}>
-                    <div style={{ width: 24, height: 24, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                    <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Loading runs…</p>
-                  </div>
-                ) : runs.length === 0 ? (
-                  <div style={{ padding: '48px', textAlign: 'center' }}>
-                    <p style={{ fontSize: 32, marginBottom: 12 }}>🤖</p>
-                    <p style={{ fontSize: 15, color: C.text, fontWeight: 400, marginBottom: 6 }}>No runs yet</p>
-                    <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>The agent runs automatically every Monday at 9am.</p>
-                  </div>
-                ) : (
-                  runs.map((run, i) => (
-                    <div key={run.id} className="run-row" onClick={() => setSelected(run)} style={{
-                      padding: '16px 24px',
-                      borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : 'none',
-                      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-                      background: '#fff',
-                    }}>
-                      <div style={{ flex: 1, minWidth: 200 }}>
-                        <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 3, lineHeight: 1.4 }}>
-                          {run.analysis_result?.problem || 'Analysis pending…'}
-                        </p>
-                        <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, fontFamily: 'DM Mono, monospace' }}>
-                          {run.id.substring(0, 8)}…
-                        </p>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                        <StatusBadge status={run.status} />
-                        {run.pr_url && (
-                          <a href={run.pr_url} target="_blank" rel="noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            style={{ fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 400, whiteSpace: 'nowrap' }}>
-                            PR #{run.pr_number} ↗
-                          </a>
-                        )}
-                        <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300, whiteSpace: 'nowrap' }}>{timeAgo(run.created_at)}</span>
-                      </div>
+                {/* Tab: Runs */}
+                {activeTab === 'runs' && (
+                  <>
+                    <div style={{ padding: '14px 24px', borderBottom: `1px solid ${C.border}` }}>
+                      <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>Click a row to see details</p>
                     </div>
-                  ))
+                    {loading ? (
+                      <div style={{ padding: '48px', textAlign: 'center' }}>
+                        <div style={{ width: 24, height: 24, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                        <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Loading runs…</p>
+                      </div>
+                    ) : runs.length === 0 ? (
+                      <div style={{ padding: '48px', textAlign: 'center' }}>
+                        <p style={{ fontSize: 32, marginBottom: 12 }}>🤖</p>
+                        <p style={{ fontSize: 15, color: C.text, fontWeight: 400, marginBottom: 6 }}>No runs yet</p>
+                        <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>The agent runs automatically every Monday at 9am.</p>
+                      </div>
+                    ) : (
+                      runs.map((run, i) => (
+                        <div key={run.id} className="run-row" onClick={() => setSelected(run)} style={{
+                          padding: '16px 24px',
+                          borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : 'none',
+                          display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                          background: '#fff',
+                        }}>
+                          <div style={{ flex: 1, minWidth: 200 }}>
+                            <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 3, lineHeight: 1.4 }}>
+                              {run.analysis_result?.problem || 'Analysis pending…'}
+                            </p>
+                            <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, fontFamily: 'DM Mono, monospace' }}>
+                              {run.id.substring(0, 8)}…
+                              {run.funnel_analysis?.totalPages ? ` · ${run.funnel_analysis.totalPages} pages scanned` : ''}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                            <StatusBadge status={run.status} />
+                            {run.pr_url && (
+                              <a href={run.pr_url} target="_blank" rel="noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                style={{ fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 400, whiteSpace: 'nowrap' }}>
+                                PR #{run.pr_number} ↗
+                              </a>
+                            )}
+                            <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300, whiteSpace: 'nowrap' }}>{timeAgo(run.created_at)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </>
+                )}
+
+                {/* Tab: Funnel */}
+                {activeTab === 'funnel' && (
+                  <div style={{ padding: '24px' }}>
+                    <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 20 }}>
+                      The agent automatically detects all pages in your repo and maps the conversion funnel. Pages with high drop-off are prioritized in the next run.
+                    </p>
+                    <FunnelPanel subscriptionId={subscription?.id} />
+                  </div>
+                )}
+
+                {/* Tab: Guardrails */}
+                {activeTab === 'guardrails' && (
+                  <div style={{ padding: '24px' }}>
+                    <GuardrailsPanel subscriptionId={subscription?.id} />
+                  </div>
+                )}
+
+                {/* Tab: Settings */}
+                {activeTab === 'settings' && (
+                  <>
+                    {/* Pause / Resume */}
+                    <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 4 }}>
+                          {subscription.status === 'paused' ? '⏸ Agent is paused' : '▶ Agent is active'}
+                        </p>
+                        <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+                          {subscription.status === 'paused'
+                            ? 'Resume to let the agent run again every Monday.'
+                            : 'Pause if you want to stop the agent temporarily without losing your data.'}
+                        </p>
+                      </div>
+                      <button onClick={handleTogglePause} disabled={actionLoading} style={{
+                        background: subscription.status === 'paused' ? C.accent : 'transparent',
+                        color: subscription.status === 'paused' ? '#fff' : C.textMuted,
+                        border: `1px solid ${subscription.status === 'paused' ? C.accent : C.border}`,
+                        borderRadius: 8, padding: '9px 18px', fontSize: 13,
+                        fontFamily: 'Jost, sans-serif', fontWeight: 400,
+                        cursor: actionLoading ? 'not-allowed' : 'pointer',
+                        opacity: actionLoading ? 0.6 : 1,
+                        transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        {actionLoading ? '...' : subscription.status === 'paused' ? 'Resume Agent' : 'Pause Agent'}
+                      </button>
+                    </div>
+
+                    {/* Delete */}
+                    <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 400, color: C.red, marginBottom: 4 }}>Delete account</p>
+                        <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+                          Permanently deletes your account and all data. This cannot be undone.
+                        </p>
+                      </div>
+                      <button onClick={() => setShowDeleteConfirm(true)} style={{
+                        background: 'transparent', color: C.red,
+                        border: '1px solid rgba(192,57,43,0.3)',
+                        borderRadius: 8, padding: '9px 18px', fontSize: 13,
+                        fontFamily: 'Jost, sans-serif', fontWeight: 400,
+                        cursor: 'pointer', transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.06)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >Delete account</button>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -516,73 +922,17 @@ export default function AgentDashboard({ navigate }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
                     'Every Monday at 9am, the agent reads your GitHub repo + analytics',
-                    'Claude finds the biggest conversion problem in your code',
+                    'It detects all pages and maps your conversion funnel automatically',
+                    'Claude finds the biggest drop-off or conversion problem — respecting your Brand Guardrails',
                     'It writes the fix and opens a Pull Request on GitHub',
                     'You get a Telegram message — reply approve [id] to merge',
-                    'Every Wednesday you get a mid-week analytics update',
+                    'After 48h, the agent checks if metrics improved — and auto-rolls back if not',
                   ].map((text, i) => (
                     <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#fff', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                       <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{text}</p>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Settings */}
-              <div className="agent-card" style={{
-                animationDelay: '0.4s', marginTop: 20,
-                background: C.bgCard, border: `1px solid ${C.border}`,
-                borderRadius: 14, overflow: 'hidden',
-              }}>
-                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Settings</p>
-                </div>
-
-                {/* Pause / Resume */}
-                <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <p style={{ fontSize: 14, fontWeight: 400, color: C.text, marginBottom: 4 }}>
-                      {subscription.status === 'paused' ? '⏸ Agent is paused' : '▶ Agent is active'}
-                    </p>
-                    <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
-                      {subscription.status === 'paused'
-                        ? 'Resume to let the agent run again every Monday.'
-                        : 'Pause if you want to stop the agent temporarily without losing your data.'}
-                    </p>
-                  </div>
-                  <button onClick={handleTogglePause} disabled={actionLoading} style={{
-                    background: subscription.status === 'paused' ? C.accent : 'transparent',
-                    color: subscription.status === 'paused' ? '#fff' : C.textMuted,
-                    border: `1px solid ${subscription.status === 'paused' ? C.accent : C.border}`,
-                    borderRadius: 8, padding: '9px 18px', fontSize: 13,
-                    fontFamily: 'Jost, sans-serif', fontWeight: 400,
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                    opacity: actionLoading ? 0.6 : 1,
-                    transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
-                  }}>
-                    {actionLoading ? '...' : subscription.status === 'paused' ? 'Resume Agent' : 'Pause Agent'}
-                  </button>
-                </div>
-
-                {/* Delete */}
-                <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <p style={{ fontSize: 14, fontWeight: 400, color: C.red, marginBottom: 4 }}>Delete account</p>
-                    <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
-                      Permanently deletes your account and all data. This cannot be undone.
-                    </p>
-                  </div>
-                  <button onClick={() => setShowDeleteConfirm(true)} style={{
-                    background: 'transparent', color: C.red,
-                    border: '1px solid rgba(192,57,43,0.3)',
-                    borderRadius: 8, padding: '9px 18px', fontSize: 13,
-                    fontFamily: 'Jost, sans-serif', fontWeight: 400,
-                    cursor: 'pointer', transition: 'all .2s', whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.06)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >Delete account</button>
                 </div>
               </div>
             </>

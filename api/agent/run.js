@@ -93,6 +93,172 @@ async function analyzeRepo(octokit, owner, repo) {
   return files
 }
 
+// ─── PHASE 4: AUTO-DETECT ALL PAGES IN REPO ──────────────────────────────────
+async function detectAllPages(octokit, owner, repo) {
+  const pages = {}
+
+  // Directories to scan for page files
+  const dirsToScan = [
+    'src/pages', 'src/views', 'src/screens',
+    'pages', 'app', 'src/app',
+  ]
+
+  const pageTypeMap = {
+    home: 'landing', index: 'landing', landing: 'landing',
+    pricing: 'pricing', price: 'pricing', plans: 'pricing',
+    checkout: 'checkout', payment: 'checkout', cart: 'checkout',
+    blog: 'blog', post: 'blog', article: 'blog',
+    about: 'about', contact: 'about',
+    lead: 'lead_magnet', download: 'lead_magnet', free: 'lead_magnet',
+    login: 'auth', signup: 'auth', register: 'auth',
+    dashboard: 'dashboard', account: 'dashboard',
+  }
+
+  for (const dir of dirsToScan) {
+    try {
+      const { data: contents } = await octokit.rest.repos.getContent({ owner, repo, path: dir })
+      if (!Array.isArray(contents)) continue
+
+      for (const item of contents) {
+        if (item.type !== 'file') continue
+        if (!item.name.match(/\.(jsx|tsx|js|ts|html|vue|svelte)$/)) continue
+
+        try {
+          const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: item.path })
+          const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+
+          // Detect page type from filename
+          const nameLower = item.name.toLowerCase().replace(/\.(jsx|tsx|js|ts|html|vue|svelte)$/, '')
+          let pageType = 'other'
+          for (const [keyword, type] of Object.entries(pageTypeMap)) {
+            if (nameLower.includes(keyword)) { pageType = type; break }
+          }
+
+          pages[item.path] = { content, pageType, fileName: item.name }
+        } catch (e) {
+          // skip unreadable files
+        }
+      }
+    } catch (e) {
+      // directory doesn't exist, skip
+    }
+  }
+
+  // Also check root-level pages pattern (Next.js style)
+  try {
+    const { data: rootPages } = await octokit.rest.repos.getContent({ owner, repo, path: 'pages' })
+    if (Array.isArray(rootPages)) {
+      for (const item of rootPages) {
+        if (item.type !== 'file' || !item.name.match(/\.(jsx|tsx|js|ts)$/)) continue
+        try {
+          const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: item.path })
+          const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+          const nameLower = item.name.toLowerCase().replace(/\.(jsx|tsx|js|ts)$/, '')
+          let pageType = 'other'
+          for (const [keyword, type] of Object.entries(pageTypeMap)) {
+            if (nameLower.includes(keyword)) { pageType = type; break }
+          }
+          if (!pages[item.path]) pages[item.path] = { content, pageType, fileName: item.name }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  return pages
+}
+
+// ─── PHASE 4: BUILD FUNNEL ANALYSIS FROM PAGES + ANALYTICS ──────────────────
+function buildFunnelAnalysis(allPages, analytics) {
+  const a = analytics?.last7Days
+  if (!a) return null
+
+  const topPathViews = {}
+  a.topPages?.forEach(p => { topPathViews[p.path] = p.views })
+
+  const funnelPages = []
+
+  // Funnel priority order — where do users drop off?
+  const funnelOrder = ['landing', 'pricing', 'checkout', 'lead_magnet', 'blog', 'about', 'other', 'auth', 'dashboard']
+
+  const pagesByType = {}
+  for (const [path, info] of Object.entries(allPages)) {
+    const type = info.pageType || 'other'
+    if (!pagesByType[type]) pagesByType[type] = []
+    pagesByType[type].push(path)
+  }
+
+  let prevViews = null
+  for (const type of funnelOrder) {
+    const paths = pagesByType[type] || []
+    for (const path of paths) {
+      // Try to match to analytics path (best effort)
+      const routePath = '/' + path.replace(/^(src\/pages|pages|src\/views|src\/screens)\//, '')
+        .replace(/\.(jsx|tsx|js|ts)$/, '')
+        .replace(/\/index$/, '')
+        .toLowerCase()
+
+      const views = topPathViews[routePath] || topPathViews[routePath + '/'] || 0
+      const dropOffScore = prevViews && views > 0 ? Math.round((1 - views / prevViews) * 100) : null
+
+      funnelPages.push({
+        filePath: path,
+        pageType: type,
+        routePath,
+        views,
+        dropOffScore,
+      })
+
+      if (views > 0 && (prevViews === null || type === 'landing')) prevViews = views
+      else if (views > 0) prevViews = views
+    }
+  }
+
+  // Sort by drop-off opportunity (highest drop = most urgent)
+  const withDropOff = funnelPages.filter(p => p.dropOffScore !== null && p.dropOffScore > 0)
+  const biggestDropOff = withDropOff.sort((a, b) => b.dropOffScore - a.dropOffScore)[0] || null
+
+  return {
+    totalPages: Object.keys(allPages).length,
+    funnelPages,
+    biggestDropOff,
+    pageTypes: Object.fromEntries(
+      Object.entries(pagesByType).map(([type, paths]) => [type, paths.length])
+    ),
+  }
+}
+
+// ─── PHASE 4: SAVE FUNNEL PAGE INSIGHTS TO DB ────────────────────────────────
+async function saveFunnelPages(subscriptionId, runId, funnelAnalysis, allPages) {
+  if (!funnelAnalysis?.funnelPages?.length) return
+
+  const rows = funnelAnalysis.funnelPages
+    .filter(p => p.views > 0 || p.pageType === 'landing')
+    .slice(0, 20)
+    .map(p => ({
+      subscription_id: subscriptionId,
+      run_id: runId,
+      page_path: p.filePath,
+      page_type: p.pageType,
+      views_7d: p.views || 0,
+      drop_off_score: p.dropOffScore,
+    }))
+
+  if (rows.length > 0) {
+    await supabase.from('agent_funnel_pages').insert(rows)
+  }
+}
+
+// ─── PHASE 4: FETCH BRAND GUARDRAILS ─────────────────────────────────────────
+async function fetchBrandGuardrails(subscriptionId) {
+  const { data } = await supabase
+    .from('agent_brand_guardrails')
+    .select('*')
+    .eq('subscription_id', subscriptionId)
+    .single()
+
+  return data || null
+}
+
 async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost = 'https://eu.posthog.com') {
   try {
     const headers = {
@@ -882,7 +1048,7 @@ function estimateRevenueImpact(visitors, bounceRate, conversionLift, avgOrderVal
   return { revenueMin, revenueMax, additionalConversions: Math.round(additionalConversions) }
 }
 
-async function callAI(repoContent, analytics, pageSpeed, previousFixes, dna, competitorData) {
+async function callAI(repoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis) {
   const a = analytics?.last7Days
 
   const analyticsContext = a ? `
@@ -943,6 +1109,33 @@ Competitor: ${c.url}
 Use this to suggest DIFFERENTIATION opportunities. Where is the user's site weaker or less compelling than competitors? Where can they stand out?
 ` : ''
 
+  // ── PHASE 4: Brand Guardrails ──
+  const guardrailsContext = guardrails ? `
+BRAND GUARDRAILS — YOU MUST FOLLOW THESE:
+${guardrails.tone ? `- Tone: ${guardrails.tone}` : ''}
+${guardrails.forbidden_patterns?.length ? `- NEVER do these: ${guardrails.forbidden_patterns.join(', ')}` : ''}
+${guardrails.protected_elements?.length ? `- NEVER change these: ${guardrails.protected_elements.join(', ')}` : ''}
+${guardrails.custom_rules ? `- Additional rules: ${guardrails.custom_rules}` : ''}
+Any suggestion that violates these guardrails must be discarded. Do not explain why — just pick a different suggestion.
+` : ''
+
+  // ── PHASE 4: Funnel Analysis ──
+  const funnelContext = funnelAnalysis ? `
+MULTI-PAGE FUNNEL ANALYSIS (${funnelAnalysis.totalPages} pages detected):
+Page types found: ${Object.entries(funnelAnalysis.pageTypes).map(([t, n]) => `${t}: ${n}`).join(', ')}
+
+${funnelAnalysis.funnelPages.filter(p => p.views > 0).length > 0 ? `Pages with traffic:
+${funnelAnalysis.funnelPages.filter(p => p.views > 0).map(p =>
+  `- ${p.filePath} (${p.pageType}) → ${p.views} views${p.dropOffScore ? `, ${p.dropOffScore}% drop-off` : ''}`
+).join('\n')}` : ''}
+
+${funnelAnalysis.biggestDropOff ? `BIGGEST DROP-OFF OPPORTUNITY:
+${funnelAnalysis.biggestDropOff.filePath} (${funnelAnalysis.biggestDropOff.pageType}) — ${funnelAnalysis.biggestDropOff.dropOffScore}% of visitors who reach this page don't continue.
+This is your highest-leverage funnel fix. Prioritize this page if you can.` : ''}
+
+Consider funnel-wide improvements: if the landing page is optimized but pricing page has high drop-off, fix the pricing page.
+` : ''
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -962,6 +1155,8 @@ ${pageSpeedContext}
 ${previousFixesContext}
 ${dnaContext}
 ${competitorContext}
+${guardrailsContext}
+${funnelContext}
 
 WEBSITE CODE:
 ${JSON.stringify(repoContent, null, 2)}
@@ -974,6 +1169,8 @@ RULES:
 - If mobile % is high but performance is low → mobile UX is priority
 - Respect the Business DNA: double down on what worked, avoid what didn't
 - If competitor data is available: suggest a differentiation angle that makes the user's site stand out
+- RESPECT ALL BRAND GUARDRAILS — any suggestion violating them is invalid
+- If funnel data shows a big drop-off on a non-landing page, consider fixing THAT page instead of always fixing the landing page
 
 IMPACT PREDICTION RULES:
 - conversion_lift_min and conversion_lift_max: realistic percentage POINTS improvement. Base on change type:
@@ -1289,8 +1486,9 @@ async function handleFullRun(res) {
     // ── PHASE 3: competitor URLs added to parallel fetches ──
     const competitorUrls = await getCompetitorUrls(conn.subscription_id)
 
-    const [repoContent, analytics, pageSpeed, previousFixes, dna, competitorData] = await Promise.all([
+    const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
       analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
+      detectAllPages(octokit, conn.github_repo_owner, conn.github_repo_name),
       getPostHogAnalytics(
         conn.posthog_api_key || process.env.POSTHOG_API_KEY,
         conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
@@ -1300,9 +1498,21 @@ async function handleFullRun(res) {
       getPreviousRuns(conn.subscription_id),
       fetchBusinessDNA(conn.subscription_id),
       competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
+      fetchBrandGuardrails(conn.subscription_id),
     ])
 
-    const analysis = await callAI(repoContent, analytics, pageSpeed, previousFixes, dna, competitorData)
+    // ── PHASE 4: Build funnel analysis from all pages + analytics ──
+    const funnelAnalysis = buildFunnelAnalysis(allPages, analytics)
+
+    // Merge allPages into repoContent so AI sees all pages
+    const enrichedRepoContent = { ...repoContent }
+    for (const [path, info] of Object.entries(allPages)) {
+      if (!enrichedRepoContent[path]) {
+        enrichedRepoContent[path] = info.content
+      }
+    }
+
+    const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
     const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
     const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
 
@@ -1312,10 +1522,18 @@ async function handleFullRun(res) {
         ...analysis,
         analytics_snapshot: analytics?.last7Days
       },
+      funnel_analysis: funnelAnalysis ? {
+        totalPages: funnelAnalysis.totalPages,
+        pageTypes: funnelAnalysis.pageTypes,
+        biggestDropOff: funnelAnalysis.biggestDropOff,
+      } : null,
       pr_number: pr.number,
       pr_url: pr.html_url,
       telegram_message_id: messageId || null
     }).eq('id', run.id)
+
+    // ── PHASE 4: Save funnel page data ──
+    await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis, allPages)
 
     // ── PHASE 2: Start A/B test ──
     await createABTest(conn, run.id, analysis)
