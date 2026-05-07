@@ -66,6 +66,14 @@ const CSS = `
   }
   .btn-accent:hover:not(:disabled) { background:#1e4433; transform:translateY(-2px); box-shadow:0 12px 36px rgba(42,92,69,0.28); }
 
+  .product-pill {
+    font-size:12px; border-radius:20px; padding:6px 14px; font-weight:400;
+    cursor:pointer; border:1px solid transparent;
+    transition: all .2s ease; font-family:'Jost',sans-serif;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .product-pill:hover { transform: translateY(-1px); }
+
   ::-webkit-scrollbar { width:5px; }
   ::-webkit-scrollbar-track { background:#f7f4ef; }
   ::-webkit-scrollbar-thumb { background:rgba(28,25,23,0.12); border-radius:3px; }
@@ -192,14 +200,19 @@ function Nav({ navigate, openModal }) {
         <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Velyr</span>
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-        <button className="nav-agent-link" onClick={() => document.getElementById('growth-agent')?.scrollIntoView({ behavior:'smooth' })}
-          style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textMuted, fontFamily:'Jost,sans-serif', fontWeight:300, letterSpacing:'.01em', transition:'color .2s', display:'flex', alignItems:'center', gap:6 }}
-          onMouseEnter={e => e.currentTarget.style.color=C.accent}
-          onMouseLeave={e => e.currentTarget.style.color=C.textMuted}
+        <button className="nav-agent-link" onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' })}
+          style={{ background:'transparent', border:'1px solid rgba(42,92,69,0.35)', borderRadius:8, cursor:'pointer', fontSize:13, color:C.accent, fontFamily:'Jost,sans-serif', fontWeight:400, letterSpacing:'.01em', padding:'7px 14px', transition:'all .2s', display:'flex', alignItems:'center', gap:6 }}
+          onMouseEnter={e => { e.currentTarget.style.background='rgba(42,92,69,0.08)'; e.currentTarget.style.borderColor='rgba(42,92,69,0.6)' }}
+          onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(42,92,69,0.35)' }}
         >
           <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
           Growth Agent
         </button>
+        <button className="nav-agent-link" onClick={() => navigate('/agent/login')}
+          style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textLight, fontFamily:'Jost,sans-serif', fontWeight:300, letterSpacing:'.01em', transition:'color .2s' }}
+          onMouseEnter={e => e.currentTarget.style.color=C.textMuted}
+          onMouseLeave={e => e.currentTarget.style.color=C.textLight}
+        >Log in</button>
         <div className="nav-ctas" style={{ display:'flex', alignItems:'center', gap:8 }}>
           <button className="nav-cta-ghost" onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
             background:'transparent', color:C.text, border:'1px solid rgba(28,25,23,0.15)', borderRadius:8,
@@ -212,7 +225,7 @@ function Nav({ navigate, openModal }) {
           <button onClick={openModal} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor:'pointer', transition:'background .2s', letterSpacing:'.01em' }}
             onMouseEnter={e => e.target.style.background='#1e4433'}
             onMouseLeave={e => e.target.style.background=C.accent}
-          >Full report — €9</button>
+          >Full report</button>
         </div>
       </div>
     </nav>
@@ -220,12 +233,14 @@ function Nav({ navigate, openModal }) {
 }
 
 // ─── Hero ──────────────────────────────────────────────────────────────────────
-function Hero({ onScanStart }) {
+function Hero({ onScanStart, navigate, openModal }) {
   const [step, setStep] = useState(1)
   const [url, setUrl] = useState('')
   const [social, setSocial] = useState({ tiktokFollowers:'', tiktokAvgViews:'', tiktokEngagement:'', igFollowers:'', igAvgLikes:'', igEngagement:'', ytSubscribers:'', ytAvgViews:'', twFollowers:'' })
   const [activePlatforms, setActivePlatforms] = useState([])
   const [error, setError] = useState('')
+  // 'scan' | 'report' | 'agent'
+  const [activeProduct, setActiveProduct] = useState('scan')
 
   const platforms = [
     { key:'tiktok',    icon:'🎵', label:'TikTok' },
@@ -261,6 +276,21 @@ function Hero({ onScanStart }) {
     return m
   }
 
+  const productInfo = {
+    scan: {
+      pill: { bg:'rgba(42,92,69,0.08)', border:'rgba(42,92,69,0.22)', color:C.accent, label:'✓ Free audit — instant' },
+      desc: 'Scan your website and social channels — get an instant AI audit with your score, benchmark comparisons, and the 2 most critical issues holding you back.',
+    },
+    report: {
+      pill: { bg:'rgba(28,25,23,0.06)', border:'rgba(28,25,23,0.14)', color:C.textMuted, label:'Full report — €9' },
+      desc: 'Everything in the free scan, plus all 5 priority actions with exact copy-paste fixes, deep social analysis, hook-by-hook breakdown, caption rewrites, and brand clarity scoring.',
+    },
+    agent: {
+      pill: { bg:'rgba(42,92,69,0.06)', border:'rgba(42,92,69,0.18)', color:C.accent, label:'Growth Agent — €29/mo', dot: true },
+      desc: 'A semi-autonomous AI that runs every Monday — reads your analytics, writes conversion fixes, opens a GitHub Pull Request, and waits for your approval via Telegram.',
+    },
+  }
+
   return (
     <section className="hero-pad" style={{ paddingTop:120, paddingBottom:96, paddingLeft:24, paddingRight:24, position:'relative' }}>
       <div style={{ position:'absolute', top:0, left:0, right:0, height:500, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(28,25,23,0.033) 59px, rgba(28,25,23,0.033) 60px)', pointerEvents:'none', maskImage:'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.22) 18%, rgba(0,0,0,0.22) 82%, transparent 100%)' }} />
@@ -274,82 +304,178 @@ function Hero({ onScanStart }) {
           Find out what's <em style={{ fontStyle:'italic', color:C.warm }}>actually</em><br />holding your business back.
         </h1>
 
-        <p style={{ fontSize:17, color:C.textMuted, lineHeight:1.72, marginBottom:24, animation:'fadeUp .6s .16s ease both', fontWeight:300, maxWidth:460 }}>
-          Scan your website and socials — get an instant AI audit with your score and specific fixes. Or let the Growth Agent fix it automatically every week.
+        {/* ── Product selector pills (Change 1) ── */}
+        <div style={{ display:'flex', gap:8, marginBottom:16, animation:'fadeUp .6s .16s ease both', flexWrap:'wrap' }}>
+          {[
+            { key:'scan',   label:'✓ Free audit — instant', dot:false },
+            { key:'report', label:'Full report — €9',       dot:false },
+            { key:'agent',  label:'Growth Agent — €29/mo', dot:true  },
+          ].map(p => {
+            const isActive = activeProduct === p.key
+            return (
+              <button
+                key={p.key}
+                className="product-pill"
+                onClick={() => {
+                  setActiveProduct(p.key)
+                  if (p.key === 'agent' || p.key === 'report') {
+                    setTimeout(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' }), 80)
+                  }
+                }}
+                style={{
+                  background: isActive
+                    ? (p.key === 'scan' ? 'rgba(42,92,69,0.12)' : p.key === 'agent' ? 'rgba(42,92,69,0.12)' : 'rgba(28,25,23,0.08)')
+                    : 'transparent',
+                  border: `1px solid ${isActive
+                    ? (p.key === 'scan' ? 'rgba(42,92,69,0.35)' : p.key === 'agent' ? 'rgba(42,92,69,0.35)' : 'rgba(28,25,23,0.25)')
+                    : 'rgba(28,25,23,0.12)'}`,
+                  color: isActive
+                    ? (p.key === 'scan' ? C.accent : p.key === 'agent' ? C.accent : C.text)
+                    : C.textMuted,
+                  fontWeight: isActive ? 500 : 300,
+                  boxShadow: isActive ? '0 2px 12px rgba(28,25,23,0.08)' : 'none',
+                }}
+              >
+                {p.dot && (
+                  <span style={{ width:5, height:5, borderRadius:'50%', background:isActive?'#22c55e':'#a0a0a0', display:'inline-block', transition:'background .2s' }} />
+                )}
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Description that changes by selected product */}
+        <p style={{ fontSize:15, color:C.textMuted, lineHeight:1.72, marginBottom:28, animation:'fadeUp .6s .2s ease both', fontWeight:300, maxWidth:480, minHeight:60, transition:'opacity .25s' }}>
+          {productInfo[activeProduct].desc}
         </p>
 
-        {/* Product pills */}
-        <div style={{ display:'flex', gap:8, marginBottom:32, animation:'fadeUp .6s .18s ease both', flexWrap:'wrap' }}>
-          <span style={{ fontSize:12, background:'rgba(42,92,69,0.08)', border:'1px solid rgba(42,92,69,0.18)', borderRadius:20, padding:'5px 12px', color:C.accent, fontWeight:400 }}>
-            ✓ Free audit — instant
-          </span>
-          <span style={{ fontSize:12, background:'rgba(28,25,23,0.05)', border:'1px solid rgba(28,25,23,0.1)', borderRadius:20, padding:'5px 12px', color:C.textMuted, fontWeight:300 }}>
-            Full report — €9
-          </span>
-          <span style={{ fontSize:12, background:'rgba(28,25,23,0.05)', border:'1px solid rgba(28,25,23,0.1)', borderRadius:20, padding:'5px 12px', color:C.textMuted, fontWeight:300, display:'flex', alignItems:'center', gap:5 }}>
-            <span style={{ width:5, height:5, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
-            Growth Agent — €29/mo
-          </span>
-        </div>
-
-        <div id="scan-form" className="scan-form" style={{ background:'#fff', border:'1px solid rgba(28,25,23,0.1)', borderRadius:18, padding:28, animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)' }}>
-          {/* Step indicator */}
-          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:22 }}>
-            {[{n:1,label:'Website'},{n:2,label:'Social (optional)'}].map(({n,label}) => (
-              <div key={n} style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <div style={{ width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', background:step>=n?C.accent:'transparent', border:`1px solid ${step>=n?C.accent:'rgba(28,25,23,0.15)'}`, fontSize:11, fontWeight:500, color:step>=n?'#fff':C.textLight, transition:'all .3s' }}>{n}</div>
-                <span style={{ fontSize:12, color:step>=n?C.text:C.textLight, fontWeight:300, transition:'color .3s' }}>{label}</span>
-                {n<2 && <div style={{ width:20, height:1, background:'rgba(28,25,23,0.12)', margin:'0 2px' }}/>}
-              </div>
-            ))}
-          </div>
-
-          {step === 1 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              <div style={{ position:'relative' }}>
-                <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16 }}>🌐</span>
-                <input className="inp" value={url} onChange={e => setUrl(e.target.value)} placeholder="yourwebsite.com" onKeyDown={e => e.key==='Enter' && handleNext()} />
-              </div>
-              {error && <p style={{ fontSize:13, color:'#c0392b', padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
-              <div style={{ height:2 }} />
-              <button className="btn-primary" onClick={handleNext}>Continue → Add social numbers</button>
-              <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>No account needed · Free forever</p>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-              <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>Select the platforms you're on and enter your numbers. Skip any you don't have.</p>
-              <div className="chips-row" style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-                {platforms.map(p => (
-                  <button key={p.key} onClick={() => togglePlatform(p.key)} style={{ background:activePlatforms.includes(p.key)?'rgba(42,92,69,0.08)':'transparent', border:`1px solid ${activePlatforms.includes(p.key)?'rgba(42,92,69,0.35)':'rgba(28,25,23,0.12)'}`, borderRadius:8, padding:'7px 13px', fontSize:13, cursor:'pointer', fontFamily:'Jost,sans-serif', fontWeight:300, color:activePlatforms.includes(p.key)?C.accent:C.textMuted, display:'flex', alignItems:'center', gap:5, transition:'all .2s' }}>
-                    {p.icon} {p.label} {activePlatforms.includes(p.key) && <span style={{ fontSize:10 }}>✓</span>}
-                  </button>
+        {/* Show scan form only for 'scan'; dedicated CTA cards for report + agent */}
+        {activeProduct === 'scan' ? (
+          <div id="scan-form" className="scan-form" style={{ background:'#fff', border:'1px solid rgba(28,25,23,0.1)', borderRadius:18, padding:28, animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)' }}>
+            {/* Step indicator */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:22 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                {[{n:1,label:'Website'},{n:2,label:'Social (optional)'}].map(({n,label}) => (
+                  <div key={n} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', background:step>=n?C.accent:'transparent', border:`1px solid ${step>=n?C.accent:'rgba(28,25,23,0.15)'}`, fontSize:11, fontWeight:500, color:step>=n?'#fff':C.textLight, transition:'all .3s' }}>{n}</div>
+                    <span style={{ fontSize:12, color:step>=n?C.text:C.textLight, fontWeight:300, transition:'color .3s' }}>{label}</span>
+                    {n<2 && <div style={{ width:20, height:1, background:'rgba(28,25,23,0.12)', margin:'0 2px' }}/>}
+                  </div>
                 ))}
               </div>
-              {activePlatforms.map(pKey => (
-                <div key={pKey} style={{ background:'rgba(28,25,23,0.02)', border:'1px solid rgba(28,25,23,0.07)', borderRadius:12, padding:14 }}>
-                  <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, marginBottom:10, fontWeight:400 }}>{platforms.find(p=>p.key===pKey)?.icon} {platforms.find(p=>p.key===pKey)?.label}</p>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:8 }}>
-                    {platformFields[pKey].map(f => (
-                      <div key={f.key}>
-                        <label style={{ fontSize:11, color:C.textLight, fontWeight:300, display:'block', marginBottom:4 }}>{f.label}</label>
-                        <input className="inp" style={{ paddingLeft:12 }} value={social[f.key]} onChange={e => setSocial(s=>({...s,[f.key]:e.target.value}))} placeholder={f.placeholder} />
-                      </div>
-                    ))}
+              {/* Trust badge top-right */}
+              <span style={{ fontSize:11, color:C.textLight, fontWeight:300, display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ fontSize:10 }}>🔒</span> Free · No account
+              </span>
+            </div>
+
+            {step === 1 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ position:'relative' }}>
+                  <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16 }}>🌐</span>
+                  <input className="inp" value={url} onChange={e => setUrl(e.target.value)} placeholder="yourwebsite.com" onKeyDown={e => e.key==='Enter' && handleNext()} />
+                </div>
+                {error && <p style={{ fontSize:13, color:'#c0392b', padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
+                <div style={{ height:2 }} />
+                <button className="btn-primary" onClick={handleNext}>See my score →</button>
+                <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>Takes 60 seconds · No account needed</p>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.6 }}>Select the platforms you're on and enter your numbers. Skip any you don't have.</p>
+                <div className="chips-row" style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+                  {platforms.map(p => (
+                    <button key={p.key} onClick={() => togglePlatform(p.key)} style={{ background:activePlatforms.includes(p.key)?'rgba(42,92,69,0.08)':'transparent', border:`1px solid ${activePlatforms.includes(p.key)?'rgba(42,92,69,0.35)':'rgba(28,25,23,0.12)'}`, borderRadius:8, padding:'7px 13px', fontSize:13, cursor:'pointer', fontFamily:'Jost,sans-serif', fontWeight:300, color:activePlatforms.includes(p.key)?C.accent:C.textMuted, display:'flex', alignItems:'center', gap:5, transition:'all .2s' }}>
+                      {p.icon} {p.label} {activePlatforms.includes(p.key) && <span style={{ fontSize:10 }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+                {activePlatforms.map(pKey => (
+                  <div key={pKey} style={{ background:'rgba(28,25,23,0.02)', border:'1px solid rgba(28,25,23,0.07)', borderRadius:12, padding:14 }}>
+                    <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, marginBottom:10, fontWeight:400 }}>{platforms.find(p=>p.key===pKey)?.icon} {platforms.find(p=>p.key===pKey)?.label}</p>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:8 }}>
+                      {platformFields[pKey].map(f => (
+                        <div key={f.key}>
+                          <label style={{ fontSize:11, color:C.textLight, fontWeight:300, display:'block', marginBottom:4 }}>{f.label}</label>
+                          <input className="inp" style={{ paddingLeft:12 }} value={social[f.key]} onChange={e => setSocial(s=>({...s,[f.key]:e.target.value}))} placeholder={f.placeholder} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                ))}
+                {activePlatforms.length===0 && <p style={{ fontSize:13, color:C.textLight, fontStyle:'italic', textAlign:'center', padding:'6px 0' }}>No social media? No problem — we'll analyse your website only.</p>}
+                {error && <p style={{ fontSize:13, color:'#c0392b', padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
+                <div style={{ display:'flex', gap:8, marginTop:2 }}>
+                  <button onClick={() => setStep(1)} style={{ background:'none', border:'1px solid rgba(28,25,23,0.12)', borderRadius:10, padding:'14px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer', color:C.textMuted, transition:'all .2s', flexShrink:0 }}>← Back</button>
+                  <button className="btn-primary" onClick={() => { setError(''); onScanStart({ url, manualSocial:buildManualSocial() }) }} style={{ flex:1 }}>
+                    {activeProduct === 'report' ? 'Scan & get full report — €9' : 'Scan my business — it\'s free'}
+                  </button>
+                </div>
+                <p style={{ fontSize:12, color:C.textLight, textAlign:'center' }}>Only fill in what you have</p>
+              </div>
+            )}
+          </div>
+        ) : activeProduct === 'report' ? (
+          /* Full Report CTA card — mirrors the pricing card */
+          <div style={{ background:'#fff', border:'1px solid rgba(42,92,69,0.22)', borderRadius:18, padding:28, animation:'fadeUp .6s .24s ease both', boxShadow:'0 8px 40px rgba(42,92,69,0.1)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <span style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.accent, fontWeight:500 }}>★ Most popular</span>
+            </div>
+            <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:22, fontWeight:400, color:C.text, marginBottom:6, letterSpacing:'-.01em' }}>Full report — everything you need to fix it.</p>
+            <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.65, fontWeight:300, marginBottom:16 }}>All 5 priority actions with exact copy-paste fixes, deep social analysis, hook-by-hook breakdown, caption rewrites, and brand clarity scoring.</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:18 }}>
+              {['All 5 priority issues with exact fixes','Deep social analysis on your focus platform','Hook quality analysis — post by post','Caption & CTA rewrite suggestions','Brand clarity score + improvements'].map((f,i) => (
+                <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:13 }}>
+                  <span style={{ color:C.accent, flexShrink:0, marginTop:1 }}>✓</span>
+                  <span style={{ color:C.textMuted, fontWeight:300 }}>{f}</span>
                 </div>
               ))}
-              {activePlatforms.length===0 && <p style={{ fontSize:13, color:C.textLight, fontStyle:'italic', textAlign:'center', padding:'6px 0' }}>No social media? No problem — we'll analyse your website only.</p>}
-              {error && <p style={{ fontSize:13, color:'#c0392b', padding:'8px 12px', background:'rgba(192,57,43,0.06)', borderRadius:8 }}>{error}</p>}
-              <div style={{ display:'flex', gap:8, marginTop:2 }}>
-                <button onClick={() => setStep(1)} style={{ background:'none', border:'1px solid rgba(28,25,23,0.12)', borderRadius:10, padding:'14px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer', color:C.textMuted, transition:'all .2s', flexShrink:0 }}>← Back</button>
-                <button className="btn-primary" onClick={() => { setError(''); onScanStart({ url, manualSocial:buildManualSocial() }) }} style={{ flex:1 }}>Scan my business — it's free</button>
-              </div>
-              <p style={{ fontSize:12, color:C.textLight, textAlign:'center' }}>Only fill in what you have</p>
             </div>
-          )}
-        </div>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+              <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:42, color:C.text, letterSpacing:'-.02em' }}>€9</span>
+              <span style={{ fontSize:12, color:C.textLight, fontWeight:300 }}>one-time · no subscription</span>
+            </div>
+            <button onClick={openModal} style={{ background:C.text, color:C.bg, border:'none', borderRadius:10, padding:'14px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', width:'100%', letterSpacing:'.02em', transition:'background .2s' }}
+              onMouseEnter={e=>e.currentTarget.style.background=C.accent}
+              onMouseLeave={e=>e.currentTarget.style.background=C.text}
+            >Get my full report — €9</button>
+            <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:10, fontWeight:300 }}>One-time · Instant · No account needed</p>
+          </div>
+        ) : (
+          /* Growth Agent CTA card in hero */
+          <div style={{ background:'#fff', border:'1px solid rgba(42,92,69,0.2)', borderRadius:18, padding:28, animation:'fadeUp .6s .24s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+              <div style={{ position:'relative', width:10, height:10 }}>
+                <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'#22c55e', animation:'agentPing 2s ease-out infinite' }} />
+                <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'#22c55e' }} />
+              </div>
+              <span style={{ fontSize:12, color:C.accent, fontWeight:400 }}>Live — Growth Agent</span>
+            </div>
+            <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:22, fontWeight:400, color:C.text, marginBottom:8, letterSpacing:'-.01em' }}>Connect your GitHub & analytics — the agent does the rest.</p>
+            <p style={{ fontSize:13, color:C.textMuted, lineHeight:1.65, fontWeight:300, marginBottom:20 }}>Set up in 5 minutes. Every Monday: analysed, fixed, deployed — with your approval. €29/month, cancel anytime.</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <button onClick={() => navigate('/agent/register')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'14px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'all .2s' }}
+                onMouseEnter={e=>e.currentTarget.style.background='#1e4433'}
+                onMouseLeave={e=>e.currentTarget.style.background=C.accent}
+              >Start Growth Agent →</button>
+              <button onClick={() => document.getElementById('growth-agent')?.scrollIntoView({ behavior:'smooth' })} style={{ background:'transparent', color:C.textMuted, border:'1px solid rgba(28,25,23,0.12)', borderRadius:10, padding:'12px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer', transition:'all .2s' }}>
+                See how it works ↓
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Subtle login link — Change 2 */}
+        <p style={{ textAlign:'center', marginTop:16, fontSize:12, color:C.textLight, fontWeight:300, animation:'fadeUp .6s .32s ease both' }}>
+          Already have an account?{' '}
+          <button onClick={() => navigate('/agent/login')} style={{ background:'none', border:'none', cursor:'pointer', fontSize:12, color:C.textMuted, fontFamily:'Jost,sans-serif', fontWeight:400, textDecoration:'underline', textDecorationColor:'rgba(28,25,23,0.2)', textUnderlineOffset:2, transition:'color .2s' }}
+            onMouseEnter={e=>e.currentTarget.style.color=C.accent}
+            onMouseLeave={e=>e.currentTarget.style.color=C.textMuted}
+          >Log in →</button>
+        </p>
       </div>
     </section>
   )
@@ -366,9 +492,19 @@ function WhatWeCheck() {
   return (
     <section className="section-pad" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
-        <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:56 }}>
-          <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>What we check</p>
+        <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:16 }}>
+          {/* Changed label to clarify this is about the scan */}
+          <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>What the scan checks</p>
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>Every part of your online presence,<br />in one report.</h2>
+          {/* Added explanatory sub-line */}
+          <p style={{ fontSize:15, color:C.textMuted, fontWeight:300, marginTop:14, maxWidth:520, lineHeight:1.65 }}>
+            Both the free scan and the full report analyse these three areas. The free scan shows your score and 2 critical issues — the full report goes deep on every one.
+          </p>
+        </div>
+        {/* Scan tier badges */}
+        <div style={{ display:'flex', gap:8, marginBottom:44, flexWrap:'wrap' }}>
+          <span style={{ fontSize:12, background:'rgba(42,92,69,0.08)', border:'1px solid rgba(42,92,69,0.18)', borderRadius:20, padding:'5px 14px', color:C.accent, fontWeight:400 }}>✓ Free scan — score + 2 issues</span>
+          <span style={{ fontSize:12, background:'rgba(28,25,23,0.05)', border:'1px solid rgba(28,25,23,0.12)', borderRadius:20, padding:'5px 14px', color:C.textMuted, fontWeight:300 }}>★ Full report — all 5 issues + deep analysis</span>
         </div>
         <div className="what-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2 }}>
           {items.map((item, i) => {
@@ -388,7 +524,8 @@ function WhatWeCheck() {
   )
 }
 
-// ─── Growth Agent Section (redesigned to match site theme) ────────────────────
+// ─── Growth Agent Section ─────────────────────────────────────────────────────
+// Change 3: Remove "NEW", redesign How It Works timeline for clarity
 function GrowthAgentSection({ navigate }) {
   const [ref, visible] = useReveal()
 
@@ -401,27 +538,47 @@ function GrowthAgentSection({ navigate }) {
     { icon:'🗺️', title:'Full funnel awareness', desc:'The agent maps every page in your repo and their drop-off rates. It fixes the highest-leverage page, not just the homepage.' },
   ]
 
-  const steps = [
-    { time:'Monday 9am',   text:'Agent reads your analytics + scans your GitHub repo' },
-    { time:'Minutes later', text:'Finds the #1 conversion problem across your full funnel' },
-    { time:'Instantly',    text:'Writes the fix and opens a Pull Request with a preview' },
-    { time:'You decide',   text:'Telegram message arrives — reply approve to ship it live' },
-    { time:'Wednesday',    text:'Mid-week check: traffic update, bounce rate, social sources' },
-    { time:'+48h',         text:'Auto-rollback triggers if bounce rate increases by 15%+' },
+  // Change 3: Clearer timeline with day/time labels and grouped phases
+  const timelinePhases = [
+    {
+      phase: 'Monday',
+      color: C.accent,
+      steps: [
+        { time:'8:00 am',  icon:'📊', text:'Weekly Executive Summary sent to Telegram — traffic, bounce rate, last week\'s impact.' },
+        { time:'9:00 am',  icon:'🔍', text:'Agent reads your PostHog analytics + scans every page in your GitHub repo.' },
+        { time:'9:10 am',  icon:'🎯', text:'Identifies the #1 conversion problem across your full funnel.' },
+        { time:'9:15 am',  icon:'✍️', text:'Writes the code fix and opens a Pull Request with a live preview link.' },
+        { time:'9:20 am',  icon:'📲', text:'Telegram message arrives — problem, data, solution, PR link. Reply "approve" to ship.' },
+      ]
+    },
+    {
+      phase: 'Wednesday',
+      color: C.warm,
+      steps: [
+        { time:'9:00 am',  icon:'📈', text:'Mid-week check: traffic update, bounce rate delta, social traffic sources.' },
+      ]
+    },
+    {
+      phase: '+48h after deploy',
+      color: C.yellow,
+      steps: [
+        { time:'Auto',  icon:'🔄', text:'Bounce rate check — if it increased 15%+, the agent auto-reverts and notifies you.' },
+      ]
+    },
   ]
 
   return (
     <section id="growth-agent" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
 
-        {/* Header */}
+        {/* Header — Change 3: "NEW" badge removed */}
         <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:64 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
             <div style={{ position:'relative', width:10, height:10 }}>
               <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'#22c55e', animation:'agentPing 2s ease-out infinite' }} />
               <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'#22c55e' }} />
             </div>
-            <span style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, fontWeight:400 }}>Growth Agent — New</span>
+            <span style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, fontWeight:400 }}>Growth Agent</span>
           </div>
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(32px, 5vw, 60px)', letterSpacing:'-.025em', lineHeight:1.08, color:C.text, marginBottom:20 }}>
             Your website,<br />
@@ -434,32 +591,29 @@ function GrowthAgentSection({ navigate }) {
 
         {/* Features grid */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:2, marginBottom:48 }}>
-          {features.map((f, i) => {
-            const isFirst = i === 0
-            const isLast = i === features.length - 1
-            const br = isFirst ? '14px 0 0 0' : isLast ? '0 0 14px 0' : '0'
-            return (
-              <div key={i} style={{
-                background:'#fff',
-                border:`1px solid ${C.border}`,
-                borderRadius: features.length === 6
-                  ? (i === 0 ? '14px 0 0 0' : i === 1 ? '0 14px 0 0' : i === 4 ? '0 0 0 14px' : i === 5 ? '0 0 14px 0' : '0')
-                  : br,
-                padding:'32px 28px',
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'none' : 'translateY(16px)',
-                transition: `all .55s ease ${i * 0.07}s`,
-              }}>
-                <div style={{ fontSize:24, marginBottom:16 }}>{f.icon}</div>
-                <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:20, color:C.text, marginBottom:10, letterSpacing:'-.01em' }}>{f.title}</h3>
-                <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.72, fontWeight:300 }}>{f.desc}</p>
-              </div>
-            )
-          })}
+          {features.map((f, i) => (
+            <div key={i} style={{
+              background:'#fff',
+              border:`1px solid ${C.border}`,
+              borderRadius: features.length === 6
+                ? (i === 0 ? '14px 0 0 0' : i === 1 ? '0 14px 0 0' : i === 4 ? '0 0 0 14px' : i === 5 ? '0 0 14px 0' : '0')
+                : '0',
+              padding:'32px 28px',
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'none' : 'translateY(16px)',
+              transition: `all .55s ease ${i * 0.07}s`,
+            }}>
+              <div style={{ fontSize:24, marginBottom:16 }}>{f.icon}</div>
+              <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:20, color:C.text, marginBottom:10, letterSpacing:'-.01em' }}>{f.title}</h3>
+              <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.72, fontWeight:300 }}>{f.desc}</p>
+            </div>
+          ))}
         </div>
 
         {/* How it works + CTA side by side */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'start' }}>
+
+          {/* Change 3: Redesigned timeline */}
           <div style={{
             background:'#fff', border:`1px solid ${C.border}`,
             borderRadius:16, padding:'32px 36px',
@@ -467,29 +621,39 @@ function GrowthAgentSection({ navigate }) {
             transform: visible ? 'none' : 'translateY(16px)',
             transition: 'all .6s ease .3s',
           }}>
-            <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:C.textLight, fontWeight:400, marginBottom:24 }}>How it works</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-              {steps.map((item, i) => (
-                <div key={i} style={{
-                  display:'flex', gap:20, alignItems:'flex-start',
-                  paddingBottom: i < steps.length - 1 ? 18 : 0,
-                  marginBottom: i < steps.length - 1 ? 18 : 0,
-                  borderBottom: i < steps.length - 1 ? `1px solid ${C.border}` : 'none',
-                }}>
-                  <div style={{ width:110, flexShrink:0 }}>
-                    <span style={{ fontSize:11, color:C.textLight, fontWeight:300, letterSpacing:'.03em' }}>{item.time}</span>
-                  </div>
-                  <div style={{ display:'flex', gap:12, alignItems:'center' }}>
-                    <div style={{ width:5, height:5, borderRadius:'50%', background:C.accent, flexShrink:0 }} />
-                    <p style={{ fontSize:14, color:C.text, fontWeight:300, lineHeight:1.5 }}>{item.text}</p>
-                  </div>
+            <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:C.textLight, fontWeight:400, marginBottom:28 }}>Weekly schedule</p>
+            {timelinePhases.map((phase, pi) => (
+              <div key={pi} style={{ marginBottom: pi < timelinePhases.length - 1 ? 28 : 0 }}>
+                {/* Phase header */}
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:phase.color, flexShrink:0 }} />
+                  <span style={{ fontSize:13, fontWeight:500, color:phase.color, letterSpacing:'.02em' }}>{phase.phase}</span>
+                  <div style={{ flex:1, height:1, background:C.border }} />
                 </div>
-              ))}
-            </div>
+                {/* Steps under phase */}
+                <div style={{ paddingLeft:18, display:'flex', flexDirection:'column', gap:0 }}>
+                  {phase.steps.map((step, si) => (
+                    <div key={si} style={{
+                      display:'flex', gap:14, alignItems:'flex-start',
+                      paddingBottom: si < phase.steps.length - 1 ? 14 : 0,
+                      marginBottom: si < phase.steps.length - 1 ? 14 : 0,
+                      borderBottom: si < phase.steps.length - 1 ? `1px dashed rgba(28,25,23,0.07)` : 'none',
+                    }}>
+                      <div style={{ width:56, flexShrink:0, paddingTop:1 }}>
+                        <span style={{ fontSize:11, color:C.textLight, fontWeight:300, fontFamily:'DM Mono, monospace' }}>{step.time}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+                        <span style={{ fontSize:14, lineHeight:1, marginTop:1 }}>{step.icon}</span>
+                        <p style={{ fontSize:13, color:C.text, fontWeight:300, lineHeight:1.55 }}>{step.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {/* Stats */}
             {[
               { value:'Every Monday', label:'Agent runs automatically', sub:'no manual work needed' },
               { value:'48h', label:'Auto-rollback window', sub:'reverts if metrics drop' },
@@ -508,7 +672,6 @@ function GrowthAgentSection({ navigate }) {
               </div>
             ))}
 
-            {/* CTA card */}
             <div style={{
               background:C.accent, borderRadius:14, padding:'28px 26px',
               opacity: visible ? 1 : 0,
@@ -579,7 +742,101 @@ function SampleBmRow({ platform, metric, yours, benchmark, diff, up, note }) {
   )
 }
 
+// ─── Agent Dashboard Preview (Change 4) ───────────────────────────────────────
+function AgentDashboardPreview({ navigate }) {
+  return (
+    <div style={{ background:'#fff', border:'1px solid rgba(28,25,23,0.08)', borderRadius:16, overflow:'hidden', fontSize:12 }}>
+      {/* Dashboard header bar */}
+      <div style={{ background:C.text, padding:'12px 18px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <Logo size={16} color="#f0ece4" />
+          <span style={{ fontFamily:'Cormorant Garant, serif', fontSize:15, color:'#f7f4ef', fontWeight:400 }}>Velyr — Growth Agent</span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e' }} />
+          <span style={{ fontSize:11, color:'rgba(247,244,239,0.6)', fontWeight:300 }}>Active · next run Monday 9am</span>
+        </div>
+      </div>
+
+      <div style={{ padding:18, display:'flex', flexDirection:'column', gap:12 }}>
+        {/* Site + connections row */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+          {[
+            { icon:'🌐', label:'Website', value:'mybrand.io', status:'Connected', ok:true },
+            { icon:'⚡', label:'PostHog', value:'Analytics linked', status:'1,240 events/day', ok:true },
+            { icon:'🐙', label:'GitHub', value:'mybrand/site', status:'Write access', ok:true },
+          ].map((item, i) => (
+            <div key={i} style={{ background:C.bgSecond, borderRadius:10, padding:'10px 12px', border:`1px solid ${C.border}` }}>
+              <div style={{ fontSize:16, marginBottom:4 }}>{item.icon}</div>
+              <div style={{ fontSize:10, color:C.textLight, fontWeight:300, marginBottom:2, letterSpacing:'.05em', textTransform:'uppercase' }}>{item.label}</div>
+              <div style={{ fontSize:12, fontWeight:500, color:C.text, marginBottom:2 }}>{item.value}</div>
+              <div style={{ fontSize:10, color:item.ok?C.accent:C.red, fontWeight:400 }}>✓ {item.status}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* This week's suggestion */}
+        <div style={{ background:'rgba(42,92,69,0.06)', border:'1px solid rgba(42,92,69,0.18)', borderRadius:12, padding:'14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+            <div>
+              <span style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:C.accent, fontWeight:500 }}>This week's fix · PR #47</span>
+              <p style={{ fontSize:13, fontWeight:500, color:C.text, marginTop:3 }}>Rewrite pricing page headline — bounce rate 68%</p>
+            </div>
+            <span style={{ fontSize:10, background:'rgba(214,137,16,0.12)', color:C.yellow, border:'1px solid rgba(214,137,16,0.25)', borderRadius:5, padding:'3px 8px', fontWeight:500, flexShrink:0, marginLeft:8 }}>Awaiting approval</span>
+          </div>
+          <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6, fontWeight:300, marginBottom:10 }}>
+            Pricing page has a 68% bounce rate vs 38% site average. Current headline "Plans & Pricing" gives no reason to stay. Proposed: "Pick the plan that pays for itself." — focuses on ROI.
+          </p>
+          <div style={{ display:'flex', gap:7 }}>
+            <button style={{ background:C.accent, color:'#fff', border:'none', borderRadius:7, padding:'7px 14px', fontSize:12, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer' }}>✓ Approve &amp; merge</button>
+            <button style={{ background:'transparent', color:C.textMuted, border:`1px solid ${C.border}`, borderRadius:7, padding:'7px 12px', fontSize:12, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer' }}>View PR ↗</button>
+            <button style={{ background:'transparent', color:C.red, border:'1px solid rgba(192,57,43,0.2)', borderRadius:7, padding:'7px 12px', fontSize:12, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer' }}>Reject</button>
+          </div>
+        </div>
+
+        {/* Mini metrics row */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:8 }}>
+          {[
+            { label:'This week traffic', value:'3,241', delta:'+12%', up:true },
+            { label:'Avg. bounce rate', value:'44%', delta:'-6pts', up:true },
+            { label:'Fixes deployed', value:'8', delta:'last 30d', up:true },
+            { label:'Avg. impact', value:'+18%', delta:'conversion', up:true },
+          ].map((m, i) => (
+            <div key={i} style={{ background:C.bgSecond, borderRadius:9, padding:'10px 12px', border:`1px solid ${C.border}` }}>
+              <div style={{ fontSize:10, color:C.textLight, fontWeight:300, marginBottom:4, lineHeight:1.3 }}>{m.label}</div>
+              <div style={{ fontFamily:'Cormorant Garant, serif', fontSize:22, fontWeight:300, color:C.text, lineHeight:1 }}>{m.value}</div>
+              <div style={{ fontSize:10, color:m.up?C.accent:C.red, fontWeight:400, marginTop:3 }}>{m.up?'↑':' ↓'} {m.delta}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent history */}
+        <div>
+          <p style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:8 }}>Recent fixes</p>
+          {[
+            { week:'Apr 28', fix:'Added CTA to hero section', impact:'+22% clicks', status:'Deployed' },
+            { week:'Apr 21', fix:'Compressed hero image (6.1s → 1.8s)', impact:'-14% bounce', status:'Deployed' },
+            { week:'Apr 14', fix:'Reordered pricing tiers', impact:'Neutral — rolled back', status:'Reverted' },
+          ].map((item, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:i<2?`1px solid ${C.border}`:'none' }}>
+              <div>
+                <span style={{ fontSize:10, color:C.textLight, fontWeight:300, display:'block', marginBottom:2 }}>{item.week}</span>
+                <span style={{ fontSize:12, color:C.text, fontWeight:300 }}>{item.fix}</span>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <span style={{ fontSize:11, color:item.status==='Reverted'?C.yellow:C.accent, fontWeight:400, display:'block' }}>{item.impact}</span>
+                <span style={{ fontSize:10, color:C.textLight, fontWeight:300 }}>{item.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sample Report ─────────────────────────────────────────────────────────────
+// Change 4: Added 'agent' tab with dashboard preview; updated heading
 function SampleReport({ navigate, openModal }) {
   const [ref, visible] = useReveal()
   const [tab, setTab] = useState('free')
@@ -597,17 +854,23 @@ function SampleReport({ navigate, openModal }) {
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
         <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:40 }}>
           <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Sample output</p>
-          <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>This is what your report looks like.</h2>
-          <p style={{ color:C.textMuted, marginTop:12, fontSize:15, fontWeight:300 }}>Real data. Benchmark comparisons. Specific fixes — not generic advice.</p>
+          {/* Change 4: Updated heading to cover all three products */}
+          <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>See exactly what you get.</h2>
+          <p style={{ color:C.textMuted, marginTop:12, fontSize:15, fontWeight:300 }}>Real data. Benchmark comparisons. Specific fixes — and a live dashboard when you're on the Growth Agent.</p>
         </div>
 
+        {/* Change 4: Three tabs */}
         <div className="tab-row" style={{ display:'flex', gap:0, marginBottom:32, background:'rgba(28,25,23,0.05)', borderRadius:12, padding:4, width:'fit-content' }}>
-          {[{ key:'free', label:'Free scan' }, { key:'full', label:'★ Full report — €9' }].map(t => (
+          {[
+            { key:'free',   label:'Free scan' },
+            { key:'full',   label:'★ Full report — €9' },
+            { key:'agent',  label:'⚡ Growth Agent dashboard' },
+          ].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               background:tab===t.key?'#fff':'transparent',
               border:'none', borderRadius:9, padding:'9px 20px',
               fontFamily:'Jost,sans-serif', fontSize:13, fontWeight:tab===t.key?500:300,
-              color:tab===t.key?(t.key==='full'?C.accent:C.text):C.textLight,
+              color:tab===t.key?(t.key==='full'?C.accent:t.key==='agent'?C.warm:C.text):C.textLight,
               cursor:'pointer', transition:'all .2s', whiteSpace:'nowrap',
               boxShadow:tab===t.key?'0 1px 6px rgba(28,25,23,0.1)':'none',
             }}>{t.label}</button>
@@ -704,14 +967,38 @@ function SampleReport({ navigate, openModal }) {
             <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>One-time payment · No subscription · Instant</p>
           </div>
         )}
+
+        {/* Change 4: Growth Agent dashboard sample tab */}
+        {tab === 'agent' && (
+          <div>
+            <div style={{ marginBottom:20, display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+              <div>
+                <p style={{ fontSize:14, color:C.textMuted, fontWeight:300, maxWidth:480, lineHeight:1.65 }}>
+                  This is your Growth Agent dashboard after connecting your website, PostHog analytics, and GitHub. Example data shown.
+                </p>
+              </div>
+              <button onClick={() => navigate('/agent/register')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'12px 22px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s', flexShrink:0 }}
+                onMouseEnter={e=>e.currentTarget.style.background='#1e4433'}
+                onMouseLeave={e=>e.currentTarget.style.background=C.accent}
+              >Start Growth Agent — €29/mo →</button>
+            </div>
+            <AgentDashboardPreview navigate={navigate} />
+            <p style={{ fontSize:12, color:C.textLight, marginTop:14, textAlign:'center', fontWeight:300 }}>Set up in 5 minutes · Cancel anytime · Nothing ships without your OK</p>
+          </div>
+        )}
       </div>
     </section>
   )
 }
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
+// Change 5: Scroll to #scan-form directly instead of scrollTo top
 function Pricing({ navigate, openModal }) {
   const [ref, visible] = useReveal()
+
+  const scrollToScanForm = () => {
+    document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth', block:'center' })
+  }
 
   const plans = [
     {
@@ -729,7 +1016,8 @@ function Pricing({ navigate, openModal }) {
       ],
       cta:'Start for free',
       featured:false,
-      action: () => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' }),
+      // Change 5: scroll directly to the form
+      action: scrollToScanForm,
     },
     {
       name:'Full report',
@@ -780,7 +1068,7 @@ function Pricing({ navigate, openModal }) {
   ]
 
   return (
-    <section className="section-pad" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, padding:'96px 24px' }}>
+    <section id="pricing-section" className="section-pad" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
         <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:56 }}>
           <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Pricing</p>
@@ -865,22 +1153,19 @@ function FAQ() {
   const [open, setOpen] = useState(null)
 
   const items = [
-    // Free scan & report
     { q:'Do I need an account?', a:'No. You can scan your business and see your score without creating an account. The full report is a one-time €9 payment — no login, no subscription.' },
     { q:'Which platforms does Velyr support?', a:'Website, TikTok, Instagram, YouTube, X (Twitter), Facebook, and LinkedIn. You don\'t need all of them — just add what you have. For the full report you can pick one platform as your "focus" for a deeper analysis.' },
     { q:"Free vs. full report — what's the real difference?", a:'The free scan gives you your score, website analysis, social stats, benchmark comparisons, and your 2 most critical issues. The full report (€9, one-time) adds all 5 issues with exact copy-paste fixes, the deep social dive on your focus platform, hook-by-hook analysis of your posts, a caption rewrite, and brand clarity scoring.' },
     { q:'How accurate is the analysis?', a:"We use real scraped data from your profiles — actual engagement rates, real posts, real timestamps. The AI interprets this data and identifies patterns. It's not perfect, but it's based on what actually happens in your account, not generic advice." },
-
-    // Growth Agent
     { q:'What is the Growth Agent?', a:'The Growth Agent is a semi-autonomous AI that runs every Monday. It reads your real PostHog analytics and your GitHub repo, finds the biggest conversion problem, writes the code fix, opens a Pull Request, and sends you a Telegram message to approve or reject — all automatically.' },
     { q:'Do I have to approve every change before it goes live?', a:'Yes, always. Nothing ships without your explicit approval. You receive a Telegram message with the problem, the data behind it, the solution, and the PR link. Reply "approve [id]" to merge it, or "reject [id]" to discard it.' },
     { q:"What happens if the agent's change makes things worse?", a:'The agent checks your bounce rate 48 hours after every deployment. If it increased by 15+ percentage points, it automatically creates a rollback PR, merges it, and notifies you via Telegram. Your site reverts without any manual work.' },
     { q:'What are Brand Guardrails?', a:'Brand Guardrails are rules you set in your dashboard that the agent must follow on every run. You can specify tone of voice (e.g. "friendly but direct"), things the agent can never do (e.g. "no clickbait headlines"), and elements it must never change (e.g. "brand colors", "logo placement"). Any suggestion that violates your guardrails is automatically rejected.' },
     { q:'What is the Full Funnel analysis?', a:'Instead of only looking at your homepage, the agent scans every page in your GitHub repo and maps the conversion funnel. It detects page types (landing, pricing, checkout, blog etc.), cross-references them with your real analytics, and identifies where visitors are dropping off. It then prioritises the highest-leverage page to fix — not always the homepage.' },
-    { q:'What is Business DNA?', a:'Business DNA is the agent\'s memory. After each deployed change, the agent measures the outcome and saves a learning: "CTA copy changes increased conversions by 18% — double down" or "layout restructuring hurt bounce rate — avoid". Over time, the agent gets better at knowing what works specifically for your business.' },
-    { q:'How does the Competitor Awareness feature work?', a:'You can add up to 2 competitor URLs in your Telegram bot. The agent scrapes their site every Monday — headlines, meta descriptions, CTAs, and key copy. It then factors that into its suggestion, specifically looking for differentiation opportunities where your site could stand out.' },
-    { q:'What is the Weekly Executive Summary?', a:'Every Monday at 8am — one hour before the agent runs — you get a Telegram summary covering the past week: total traffic, bounce rate, traffic sources by platform, deployed changes, A/B test results, and impact metrics. A clean snapshot of everything without needing to open any dashboard.' },
-    { q:'What is A/B testing automation?', a:'When the agent creates a fix, it optionally creates a PostHog feature flag that shows the change to 50% of visitors and keeps the original for the other 50%. After one week, it evaluates which version performed better, saves the learning to Business DNA, and notifies you via Telegram with the result.' },
+    { q:'What is Business DNA?', a:'Business DNA is the agent\'s memory. After each deployed change, the agent measures the outcome and saves a learning. Over time, the agent gets better at knowing what works specifically for your business.' },
+    { q:'What is the Competitor Awareness feature?', a:'You can add up to 2 competitor URLs in your Telegram bot. The agent scrapes their site every Monday — headlines, meta descriptions, CTAs, and key copy. It then factors that into its suggestion, specifically looking for differentiation opportunities.' },
+    { q:'What is the Weekly Executive Summary?', a:'Every Monday at 8am you get a Telegram summary covering the past week: total traffic, bounce rate, traffic sources by platform, deployed changes, and impact metrics.' },
+    { q:'What is A/B testing automation?', a:'When the agent creates a fix, it optionally creates a PostHog feature flag that shows the change to 50% of visitors and keeps the original for the other 50%. After one week, it evaluates which version performed better.' },
     { q:'Is my data safe?', a:'Yes. Your data is only used to run the agent and generate your reports. We never sell or share it. The agent only has read access to your analytics and write access to your GitHub repo via a dedicated GitHub App installation — which you can revoke at any time.' },
   ]
 
@@ -892,7 +1177,6 @@ function FAQ() {
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 48px)', letterSpacing:'-.02em' }}>Questions you might have.</h2>
         </div>
 
-        {/* Section dividers in FAQ */}
         {[
           { label:'Free Scan & Full Report', indices:[0,1,2,3] },
           { label:'Growth Agent', indices:[4,5,6,7,8,9,10,11,12,13] },
@@ -901,6 +1185,7 @@ function FAQ() {
             <p style={{ fontSize:10, letterSpacing:'.12em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:2, paddingBottom:10, borderBottom:`1px solid ${C.border}` }}>{section.label}</p>
             {section.indices.map(i => {
               const item = items[i]
+              if (!item) return null
               return (
                 <div key={i} style={{ borderBottom:`1px solid ${C.border}` }}>
                   <button onClick={() => setOpen(open===i?null:i)} style={{ width:'100%', background:'none', border:'none', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'19px 0', textAlign:'left' }}>
@@ -931,7 +1216,7 @@ function FinalCTA() {
         </div>
         <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, color:C.bg, fontSize:'clamp(30px, 4vw, 52px)', letterSpacing:'-.025em', lineHeight:1.1, marginBottom:16 }}>Your score is one scan away.</h2>
         <p style={{ color:'rgba(247,244,239,0.5)', fontSize:16, marginBottom:40, lineHeight:1.7, fontWeight:300 }}>Find out in under a minute what's holding your business back — and exactly how to fix it.</p>
-        <button onClick={() => window.scrollTo({ top:0, behavior:'smooth' })} style={{ background:C.bg, color:C.text, border:'none', borderRadius:10, padding:'15px 32px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:15, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s', display:'inline-block' }}
+        <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth', block:'center' })} style={{ background:C.bg, color:C.text, border:'none', borderRadius:10, padding:'15px 32px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:15, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s', display:'inline-block' }}
           onMouseEnter={e=>e.target.style.background='#ede8e0'}
           onMouseLeave={e=>e.target.style.background=C.bg}
         >Scan my business — it's free</button>
@@ -973,7 +1258,7 @@ export default function Home({ navigate, onScanStart }) {
       <style>{CSS}</style>
       {showModal && <ComingSoonModal onClose={() => setShowModal(false)} />}
       <Nav navigate={navigate} openModal={openModal} />
-      <Hero onScanStart={onScanStart} />
+      <Hero onScanStart={onScanStart} navigate={navigate} openModal={openModal} />
       <WhatWeCheck />
       <GrowthAgentSection navigate={navigate} />
       <SampleReport navigate={navigate} openModal={openModal} />
