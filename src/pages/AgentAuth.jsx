@@ -56,12 +56,12 @@ function Logo({ size = 24, color = '#2a5c45' }) {
 }
 
 export default function AgentAuth({ navigate, mode = 'login' }) {
-  const [tab, setTab]         = useState(mode)
-  const [email, setEmail]     = useState('')
+  const [tab, setTab]           = useState(mode)
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
-  const [success, setSuccess] = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState('')
 
   async function handleSubmit() {
     setError('')
@@ -86,13 +86,16 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
   }
 
   async function handleForgot() {
-    if (!email.trim()) { setError('Enter your email first.'); return }
+    setError('')
+    setSuccess('')
+    if (!email.trim()) { setError('Enter your email address first.'); return }
     setLoading(true)
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://scano-snowy.vercel.app/agent/reset-password'
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://www.velyr.io/agent/reset-password',
     })
-    setSuccess('Password reset email sent.')
     setLoading(false)
+    if (err) { setError(err.message); return }
+    setSuccess('If an account exists for this email, a reset link has been sent.')
   }
 
   return (
@@ -104,7 +107,7 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
           {/* Logo */}
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 40, cursor: 'pointer', justifyContent: 'center' }}>
             <Logo size={22} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
             <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>/ Growth Agent</span>
           </div>
 
@@ -148,7 +151,20 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: C.textLight, fontWeight: 300, display: 'block', marginBottom: 6, letterSpacing: '.03em' }}>Password</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, color: C.textLight, fontWeight: 300, letterSpacing: '.03em' }}>Password</label>
+                  {tab === 'login' && (
+                    <button
+                      onClick={handleForgot}
+                      disabled={loading}
+                      style={{ background: 'none', border: 'none', fontSize: 12, color: C.textLight, cursor: 'pointer', fontFamily: 'Jost, sans-serif', fontWeight: 300, padding: 0, transition: 'color .2s' }}
+                      onMouseEnter={e => e.target.style.color = C.accent}
+                      onMouseLeave={e => e.target.style.color = C.textLight}
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
                 <input
                   className="auth-inp"
                   type="password"
@@ -164,7 +180,6 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
                   {error}
                 </div>
               )}
-
               {success && (
                 <div style={{ background: 'rgba(42,92,69,0.06)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 8, padding: '10px 13px', fontSize: 13, color: C.accent }}>
                   {success}
@@ -176,13 +191,6 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
               <button className="auth-btn" onClick={handleSubmit} disabled={loading}>
                 {loading ? 'Please wait…' : tab === 'login' ? 'Log in →' : 'Create account →'}
               </button>
-
-              {tab === 'login' && (
-                <button onClick={handleForgot} disabled={loading} style={{ background: 'none', border: 'none', fontSize: 13, color: C.textLight, cursor: 'pointer', fontFamily: 'Jost, sans-serif', fontWeight: 300, padding: '4px 0', transition: 'color .2s' }}
-                  onMouseEnter={e => e.target.style.color = C.accent}
-                  onMouseLeave={e => e.target.style.color = C.textLight}
-                >Forgot password?</button>
-              )}
             </div>
           </div>
 
