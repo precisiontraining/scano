@@ -359,63 +359,38 @@ function Step2({ onNext, onBack }) {
   )
 }
 
-// ─── STEP 3: Analytics ───────────────────────────────────────────────────────
-function Step3({ onNext, onBack }) {
-  const [posthogKey, setPosthogKey] = useState('')
-  const [posthogProjectId, setPosthogProjectId] = useState('')
-  const [skip, setSkip] = useState(false)
-
-  const handleNext = () => {
-    onNext({
-      posthogKey: skip ? null : posthogKey || null,
-      posthogProjectId: skip ? null : posthogProjectId || null,
-    })
-  }
-
+// ─── STEP 3: Analytics (Zentralisiert) ──────────────────────────────────────
+function Step3({ onNext, onBack, websiteUrl }) {
   return (
     <div>
       <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 3 of 4</p>
       <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
-        Connect Analytics
+        Analytics — zero setup
       </h2>
       <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 24 }}>
-        Connect PostHog so the agent can see real visitor data and make smarter recommendations.
+        Velyr automatically sets up analytics tracking for your site. No PostHog account needed.
+        After onboarding, you'll receive a small code snippet to add once — or we can auto-add it via PR.
       </p>
 
-      {!skip ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 4 }}>
-            <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.7 }}>
-              Don't have PostHog?{' '}
-              <a href="https://posthog.com" target="_blank" rel="noreferrer" style={{ color: C.accent, textDecoration: 'none', fontWeight: 400 }}>Create a free account →</a>
-              <br />
-              Then install it on your site and create a Personal API Key with "Performing analytics queries" permission.
-            </p>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>PostHog Personal API Key</label>
-            <input className="ob-inp" placeholder="phx_..." value={posthogKey} onChange={e => setPosthogKey(e.target.value)} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>PostHog Project ID</label>
-            <input className="ob-inp" placeholder="e.g. 171704" value={posthogProjectId} onChange={e => setPosthogProjectId(e.target.value)} />
-          </div>
-        </div>
-      ) : (
-        <div style={{ background: 'rgba(28,25,23,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-          <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>
-            No problem — the agent will still analyze your code. You can add PostHog later from your dashboard.
-          </p>
-        </div>
-      )}
+      <div style={{ background: 'rgba(42,92,69,0.06)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 6 }}>✅ What Velyr sets up for you:</p>
+        <ul style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.9, paddingLeft: 16 }}>
+          <li>A dedicated analytics project for your site</li>
+          <li>Pageview tracking, bounce rate, traffic sources</li>
+          <li>Weekly data fed directly into the Growth Agent</li>
+        </ul>
+      </div>
 
-      <button onClick={() => setSkip(!skip)} style={{ background: 'none', border: 'none', fontSize: 13, color: C.textLight, cursor: 'pointer', fontFamily: 'Jost, sans-serif', fontWeight: 300, padding: '0 0 20px', textDecoration: 'underline' }}>
-        {skip ? 'I have PostHog — add it now' : 'Skip for now'}
-      </button>
+      <div style={{ background: 'rgba(28,25,23,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 24 }}>
+        <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, lineHeight: 1.7 }}>
+          After setup, you'll get a one-line snippet to paste in your <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.06)', padding: '1px 5px', borderRadius: 4 }}>index.html</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, background: 'rgba(28,25,23,0.06)', padding: '1px 5px', borderRadius: 4 }}>main.jsx</code>.
+          Alternatively the agent can open a PR and add it for you automatically.
+        </p>
+      </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="ob-btn-ghost" onClick={onBack} style={{ flex: '0 0 auto', width: 'auto', padding: '14px 20px' }}>← Back</button>
-        <button className="ob-btn" onClick={handleNext}>Continue →</button>
+        <button className="ob-btn" onClick={() => onNext({})}>Continue →</button>
       </div>
     </div>
   )
@@ -565,57 +540,66 @@ export default function AgentOnboarding({ navigate }) {
   const handleStep2 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(3) }
   const handleStep3 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(4) }
 
-  const handleStep4 = async (data) => {
-    setLoading(true)
-    setError('')
-    const allData = { ...formData, ...data }
+const handleStep4 = async (data) => {
+  setLoading(true)
+  setError('')
+  const allData = { ...formData, ...data }
 
-    try {
-      // 1. Create subscription
-      const { data: sub, error: subError } = await supabase
-        .from('agent_subscriptions')
-        .insert({
-          user_id: user.id,
-          auth_user_id: user.id,
-          email: user.email,
-          plan: 'growth',
-          status: 'active',
-        })
-        .select()
-        .single()
+  try {
+    // 1. PostHog-Projekt automatisch anlegen
+    const phRes = await fetch('/api/posthog-create-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectName: `velyr_${user.id.slice(0, 8)}` }),
+    })
+    const { projectId, apiToken } = await phRes.json()
 
-      if (subError) throw subError
+    // 2. Subscription anlegen
+    const { data: sub, error: subError } = await supabase
+      .from('agent_subscriptions')
+      .insert({
+        user_id: user.id,
+        auth_user_id: user.id,
+        email: user.email,
+        plan: 'growth',
+        status: 'active',
+      })
+      .select()
+      .single()
 
-      // 2. Create connection (with telegram_chat_id)
-      const { error: connError } = await supabase
-        .from('agent_connections')
-        .insert({
-          subscription_id: sub.id,
-          github_installation_id: parseInt(allData.installationId),
-          github_repo_owner: allData.repoOwner,
-          github_repo_name: allData.repoName,
-          website_url: allData.websiteUrl,
-          posthog_api_key: allData.posthogKey || null,
-          posthog_project_id: allData.posthogProjectId || null,
-          posthog_host: 'https://eu.posthog.com',
-          telegram_chat_id: allData.telegramChatId,
-        })
+    if (subError) throw subError
 
-      if (connError) throw connError
+    // 3. Connection mit zentralisierten PostHog-Daten
+    const { error: connError } = await supabase
+      .from('agent_connections')
+      .insert({
+        subscription_id: sub.id,
+        github_installation_id: parseInt(allData.installationId),
+        github_repo_owner: allData.repoOwner,
+        github_repo_name: allData.repoName,
+        website_url: allData.websiteUrl,
+        posthog_api_key: process.env.VITE_POSTHOG_CENTRAL_KEY || null, // dein zentraler Key
+        posthog_project_id: projectId,
+        posthog_host: 'https://eu.posthog.com',
+        posthog_snippet_token: apiToken, // NEU: für den Snippet an den User
+        telegram_chat_id: allData.telegramChatId,
+      })
 
-      // 3. Mark verification code as used
-      await supabase
-        .from('telegram_verification_codes')
-        .update({ used: true })
-        .eq('code', allData.telegramCode)
+    if (connError) throw connError
 
-      navigate('/agent/dashboard')
-    } catch (err) {
-      console.error(err)
-      setError('Something went wrong. Please try again.')
-      setLoading(false)
-    }
+    // 4. Verification code als benutzt markieren
+    await supabase
+      .from('telegram_verification_codes')
+      .update({ used: true })
+      .eq('code', allData.telegramCode)
+
+    navigate('/agent/dashboard')
+  } catch (err) {
+    console.error(err)
+    setError('Something went wrong. Please try again.')
+    setLoading(false)
   }
+}
 
   return (
     <>

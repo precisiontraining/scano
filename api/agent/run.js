@@ -97,7 +97,6 @@ async function analyzeRepo(octokit, owner, repo) {
 async function detectAllPages(octokit, owner, repo) {
   const pages = {}
 
-  // Directories to scan for page files
   const dirsToScan = [
     'src/pages', 'src/views', 'src/screens',
     'pages', 'app', 'src/app',
@@ -127,7 +126,6 @@ async function detectAllPages(octokit, owner, repo) {
           const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: item.path })
           const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
 
-          // Detect page type from filename
           const nameLower = item.name.toLowerCase().replace(/\.(jsx|tsx|js|ts|html|vue|svelte)$/, '')
           let pageType = 'other'
           for (const [keyword, type] of Object.entries(pageTypeMap)) {
@@ -144,7 +142,6 @@ async function detectAllPages(octokit, owner, repo) {
     }
   }
 
-  // Also check root-level pages pattern (Next.js style)
   try {
     const { data: rootPages } = await octokit.rest.repos.getContent({ owner, repo, path: 'pages' })
     if (Array.isArray(rootPages)) {
@@ -177,7 +174,6 @@ function buildFunnelAnalysis(allPages, analytics) {
 
   const funnelPages = []
 
-  // Funnel priority order — where do users drop off?
   const funnelOrder = ['landing', 'pricing', 'checkout', 'lead_magnet', 'blog', 'about', 'other', 'auth', 'dashboard']
 
   const pagesByType = {}
@@ -191,7 +187,6 @@ function buildFunnelAnalysis(allPages, analytics) {
   for (const type of funnelOrder) {
     const paths = pagesByType[type] || []
     for (const path of paths) {
-      // Try to match to analytics path (best effort)
       const routePath = '/' + path.replace(/^(src\/pages|pages|src\/views|src\/screens)\//, '')
         .replace(/\.(jsx|tsx|js|ts)$/, '')
         .replace(/\/index$/, '')
@@ -213,7 +208,6 @@ function buildFunnelAnalysis(allPages, analytics) {
     }
   }
 
-  // Sort by drop-off opportunity (highest drop = most urgent)
   const withDropOff = funnelPages.filter(p => p.dropOffScore !== null && p.dropOffScore > 0)
   const biggestDropOff = withDropOff.sort((a, b) => b.dropOffScore - a.dropOffScore)[0] || null
 
@@ -615,7 +609,6 @@ async function handleEvaluateAB(res) {
 
 // ─── PHASE 3: ROLLBACK AUTOMATION ────────────────────────────────────────────
 async function handleRollbackCheck(res) {
-  // Find runs deployed 48h ago that haven't been rolled back yet
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
   const ninetyTwoHoursAgo = new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString()
 
@@ -644,7 +637,6 @@ async function handleRollbackCheck(res) {
 
       if (!apiKey || !projectId) continue
 
-      // Get bounce rate before and after deploy
       const deployedAt = new Date(run.completed_at)
       const twoDaysBefore = new Date(deployedAt - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       const deployedDate = deployedAt.toISOString().split('T')[0]
@@ -694,11 +686,9 @@ async function handleRollbackCheck(res) {
 
       if (bounceBefore === null || bounceAfter === null) continue
 
-      // Rollback trigger: bounce rate increased by 15+ percentage points
       const bounceDelta = bounceAfter - bounceBefore
       const shouldRollback = bounceDelta >= 15
 
-      // Save impact metric regardless
       await supabase.from('impact_metrics').insert({
         run_id: run.id,
         metric_type: 'bounce_rate',
@@ -707,7 +697,6 @@ async function handleRollbackCheck(res) {
         measured_at: new Date().toISOString(),
       })
 
-      // Save learning either way
       await saveLearning(
         run.subscription_id,
         run.id,
@@ -715,18 +704,16 @@ async function handleRollbackCheck(res) {
         run.analysis_result?.problem || 'Unknown change',
         shouldRollback ? 'negative' : 'positive',
         'bounce_rate',
-        -bounceDelta, // negative delta = more bouncing = bad
+        -bounceDelta,
         'high'
       )
 
       if (shouldRollback) {
-        // Perform rollback via GitHub — revert the squash commit
         const octokit = await getOctokit(conn.github_installation_id)
         const owner = conn.github_repo_owner
         const repo = conn.github_repo_name
 
         try {
-          // Get commit history to find the agent commit
           const { data: commits } = await octokit.rest.repos.listCommits({
             owner, repo, per_page: 10
           })
@@ -734,7 +721,6 @@ async function handleRollbackCheck(res) {
           const agentCommit = commits.find(c => c.commit.message.startsWith('fix:') && c.commit.message.includes(run.analysis_result?.problem?.slice(0, 30)))
 
           if (agentCommit) {
-            // Create a revert commit
             const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: 'heads/main' })
             const branchName = `agent/rollback-${run.id.slice(0, 8)}`
 
@@ -744,7 +730,6 @@ async function handleRollbackCheck(res) {
               sha: ref.object.sha
             })
 
-            // Get the file as it was before the agent commit (parent commit)
             const parentSha = agentCommit.parents[0]?.sha
             if (parentSha && run.analysis_result?.file_to_edit) {
               const { data: originalFile } = await octokit.rest.repos.getContent({
@@ -783,7 +768,6 @@ async function handleRollbackCheck(res) {
 
               await supabase.from('agent_runs').update({ status: 'rolled_back' }).eq('id', run.id)
 
-              // Notify via Telegram
               await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -797,7 +781,6 @@ async function handleRollbackCheck(res) {
           }
         } catch (rollbackErr) {
           console.error('Rollback execution failed:', rollbackErr)
-          // Still notify even if auto-rollback failed
           await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -809,7 +792,6 @@ async function handleRollbackCheck(res) {
           })
         }
       } else if (bounceDelta <= -5) {
-        // Positive result — notify
         await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -836,14 +818,12 @@ async function fetchCompetitorData(competitorUrls) {
 
   for (const url of competitorUrls.slice(0, 2)) {
     try {
-      // Fetch competitor page HTML (basic, no JS rendering)
       const res = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VelyrBot/1.0)' },
         signal: AbortSignal.timeout(5000)
       })
       const html = await res.text()
 
-      // Extract meaningful text: title, h1, h2, meta description, CTAs
       const title = html.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]?.trim() || ''
       const metaDesc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1]?.trim() || ''
       const h1s = [...html.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean).slice(0, 3)
@@ -892,14 +872,12 @@ async function handleWeeklySummary(res) {
     try {
       const subscriptionId = conn.subscription_id
 
-      // Get analytics for the past week
       const analytics = await getPostHogAnalytics(
         conn.posthog_api_key || process.env.POSTHOG_API_KEY,
         conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
         conn.posthog_host || process.env.POSTHOG_HOST
       )
 
-      // Get all runs from the past week
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
       const { data: weekRuns } = await supabase
         .from('agent_runs')
@@ -908,7 +886,6 @@ async function handleWeeklySummary(res) {
         .gte('created_at', oneWeekAgo)
         .order('created_at', { ascending: false })
 
-      // Get completed A/B tests from the past week
       const { data: completedABTests } = await supabase
         .from('agent_ab_tests')
         .select('*')
@@ -916,7 +893,6 @@ async function handleWeeklySummary(res) {
         .eq('status', 'completed')
         .gte('created_at', oneWeekAgo)
 
-      // Get impact metrics for deployed runs this week
       const deployedRunIds = weekRuns?.filter(r => r.status === 'deployed' || r.status === 'rolled_back').map(r => r.id) || []
       let impactMetrics = []
       if (deployedRunIds.length > 0) {
@@ -927,7 +903,6 @@ async function handleWeeklySummary(res) {
         impactMetrics = metrics || []
       }
 
-      // Get DNA / learnings count
       const { data: allLearnings } = await supabase
         .from('agent_learnings')
         .select('outcome, delta, metric_type')
@@ -939,7 +914,6 @@ async function handleWeeklySummary(res) {
         ? Math.round(winLearnings.reduce((sum, l) => sum + (l.delta || 0), 0) / winLearnings.length)
         : null
 
-      // Build summary message
       const a = analytics?.last7Days
       const deployed = weekRuns?.filter(r => r.status === 'deployed').length || 0
       const rolledBack = weekRuns?.filter(r => r.status === 'rolled_back').length || 0
@@ -961,7 +935,6 @@ async function handleWeeklySummary(res) {
         : a.bounceRate > 50 ? `🟡 ${a.bounceRate}%`
         : `✅ ${a.bounceRate}%`
 
-      // Best metric change from impact_metrics this week
       let bestMetricLine = ''
       if (impactMetrics.length > 0) {
         const bounceMetrics = impactMetrics.filter(m => m.metric_type === 'bounce_rate' && m.value_before && m.value_after)
@@ -974,7 +947,6 @@ async function handleWeeklySummary(res) {
         }
       }
 
-      // A/B test summary
       let abSummary = ''
       if (completedABTests && completedABTests.length > 0) {
         const winners = completedABTests.filter(t => t.winner === 'treatment')
@@ -1086,7 +1058,6 @@ ALREADY FIXED — DO NOT SUGGEST THESE AGAIN:
 ${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 ` : ''
 
-  // ── PHASE 2: Business DNA injected into prompt ──
   const dnaContext = dna ? `
 BUSINESS DNA (past learnings — respect these):
 What worked well (double down on these patterns):
@@ -1096,7 +1067,6 @@ What did NOT work (avoid repeating these):
 ${dna.lossesText}
 ` : ''
 
-  // ── PHASE 3: Competitor context ──
   const competitorContext = competitorData && competitorData.length > 0 ? `
 COMPETITOR INTELLIGENCE:
 ${competitorData.map(c => `
@@ -1109,7 +1079,6 @@ Competitor: ${c.url}
 Use this to suggest DIFFERENTIATION opportunities. Where is the user's site weaker or less compelling than competitors? Where can they stand out?
 ` : ''
 
-  // ── PHASE 4: Brand Guardrails ──
   const guardrailsContext = guardrails ? `
 BRAND GUARDRAILS — YOU MUST FOLLOW THESE:
 ${guardrails.tone ? `- Tone: ${guardrails.tone}` : ''}
@@ -1119,7 +1088,6 @@ ${guardrails.custom_rules ? `- Additional rules: ${guardrails.custom_rules}` : '
 Any suggestion that violates these guardrails must be discarded. Do not explain why — just pick a different suggestion.
 ` : ''
 
-  // ── PHASE 4: Funnel Analysis ──
   const funnelContext = funnelAnalysis ? `
 MULTI-PAGE FUNNEL ANALYSIS (${funnelAnalysis.totalPages} pages detected):
 Page types found: ${Object.entries(funnelAnalysis.pageTypes).map(([t, n]) => `${t}: ${n}`).join(', ')}
@@ -1291,7 +1259,7 @@ async function createPR(octokit, owner, repo, analysis) {
   return pr
 }
 
-async function sendTelegramNotification(analysis, pr, runId, analytics) {
+async function sendTelegramNotification(analysis, pr, runId, analytics, chatId) {
   const a = analytics?.last7Days
 
   let socialLine = ''
@@ -1335,7 +1303,6 @@ ${revLine}_${ip.confidence_reason}_\n\n`
     riskBlock = `${riskEmoji} *Risk:* ${rs.risk_level.toUpperCase()} · ⏱ ${rs.effort_estimate} · ${rollbackText}\n_${rs.risk_reason}_\n\n`
   }
 
-  // ── PHASE 3: Competitor insight line ──
   const competitorLine = analysis.competitor_insight
     ? `🔍 *Competitor angle:* ${analysis.competitor_insight}\n\n`
     : ''
@@ -1360,13 +1327,15 @@ ${analysis.solution}
 
 Reply *approve ${runId}* or *reject ${runId}*`
 
+  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID
+
   const response = await fetch(
     `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: process.env.TELEGRAM_CHAT_ID,
+        chat_id: targetChatId,
         text: message,
         parse_mode: 'Markdown'
       })
@@ -1464,6 +1433,84 @@ async function handleMidweek(res) {
   return res.json({ success: true, mode: 'midweek' })
 }
 
+// ─── POSTHOG AUTO-SETUP ───────────────────────────────────────────────────────
+async function setupPostHogForConnection(conn) {
+  try {
+    const host = process.env.POSTHOG_HOST || 'https://eu.posthog.com'
+    const orgId = process.env.POSTHOG_ORG_ID
+
+    if (!orgId) {
+      console.error('POSTHOG_ORG_ID not set — skipping auto-setup')
+      return null
+    }
+
+    const phRes = await fetch(`${host}/api/organizations/${orgId}/projects/`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.POSTHOG_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: `velyr_${conn.subscription_id.slice(0, 8)}_${conn.github_repo_name}`,
+      }),
+    })
+
+    if (!phRes.ok) {
+      const err = await phRes.text()
+      console.error('PostHog project creation failed:', err)
+      return null
+    }
+
+    const project = await phRes.json()
+    const posthogProjectId = String(project.id)
+    const snippetToken = project.api_token // ph_... — goes into the user's snippet
+
+    // Save to DB
+    await supabase
+      .from('agent_connections')
+      .update({
+        posthog_project_id: posthogProjectId,
+        posthog_api_key: process.env.POSTHOG_API_KEY,
+        posthog_snippet_token: snippetToken,
+      })
+      .eq('id', conn.id)
+
+    // Detect framework from repo name heuristic (more robust detection happens in analyzeRepo)
+    const repoName = conn.github_repo_name?.toLowerCase() || ''
+    const isNext = repoName.includes('next')
+    const framework = isNext ? 'Next.js' : 'React/Vite'
+
+    const snippetCode = isNext
+      ? `// pages/_app.jsx  OR  app/layout.tsx\nimport posthog from 'posthog-js'\nif (typeof window !== 'undefined') {\n  posthog.init('${snippetToken}', {\n    api_host: 'https://eu.posthog.com'\n  })\n}`
+      : `// src/main.jsx\nimport posthog from 'posthog-js'\nposthog.init('${snippetToken}', {\n  api_host: 'https://eu.posthog.com'\n})`
+
+    // Send snippet via Telegram
+    const { data: sub } = await supabase
+      .from('agent_subscriptions')
+      .select('telegram_chat_id')
+      .eq('id', conn.subscription_id)
+      .single()
+
+    const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `📊 *Analytics ready!*\n\nAdd this to your ${framework} project once:\n\n\`\`\`javascript\n${snippetCode}\n\`\`\`\n\nFirst install the package:\n\`npm install posthog-js\`\n\n_Once added, the agent will use real visitor data for smarter recommendations. The first run already started without it._`,
+        parse_mode: 'Markdown',
+      }),
+    })
+
+    return { posthogProjectId, snippetToken }
+  } catch (err) {
+    console.error('PostHog auto-setup failed:', err)
+    return null // Non-blocking — agent continues regardless
+  }
+}
+
+// ─── MAIN RUN ─────────────────────────────────────────────────────────────────
 async function handleFullRun(res) {
   const { data: connections } = await supabase
     .from('agent_connections')
@@ -1475,6 +1522,17 @@ async function handleFullRun(res) {
   }
 
   for (const conn of connections) {
+
+    // ── PostHog auto-setup on first run if not yet configured ──
+    if (!conn.posthog_project_id) {
+      const phSetup = await setupPostHogForConnection(conn)
+      if (phSetup) {
+        // Update conn in memory so the rest of this run uses the new values
+        conn.posthog_project_id = phSetup.posthogProjectId
+        conn.posthog_api_key = process.env.POSTHOG_API_KEY
+      }
+    }
+
     const { data: run } = await supabase
       .from('agent_runs')
       .insert({ subscription_id: conn.subscription_id, status: 'running' })
@@ -1483,7 +1541,6 @@ async function handleFullRun(res) {
 
     const octokit = await getOctokit(conn.github_installation_id)
 
-    // ── PHASE 3: competitor URLs added to parallel fetches ──
     const competitorUrls = await getCompetitorUrls(conn.subscription_id)
 
     const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
@@ -1501,10 +1558,8 @@ async function handleFullRun(res) {
       fetchBrandGuardrails(conn.subscription_id),
     ])
 
-    // ── PHASE 4: Build funnel analysis from all pages + analytics ──
     const funnelAnalysis = buildFunnelAnalysis(allPages, analytics)
 
-    // Merge allPages into repoContent so AI sees all pages
     const enrichedRepoContent = { ...repoContent }
     for (const [path, info] of Object.entries(allPages)) {
       if (!enrichedRepoContent[path]) {
@@ -1514,7 +1569,16 @@ async function handleFullRun(res) {
 
     const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
     const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
-    const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics)
+
+    // Get chat_id for this specific user
+    const { data: sub } = await supabase
+      .from('agent_subscriptions')
+      .select('telegram_chat_id')
+      .eq('id', conn.subscription_id)
+      .single()
+
+    const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+    const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics, chatId)
 
     await supabase.from('agent_runs').update({
       status: 'waiting_approval',
@@ -1532,10 +1596,7 @@ async function handleFullRun(res) {
       telegram_message_id: messageId || null
     }).eq('id', run.id)
 
-    // ── PHASE 4: Save funnel page data ──
     await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis, allPages)
-
-    // ── PHASE 2: Start A/B test ──
     await createABTest(conn, run.id, analysis)
   }
 
