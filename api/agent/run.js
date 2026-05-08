@@ -61,14 +61,25 @@ export default async function handler(req, res) {
   const edgeUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-run`
 
   // Fire and forget — do NOT await
-  fetch(edgeUrl, {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${process.env.AGENT_CRON_SECRET}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ triggeredBy: 'cron' }),
-}).catch(err => console.error('Edge function fire failed:', err))
+  const controller = new AbortController()
+const timeoutId = setTimeout(() => controller.abort(), 2000)
+try {
+  await fetch(edgeUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.AGENT_CRON_SECRET}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ triggeredBy: 'cron' }),
+    signal: controller.signal,
+  })
+} catch (_) {
+  // Timeout oder abort ist ok — Request wurde trotzdem abgeschickt
+} finally {
+  clearTimeout(timeoutId)
+}
+
+return res.status(200).json({ success: true, message: 'Agent run started via Edge Function' })
 
   // Return immediately — Vercel function is done
   return res.status(200).json({ success: true, message: 'Agent run started via Edge Function' })
