@@ -545,15 +545,9 @@ export default function AgentOnboarding({ navigate }) {
     const allData = { ...formData, ...data }
 
     try {
-      // 1. PostHog-Projekt automatisch anlegen
-      const phRes = await fetch('/api/posthog-create-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectName: `velyr_${user.id.slice(0, 8)}` }),
-      })
-      const { projectId, apiToken } = await phRes.json()
+      // PostHog project is created automatically on the first agent run (run.js → setupPostHogForConnection)
 
-      // 2. Subscription anlegen
+      // 1. Subscription anlegen (PostHog wird beim ersten Agent-Run automatisch eingerichtet)
       const { data: sub, error: subError } = await supabase
         .from('agent_subscriptions')
         .insert({
@@ -577,10 +571,10 @@ export default function AgentOnboarding({ navigate }) {
           github_repo_owner: allData.repoOwner,
           github_repo_name: allData.repoName,
           website_url: allData.websiteUrl,
-          posthog_api_key: process.env.VITE_POSTHOG_CENTRAL_KEY || null,
-          posthog_project_id: projectId,
+          posthog_api_key: null,
+          posthog_project_id: null,
           posthog_host: 'https://eu.posthog.com',
-          posthog_snippet_token: apiToken,
+          posthog_snippet_token: null,
           telegram_chat_id: allData.telegramChatId,
         })
 
