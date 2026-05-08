@@ -1522,82 +1522,137 @@ async function handleFullRun(res) {
   }
 
   for (const conn of connections) {
+    let run = null
 
-    // ── PostHog auto-setup on first run if not yet configured ──
-    if (!conn.posthog_project_id) {
-      const phSetup = await setupPostHogForConnection(conn)
-      if (phSetup) {
-        // Update conn in memory so the rest of this run uses the new values
-        conn.posthog_project_id = phSetup.posthogProjectId
-        conn.posthog_api_key = process.env.POSTHOG_API_KEY
+    try {
+      // ── PostHog auto-setup on first run if not yet configured ──
+      if (!conn.posthog_project_id) {
+        const phSetup = await setupPostHogForConnection(conn)
+        if (phSetup) {
+          conn.posthog_project_id = phSetup.posthogProjectId
+          conn.posthog_api_key = process.env.POSTHOG_API_KEY
+        }
+      }
+
+      const { data: runData } = await supabase
+        .from('agent_runs')
+        .insert({ subscription_id: conn.subscription_id, status: 'running' })
+        .select()
+        .single()
+
+      run = runData
+
+      // ── Step 1: Fetching repo ──────────────────────────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'fetching_repo' }).eq('id', run.id)
+
+      const octokit = await getOctokit(conn.github_installation_id)
+      const competitorUrls = await getCompetitorUrls(conn.subscription_id)
+
+      // ── Step 2: Pulling analytics ──────────────────────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'pulling_analytics' }).eq('id', run.id)
+
+      const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
+        analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
+        detectAllPages(octokit, conn.github_repo_owner, conn.github_repo_name),
+        getPostHogAnalytics(
+          conn.posthog_api_key || process.env.POSTHOG_API_KEY,
+          conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
+          conn.posthog_host || process.env.POSTHOG_HOST
+        ),
+        conn.website_url ? getPageSpeedScore(conn.website_url) : null,
+        getPreviousRuns(conn.subscription_id),
+        fetchBusinessDNA(conn.subscription_id),
+        competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
+        fetchBrandGuardrails(conn.subscription_id),
+      ])
+
+      // ── Step 3: Mapping funnel ─────────────────────────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'mapping_funnel' }).eq('id', run.id)
+
+      const funnelAnalysis = buildFunnelAnalysis(allPages, analytics)
+      const enrichedRepoContent = { ...repoContent }
+      for (const [path, info] of Object.entries(allPages)) {
+        if (!enrichedRepoContent[path]) enrichedRepoContent[path] = info.content
+      }
+
+      // ── Step 4: Finding biggest issue (Claude API) ─────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'finding_biggest_issue' }).eq('id', run.id)
+
+      const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
+
+      // ── Step 5: Writing fix ────────────────────────────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'writing_fix' }).eq('id', run.id)
+
+      const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
+
+      // ── Step 6: Sending notification ───────────────────────────────────────
+      await supabase.from('agent_runs').update({ current_step: 'sending_notification' }).eq('id', run.id)
+
+      const { data: sub } = await supabase
+        .from('agent_subscriptions')
+        .select('telegram_chat_id')
+        .eq('id', conn.subscription_id)
+        .single()
+
+      const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+      const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics, chatId)
+
+      // ── Done ───────────────────────────────────────────────────────────────
+      await supabase.from('agent_runs').update({
+        status: 'waiting_approval',
+        current_step: 'done',
+        analysis_result: {
+          ...analysis,
+          analytics_snapshot: analytics?.last7Days
+        },
+        funnel_analysis: funnelAnalysis ? {
+          totalPages: funnelAnalysis.totalPages,
+          pageTypes: funnelAnalysis.pageTypes,
+          biggestDropOff: funnelAnalysis.biggestDropOff,
+        } : null,
+        pr_number: pr.number,
+        pr_url: pr.html_url,
+        telegram_message_id: messageId || null
+      }).eq('id', run.id)
+
+      await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis, allPages)
+      await createABTest(conn, run.id, analysis)
+
+    } catch (err) {
+      console.error(`[handleFullRun] Error for subscription ${conn.subscription_id}:`, err)
+
+      // Always mark run as failed so it doesn't hang forever
+      if (run?.id) {
+        await supabase.from('agent_runs').update({
+          status: 'failed',
+          error_message: err.message || 'Unknown error',
+        }).eq('id', run.id)
+      }
+
+      // Notify user via Telegram
+      try {
+        const { data: sub } = await supabase
+          .from('agent_subscriptions')
+          .select('telegram_chat_id')
+          .eq('id', conn.subscription_id)
+          .single()
+
+        const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
+        if (chatId) {
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `⚠️ *Velyr Agent — Run Failed*\n\n_${err.message || 'Unknown error'}_\n\nThe team has been notified. The agent will retry next run.`,
+              parse_mode: 'Markdown'
+            })
+          })
+        }
+      } catch (notifyErr) {
+        console.error('Failed to send error notification:', notifyErr)
       }
     }
-
-    const { data: run } = await supabase
-      .from('agent_runs')
-      .insert({ subscription_id: conn.subscription_id, status: 'running' })
-      .select()
-      .single()
-
-    const octokit = await getOctokit(conn.github_installation_id)
-
-    const competitorUrls = await getCompetitorUrls(conn.subscription_id)
-
-    const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
-      analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
-      detectAllPages(octokit, conn.github_repo_owner, conn.github_repo_name),
-      getPostHogAnalytics(
-        conn.posthog_api_key || process.env.POSTHOG_API_KEY,
-        conn.posthog_project_id || process.env.POSTHOG_PROJECT_ID,
-        conn.posthog_host || process.env.POSTHOG_HOST
-      ),
-      conn.website_url ? getPageSpeedScore(conn.website_url) : null,
-      getPreviousRuns(conn.subscription_id),
-      fetchBusinessDNA(conn.subscription_id),
-      competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
-      fetchBrandGuardrails(conn.subscription_id),
-    ])
-
-    const funnelAnalysis = buildFunnelAnalysis(allPages, analytics)
-
-    const enrichedRepoContent = { ...repoContent }
-    for (const [path, info] of Object.entries(allPages)) {
-      if (!enrichedRepoContent[path]) {
-        enrichedRepoContent[path] = info.content
-      }
-    }
-
-    const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
-    const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
-
-    // Get chat_id for this specific user
-    const { data: sub } = await supabase
-      .from('agent_subscriptions')
-      .select('telegram_chat_id')
-      .eq('id', conn.subscription_id)
-      .single()
-
-    const chatId = sub?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID
-    const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics, chatId)
-
-    await supabase.from('agent_runs').update({
-      status: 'waiting_approval',
-      analysis_result: {
-        ...analysis,
-        analytics_snapshot: analytics?.last7Days
-      },
-      funnel_analysis: funnelAnalysis ? {
-        totalPages: funnelAnalysis.totalPages,
-        pageTypes: funnelAnalysis.pageTypes,
-        biggestDropOff: funnelAnalysis.biggestDropOff,
-      } : null,
-      pr_number: pr.number,
-      pr_url: pr.html_url,
-      telegram_message_id: messageId || null
-    }).eq('id', run.id)
-
-    await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis, allPages)
-    await createABTest(conn, run.id, analysis)
   }
 
   return res.json({ success: true, processed: connections.length })
