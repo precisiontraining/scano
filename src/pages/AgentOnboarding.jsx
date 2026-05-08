@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -35,6 +36,8 @@ const CSS = `
   .ob-inp:focus { border-color: rgba(42,92,69,0.4); box-shadow: 0 0 0 3px rgba(42,92,69,0.08); }
   .ob-inp::placeholder { color: #b0a89e; }
   .ob-inp:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ob-inp.valid { border-color: rgba(42,92,69,0.5); }
+  .ob-inp.invalid { border-color: rgba(192,57,43,0.5); }
   .ob-btn {
     width: 100%; background: #1c1917; color: #f7f4ef; border: none; border-radius: 10px;
     padding: 15px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 15px;
@@ -270,18 +273,69 @@ function Step1({ onNext, onBack }) {
 // ─── STEP 2: GitHub ──────────────────────────────────────────────────────────
 function Step2({ onNext, onBack }) {
   const [installationId, setInstallationId] = useState('')
-  const [repoOwner, setRepoOwner] = useState('')
-  const [repoName, setRepoName] = useState('')
-  const [error, setError] = useState('')
+  const [repoOwner, setRepoOwner]     = useState('')
+  const [repoName, setRepoName]       = useState('')
+  const [error, setError]             = useState('')
   const [appInstalled, setAppInstalled] = useState(false)
+
+  // FIX 1: GitHub validation state
+  const [validating, setValidating]   = useState(false)
+  const [repoValid, setRepoValid]     = useState(null) // null | true | false
+
+  // Validate repo via Velyr's own backend to avoid CORS issues with GitHub API
+  const validateRepo = async () => {
+    if (!installationId.trim() || !repoOwner.trim() || !repoName.trim()) {
+      setError('Please fill in all fields before validating.')
+      return
+    }
+    setValidating(true)
+    setError('')
+    setRepoValid(null)
+
+    try {
+      const res = await fetch('/api/github/validate-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          installationId: parseInt(installationId),
+          repoOwner: repoOwner.trim(),
+          repoName: repoName.trim(),
+        }),
+      })
+      const json = await res.json()
+      if (res.ok && json.valid) {
+        setRepoValid(true)
+        setError('')
+      } else {
+        setRepoValid(false)
+        setError(json.message || 'Could not access this repository. Check your details and try again.')
+      }
+    } catch {
+      setRepoValid(false)
+      setError('Validation failed. Please check your connection and try again.')
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  // Reset validation when inputs change
+  const handleOwnerChange  = (v) => { setRepoOwner(v);  setRepoValid(null); setError('') }
+  const handleNameChange   = (v) => { setRepoName(v);   setRepoValid(null); setError('') }
+  const handleIdChange     = (v) => { setInstallationId(v); setRepoValid(null); setError('') }
 
   const handleNext = () => {
     if (!installationId.trim() || !repoOwner.trim() || !repoName.trim()) {
       setError('Please fill in all fields.')
       return
     }
+    if (repoValid !== true) {
+      setError('Please validate your repository first.')
+      return
+    }
     onNext({ installationId, repoOwner, repoName })
   }
+
+  const allFilled = installationId.trim() && repoOwner.trim() && repoName.trim()
 
   return (
     <div>
@@ -293,6 +347,7 @@ function Step2({ onNext, onBack }) {
         The agent reads your code and creates Pull Requests with fixes — directly in your repo.
       </p>
 
+      {/* Install App card */}
       <div style={{ border: `1px solid ${appInstalled ? 'rgba(42,92,69,0.3)' : C.border}`, background: appInstalled ? 'rgba(42,92,69,0.04)' : '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 12, transition: 'all .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -326,34 +381,70 @@ function Step2({ onNext, onBack }) {
         </div>
       </div>
 
-      <div style={{ border: `1px solid ${C.border}`, background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 16, opacity: appInstalled ? 1 : 0.5, transition: 'opacity .3s' }}>
+      {/* Details + validation card */}
+      <div style={{ border: `1px solid ${repoValid === true ? 'rgba(42,92,69,0.3)' : repoValid === false ? 'rgba(192,57,43,0.3)' : C.border}`, background: repoValid === true ? 'rgba(42,92,69,0.04)' : '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 16, opacity: appInstalled ? 1 : 0.5, transition: 'all .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'transparent', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.textLight, fontWeight: 500, flexShrink: 0 }}>2</div>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: repoValid === true ? C.accent : 'transparent', border: `1px solid ${repoValid === true ? C.accent : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: repoValid === true ? '#fff' : C.textLight, fontWeight: 500, flexShrink: 0 }}>
+            {repoValid === true ? '✓' : '2'}
+          </div>
           <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Enter your details</p>
+          {repoValid === true && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e', marginLeft: 'auto' }} />}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div>
             <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>GitHub Username / Organization</label>
-            <input className="ob-inp" placeholder="e.g. FlosGit" value={repoOwner} onChange={e => setRepoOwner(e.target.value)} disabled={!appInstalled} />
+            <input className={`ob-inp${repoValid === true ? ' valid' : repoValid === false ? ' invalid' : ''}`} placeholder="e.g. FlosGit" value={repoOwner} onChange={e => handleOwnerChange(e.target.value)} disabled={!appInstalled} />
           </div>
           <div>
             <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>Repository Name</label>
-            <input className="ob-inp" placeholder="e.g. my-website" value={repoName} onChange={e => setRepoName(e.target.value)} disabled={!appInstalled} />
+            <input className={`ob-inp${repoValid === true ? ' valid' : repoValid === false ? ' invalid' : ''}`} placeholder="e.g. my-website" value={repoName} onChange={e => handleNameChange(e.target.value)} disabled={!appInstalled} />
           </div>
           <div>
             <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6 }}>
               Installation ID
               <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 300 }}>(the number in the URL: /installations/<strong>12345678</strong>)</span>
             </label>
-            <input className="ob-inp" placeholder="e.g. 129153460" value={installationId} onChange={e => setInstallationId(e.target.value)} disabled={!appInstalled} />
+            <input className={`ob-inp${repoValid === true ? ' valid' : repoValid === false ? ' invalid' : ''}`} placeholder="e.g. 129153460" value={installationId} onChange={e => handleIdChange(e.target.value)} disabled={!appInstalled} />
           </div>
+
+          {/* Validate button */}
+          {appInstalled && repoValid !== true && (
+            <button
+              onClick={validateRepo}
+              disabled={!allFilled || validating}
+              style={{
+                background: allFilled && !validating ? 'rgba(42,92,69,0.1)' : 'transparent',
+                border: `1px solid ${allFilled ? 'rgba(42,92,69,0.35)' : C.border}`,
+                borderRadius: 8, padding: '10px 16px', fontSize: 13,
+                fontFamily: 'Jost, sans-serif', fontWeight: 500,
+                color: allFilled ? C.accent : C.textLight,
+                cursor: allFilled && !validating ? 'pointer' : 'not-allowed',
+                transition: 'all .2s', display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              {validating ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                  </svg>
+                  Validating…
+                </>
+              ) : '→ Validate repository access'}
+            </button>
+          )}
+
+          {repoValid === true && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.accent, fontWeight: 400 }}>
+              <span>✓</span> Repository verified — the agent can access <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 12 }}>{repoOwner}/{repoName}</code>
+            </div>
+          )}
         </div>
       </div>
 
       {error && <p style={{ fontSize: 13, color: C.red, marginBottom: 12 }}>{error}</p>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="ob-btn-ghost" onClick={onBack} style={{ flex: '0 0 auto', width: 'auto', padding: '14px 20px' }}>← Back</button>
-        <button className="ob-btn" onClick={handleNext} disabled={!appInstalled}>Continue →</button>
+        <button className="ob-btn" onClick={handleNext} disabled={!appInstalled || repoValid !== true}>Continue →</button>
       </div>
     </div>
   )
@@ -398,8 +489,8 @@ function Step3({ onNext, onBack }) {
 
 // ─── STEP 4: Telegram ────────────────────────────────────────────────────────
 function Step4({ onNext, onBack, loading }) {
-  const [code, setCode] = useState('')
-  const [error, setError] = useState('')
+  const [code, setCode]           = useState('')
+  const [error, setError]         = useState('')
   const [verifying, setVerifying] = useState(false)
   const [botOpened, setBotOpened] = useState(false)
 
@@ -407,7 +498,6 @@ function Step4({ onNext, onBack, loading }) {
     const trimmed = code.trim().toUpperCase()
     if (!trimmed) { setError('Please enter your verification code.'); return }
 
-    // ✅ FIXED: was `trimmed.length < 12` which blocked valid 12-char codes like VELYR-XXXXXX
     if (!/^VELYR-[A-Z0-9]{6}$/.test(trimmed)) {
       setError('Invalid code format. It should look like VELYR-XXXXXX.')
       return
@@ -444,19 +534,9 @@ function Step4({ onNext, onBack, loading }) {
         The agent sends you weekly reports and PR approvals via Telegram. Connect it in 2 steps.
       </p>
 
-      <div style={{
-        border: `1px solid ${botOpened ? 'rgba(42,92,69,0.3)' : C.border}`,
-        background: botOpened ? 'rgba(42,92,69,0.04)' : '#fff',
-        borderRadius: 12, padding: '16px 18px', marginBottom: 12, transition: 'all .3s',
-      }}>
+      <div style={{ border: `1px solid ${botOpened ? 'rgba(42,92,69,0.3)' : C.border}`, background: botOpened ? 'rgba(42,92,69,0.04)' : '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 12, transition: 'all .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: botOpened ? C.accent : 'transparent',
-            border: `1px solid ${botOpened ? C.accent : C.border}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, color: botOpened ? '#fff' : C.textLight, fontWeight: 500, flexShrink: 0,
-          }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: botOpened ? C.accent : 'transparent', border: `1px solid ${botOpened ? C.accent : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: botOpened ? '#fff' : C.textLight, fontWeight: 500, flexShrink: 0 }}>
             {botOpened ? '✓' : '1'}
           </div>
           <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Open @VelyrBot and send /start</p>
@@ -465,39 +545,20 @@ function Step4({ onNext, onBack, loading }) {
           The bot will send you a 6-character verification code. You'll need it in step 2.
         </p>
         <div style={{ paddingLeft: 32 }}>
-          <a
-            href="https://t.me/VelyrBot"
-            target="_blank"
-            rel="noreferrer"
-            className="tg-open-btn"
-            style={{ display: 'inline-flex', width: 'auto', padding: '9px 18px' }}
-            onClick={() => setTimeout(() => setBotOpened(true), 2000)}
-          >
+          <a href="https://t.me/VelyrBot" target="_blank" rel="noreferrer" className="tg-open-btn" style={{ display: 'inline-flex', width: 'auto', padding: '9px 18px' }} onClick={() => setTimeout(() => setBotOpened(true), 2000)}>
             <TelegramIcon size={16} />
             Open @VelyrBot
           </a>
         </div>
       </div>
 
-      <div style={{
-        border: `1px solid ${C.border}`, background: '#fff',
-        borderRadius: 12, padding: '16px 18px', marginBottom: 16,
-        opacity: botOpened ? 1 : 0.5, transition: 'opacity .3s',
-      }}>
+      <div style={{ border: `1px solid ${C.border}`, background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 16, opacity: botOpened ? 1 : 0.5, transition: 'opacity .3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'transparent', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.textLight, fontWeight: 500, flexShrink: 0 }}>2</div>
           <p style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Enter your verification code</p>
         </div>
         <div style={{ paddingLeft: 32 }}>
-          <input
-            className="ob-inp"
-            placeholder="VELYR-XXXXXX"
-            value={code}
-            onChange={e => setCode(e.target.value.toUpperCase())}
-            disabled={!botOpened}
-            style={{ fontFamily: 'DM Mono, monospace', letterSpacing: '.08em', fontSize: 16 }}
-            onKeyDown={e => e.key === 'Enter' && handleNext()}
-          />
+          <input className="ob-inp" placeholder="VELYR-XXXXXX" value={code} onChange={e => setCode(e.target.value.toUpperCase())} disabled={!botOpened} style={{ fontFamily: 'DM Mono, monospace', letterSpacing: '.08em', fontSize: 16 }} onKeyDown={e => e.key === 'Enter' && handleNext()} />
         </div>
       </div>
 
@@ -520,11 +581,13 @@ function Step4({ onNext, onBack, loading }) {
 }
 
 // ─── ROOT ────────────────────────────────────────────────────────────────────
-export default function AgentOnboarding({ navigate }) {
-  const [step, setStep] = useState(0)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+// FIX 3: useNavigate hook instead of navigate prop
+export default function AgentOnboarding() {
+  const navigate = useNavigate()
+  const [step, setStep]         = useState(0)
+  const [user, setUser]         = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
   const [formData, setFormData] = useState({})
 
   useEffect(() => {
@@ -534,7 +597,7 @@ export default function AgentOnboarding({ navigate }) {
     })
   }, [])
 
-  const handleStep0 = () => setStep(1)
+  const handleStep0 = ()     => setStep(1)
   const handleStep1 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(2) }
   const handleStep2 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(3) }
   const handleStep3 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(4) }
@@ -545,9 +608,20 @@ export default function AgentOnboarding({ navigate }) {
     const allData = { ...formData, ...data }
 
     try {
-      // PostHog project is created automatically on the first agent run (run.js → setupPostHogForConnection)
+      // FIX 2: Duplicate-check — prevent double subscriptions for the same user
+      const { data: existingSub } = await supabase
+        .from('agent_subscriptions')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
 
-      // 1. Subscription anlegen (PostHog wird beim ersten Agent-Run automatisch eingerichtet)
+      if (existingSub) {
+        // Already has a subscription — just redirect to dashboard
+        navigate('/agent/dashboard')
+        return
+      }
+
+      // 1. Create subscription
       const { data: sub, error: subError } = await supabase
         .from('agent_subscriptions')
         .insert({
@@ -562,7 +636,7 @@ export default function AgentOnboarding({ navigate }) {
 
       if (subError) throw subError
 
-      // 3. Connection anlegen
+      // 2. Create connection
       const { error: connError } = await supabase
         .from('agent_connections')
         .insert({
@@ -580,7 +654,7 @@ export default function AgentOnboarding({ navigate }) {
 
       if (connError) throw connError
 
-      // 4. Verification code als benutzt markieren
+      // 3. Mark verification code as used
       await supabase
         .from('telegram_verification_codes')
         .update({ used: true })
