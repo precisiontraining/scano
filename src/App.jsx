@@ -413,7 +413,7 @@ export default function App() {
   if (path === '/agent/login')            return <AgentAuth navigate={navigate} mode="login" />
   if (path === '/agent/register')         return <AgentAuth navigate={navigate} mode="register" />
   if (path === '/agent/reset-password')   return <ResetPassword navigate={navigate} />
-  if (path === '/agent/onboarding')       return <AgentOnboarding />
+  if (path === '/agent/onboarding')       return <AgentOnboarding navigate={navigate} />
   if (path === '/agent' || path === '/agent/dashboard') return <AgentDashboard navigate={navigate} />
 
   if (scanning) return <ScanningScreen url={scanningUrl} liveData={liveData} />

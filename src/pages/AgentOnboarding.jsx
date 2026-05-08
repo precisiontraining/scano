@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -582,8 +582,8 @@ function Step4({ onNext, onBack, loading }) {
 
 // ─── ROOT ────────────────────────────────────────────────────────────────────
 // FIX 3: useNavigate hook instead of navigate prop
-export default function AgentOnboarding() {
-  const navigate = useNavigate()
+export default function AgentOnboarding({ navigate }) {
+  
   const [step, setStep]         = useState(0)
   const [user, setUser]         = useState(null)
   const [loading, setLoading]   = useState(false)
