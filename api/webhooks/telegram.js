@@ -72,11 +72,12 @@ async function handleStart(message) {
     return sendMessage(chatId, '❌ Something went wrong generating your code. Please try again.')
   }
 
-  // Save code to DB
+  // Save code to DB — include expires_at so the frontend query works
   await supabase.from('telegram_verification_codes').insert({
     code,
     chat_id: chatId,
     telegram_username: username,
+    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // ✅ 30 min TTL
   })
 
   await sendMessage(
