@@ -359,8 +359,8 @@ function Step2({ onNext, onBack }) {
   )
 }
 
-// ─── STEP 3: Analytics (Zentralisiert) ──────────────────────────────────────
-function Step3({ onNext, onBack, websiteUrl }) {
+// ─── STEP 3: Analytics ───────────────────────────────────────────────────────
+function Step3({ onNext, onBack }) {
   return (
     <div>
       <p style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 12, fontWeight: 400 }}>Step 3 of 4</p>
@@ -406,7 +406,9 @@ function Step4({ onNext, onBack, loading }) {
   const handleNext = async () => {
     const trimmed = code.trim().toUpperCase()
     if (!trimmed) { setError('Please enter your verification code.'); return }
-    if (!trimmed.startsWith('VELYR-') || trimmed.length < 12) {
+
+    // ✅ FIXED: was `trimmed.length < 12` which blocked valid 12-char codes like VELYR-XXXXXX
+    if (!/^VELYR-[A-Z0-9]{6}$/.test(trimmed)) {
       setError('Invalid code format. It should look like VELYR-XXXXXX.')
       return
     }
@@ -414,7 +416,6 @@ function Step4({ onNext, onBack, loading }) {
     setVerifying(true)
     setError('')
 
-    // Verify code exists and is not expired/used
     const { data: record, error: dbError } = await supabase
       .from('telegram_verification_codes')
       .select('*')
@@ -443,7 +444,6 @@ function Step4({ onNext, onBack, loading }) {
         The agent sends you weekly reports and PR approvals via Telegram. Connect it in 2 steps.
       </p>
 
-      {/* Step 1: Open bot */}
       <div style={{
         border: `1px solid ${botOpened ? 'rgba(42,92,69,0.3)' : C.border}`,
         background: botOpened ? 'rgba(42,92,69,0.04)' : '#fff',
@@ -479,7 +479,6 @@ function Step4({ onNext, onBack, loading }) {
         </div>
       </div>
 
-      {/* Step 2: Enter code */}
       <div style={{
         border: `1px solid ${C.border}`, background: '#fff',
         borderRadius: 12, padding: '16px 18px', marginBottom: 16,
@@ -540,66 +539,66 @@ export default function AgentOnboarding({ navigate }) {
   const handleStep2 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(3) }
   const handleStep3 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(4) }
 
-const handleStep4 = async (data) => {
-  setLoading(true)
-  setError('')
-  const allData = { ...formData, ...data }
+  const handleStep4 = async (data) => {
+    setLoading(true)
+    setError('')
+    const allData = { ...formData, ...data }
 
-  try {
-    // 1. PostHog-Projekt automatisch anlegen
-    const phRes = await fetch('/api/posthog-create-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectName: `velyr_${user.id.slice(0, 8)}` }),
-    })
-    const { projectId, apiToken } = await phRes.json()
-
-    // 2. Subscription anlegen
-    const { data: sub, error: subError } = await supabase
-      .from('agent_subscriptions')
-      .insert({
-        user_id: user.id,
-        auth_user_id: user.id,
-        email: user.email,
-        plan: 'growth',
-        status: 'active',
+    try {
+      // 1. PostHog-Projekt automatisch anlegen
+      const phRes = await fetch('/api/posthog-create-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectName: `velyr_${user.id.slice(0, 8)}` }),
       })
-      .select()
-      .single()
+      const { projectId, apiToken } = await phRes.json()
 
-    if (subError) throw subError
+      // 2. Subscription anlegen
+      const { data: sub, error: subError } = await supabase
+        .from('agent_subscriptions')
+        .insert({
+          user_id: user.id,
+          auth_user_id: user.id,
+          email: user.email,
+          plan: 'growth',
+          status: 'active',
+        })
+        .select()
+        .single()
 
-    // 3. Connection mit zentralisierten PostHog-Daten
-    const { error: connError } = await supabase
-      .from('agent_connections')
-      .insert({
-        subscription_id: sub.id,
-        github_installation_id: parseInt(allData.installationId),
-        github_repo_owner: allData.repoOwner,
-        github_repo_name: allData.repoName,
-        website_url: allData.websiteUrl,
-        posthog_api_key: process.env.VITE_POSTHOG_CENTRAL_KEY || null, // dein zentraler Key
-        posthog_project_id: projectId,
-        posthog_host: 'https://eu.posthog.com',
-        posthog_snippet_token: apiToken, // NEU: für den Snippet an den User
-        telegram_chat_id: allData.telegramChatId,
-      })
+      if (subError) throw subError
 
-    if (connError) throw connError
+      // 3. Connection anlegen
+      const { error: connError } = await supabase
+        .from('agent_connections')
+        .insert({
+          subscription_id: sub.id,
+          github_installation_id: parseInt(allData.installationId),
+          github_repo_owner: allData.repoOwner,
+          github_repo_name: allData.repoName,
+          website_url: allData.websiteUrl,
+          posthog_api_key: process.env.VITE_POSTHOG_CENTRAL_KEY || null,
+          posthog_project_id: projectId,
+          posthog_host: 'https://eu.posthog.com',
+          posthog_snippet_token: apiToken,
+          telegram_chat_id: allData.telegramChatId,
+        })
 
-    // 4. Verification code als benutzt markieren
-    await supabase
-      .from('telegram_verification_codes')
-      .update({ used: true })
-      .eq('code', allData.telegramCode)
+      if (connError) throw connError
 
-    navigate('/agent/dashboard')
-  } catch (err) {
-    console.error(err)
-    setError('Something went wrong. Please try again.')
-    setLoading(false)
+      // 4. Verification code als benutzt markieren
+      await supabase
+        .from('telegram_verification_codes')
+        .update({ used: true })
+        .eq('code', allData.telegramCode)
+
+      navigate('/agent/dashboard')
+    } catch (err) {
+      console.error(err)
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
+    }
   }
-}
 
   return (
     <>
