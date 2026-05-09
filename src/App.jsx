@@ -116,7 +116,9 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
       <style>{CSS_SCANNER}</style>
       <div style={{ minHeight: '100vh', background: '#f7f4ef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Jost, sans-serif', padding: '40px 24px' }}>
         <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <p style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 18, color: '#1c1917', marginBottom: 44, letterSpacing: '-.01em' }}>Scano{isPremium ? ' · Full Audit' : ''}</p>
+          <p style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 18, color: '#1c1917', marginBottom: 44, letterSpacing: '-.01em' }}>
+            Velyr{isPremium ? ' · Full Audit' : ''}
+          </p>
           <RadarLogo />
           <p style={{ fontSize: 12, color: '#a09890', fontWeight: 300, marginBottom: 20, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '.01em' }}>{url}</p>
           <p key={phaseKey} className="phase-label" style={{ fontSize: 13, color: '#2a5c45', fontWeight: 300, letterSpacing: '.03em', marginBottom: 16, textAlign: 'center' }}>{phase}</p>
@@ -176,7 +178,7 @@ export default function App() {
   const [premiumLiveData, setPremiumLiveData]       = useState({})
   const [premiumError, setPremiumError]             = useState(null)
 
-  // Auth redirect handler — fängt Login-Callbacks UND Password-Recovery ab
+  // Auth redirect handler
   useEffect(() => {
     const hash = window.location.hash
     if (hash.includes('type=recovery')) {
@@ -451,9 +453,14 @@ export default function App() {
     )
   }
 
+  // ── FIX: /premium now renders PremiumScanForm instead of redirecting to / ───
   if (path === '/premium') {
-    navigate('/')
-    return null
+    return (
+      <PremiumScanForm
+        navigate={navigate}
+        onScanStart={handlePremiumScanStart}
+      />
+    )
   }
 
   return (
