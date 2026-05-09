@@ -24,7 +24,6 @@ function base64Encode(str: string): string {
 
 // ─── ENTRY POINT ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -164,7 +163,7 @@ function buildFunnelAnalysis(allPages: any, analytics: any) {
     }
   }
 
-  const withDropOff   = funnelPages.filter(p => p.dropOffScore !== null && p.dropOffScore > 0)
+  const withDropOff    = funnelPages.filter(p => p.dropOffScore !== null && p.dropOffScore > 0)
   const biggestDropOff = withDropOff.sort((a, b) => b.dropOffScore - a.dropOffScore)[0] || null
 
   return {
@@ -205,10 +204,10 @@ async function fetchBrandGuardrails(subscriptionId: string) {
 // ─── POSTHOG ANALYTICS ───────────────────────────────────────────────────────
 async function getPostHogAnalytics(posthogApiKey: string, posthogProjectId: string, posthogHost = 'https://eu.posthog.com') {
   try {
-    const headers       = { 'Authorization': `Bearer ${posthogApiKey}`, 'Content-Type': 'application/json' }
-    const sevenDaysAgo  = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const headers         = { 'Authorization': `Bearer ${posthogApiKey}`, 'Content-Type': 'application/json' }
+    const sevenDaysAgo    = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const today         = new Date().toISOString().split('T')[0]
+    const today           = new Date().toISOString().split('T')[0]
 
     const query = (body: any) =>
       fetch(`${posthogHost}/api/projects/${posthogProjectId}/query/`, {
@@ -243,12 +242,12 @@ async function getPostHogAnalytics(posthogApiKey: string, posthogProjectId: stri
     referrers.results?.forEach((row: any) => {
       const domain = row[0] || '', visits = row[1]
       if (domain) trafficSources.push({ domain, visits })
-      if (domain.includes('tiktok'))                                socialBreakdown.tiktok    += visits
-      else if (domain.includes('instagram') || domain.includes('ig.me')) socialBreakdown.instagram += visits
+      if (domain.includes('tiktok'))                                       socialBreakdown.tiktok    += visits
+      else if (domain.includes('instagram') || domain.includes('ig.me'))  socialBreakdown.instagram += visits
       else if (domain.includes('youtube')   || domain.includes('youtu.be')) socialBreakdown.youtube  += visits
-      else if (domain.includes('twitter')   || domain.includes('t.co'))     socialBreakdown.twitter  += visits
-      else if (domain.includes('facebook')  || domain.includes('fb.me'))    socialBreakdown.facebook += visits
-      else if (domain.includes('google'))                           socialBreakdown.google    += visits
+      else if (domain.includes('twitter')   || domain.includes('t.co'))   socialBreakdown.twitter  += visits
+      else if (domain.includes('facebook')  || domain.includes('fb.me'))  socialBreakdown.facebook += visits
+      else if (domain.includes('google'))                                  socialBreakdown.google    += visits
     })
 
     const deviceBreakdown: Record<string, number> = {}
@@ -357,8 +356,8 @@ async function createABTest(conn: any, runId: string, analysis: any) {
         filters: {
           groups: [{ properties: [], rollout_percentage: 50 }],
           multivariate: { variants: [
-            { key: 'control',   name: 'Control (original)',    rollout_percentage: 50 },
-            { key: 'treatment', name: 'Treatment (Velyr)',     rollout_percentage: 50 },
+            { key: 'control',   name: 'Control (original)',  rollout_percentage: 50 },
+            { key: 'treatment', name: 'Treatment (Velyr)',   rollout_percentage: 50 },
           ]},
         },
       }),
@@ -379,6 +378,7 @@ async function createABTest(conn: any, runId: string, analysis: any) {
 }
 
 // ─── POSTHOG AUTO-SETUP ──────────────────────────────────────────────────────
+// FIX: removed 'continue' outside loop — now returns early with null instead
 async function setupPostHogForConnection(conn: any) {
   try {
     const host  = Deno.env.get('POSTHOG_HOST') || 'https://eu.posthog.com'
@@ -392,24 +392,29 @@ async function setupPostHogForConnection(conn: any) {
     })
     if (!phRes.ok) { console.error('PostHog project creation failed:', await phRes.text()); return null }
 
-    const project        = await phRes.json()
+    const project          = await phRes.json()
     const posthogProjectId = String(project.id)
-    const snippetToken   = project.api_token
+    const snippetToken     = project.api_token
 
     await supabase.from('agent_connections').update({
-      posthog_project_id: posthogProjectId,
-      posthog_api_key:    Deno.env.get('POSTHOG_API_KEY'),
+      posthog_project_id:    posthogProjectId,
+      posthog_api_key:       Deno.env.get('POSTHOG_API_KEY'),
       posthog_snippet_token: snippetToken,
     }).eq('id', conn.id)
 
-    const isNext       = conn.github_repo_name?.toLowerCase().includes('next')
-    const framework    = isNext ? 'Next.js' : 'React/Vite'
-    const snippetCode  = isNext
+    const isNext      = conn.github_repo_name?.toLowerCase().includes('next')
+    const framework   = isNext ? 'Next.js' : 'React/Vite'
+    const snippetCode = isNext
       ? `// pages/_app.jsx  OR  app/layout.tsx\nimport posthog from 'posthog-js'\nif (typeof window !== 'undefined') {\n  posthog.init('${snippetToken}', { api_host: 'https://eu.posthog.com' })\n}`
       : `// src/main.jsx\nimport posthog from 'posthog-js'\nposthog.init('${snippetToken}', { api_host: 'https://eu.posthog.com' })`
 
-    const { data: sub } = await supabase.from('agent_subscriptions').select('telegram_chat_id').eq('id', conn.subscription_id).single()
-    const chatId = sub?.telegram_chat_id || Deno.env.get('TELEGRAM_CHAT_ID')
+    const { data: sub } = await supabase
+      .from('agent_subscriptions').select('telegram_chat_id')
+      .eq('id', conn.subscription_id).single()
+
+    // FIX: was 'continue' (invalid outside loop) — now returns null early
+    const chatId = sub?.telegram_chat_id
+    if (!chatId) return null
 
     await fetch(`https://api.telegram.org/bot${Deno.env.get('TELEGRAM_BOT_TOKEN')}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -434,9 +439,9 @@ function estimateRevenueImpact(visitors: number, bounceRate: number, conversionL
   const currentConversions    = monthlyVisitors * (1 - bounceRate / 100) * 0.02
   const additionalConversions = currentConversions * conversionLift
   return {
-    revenueMin:             Math.round(additionalConversions * avgOrderValue * 0.7),
-    revenueMax:             Math.round(additionalConversions * avgOrderValue * 1.3),
-    additionalConversions:  Math.round(additionalConversions),
+    revenueMin:            Math.round(additionalConversions * avgOrderValue * 0.7),
+    revenueMax:            Math.round(additionalConversions * avgOrderValue * 1.3),
+    additionalConversions: Math.round(additionalConversions),
   }
 }
 
@@ -458,12 +463,12 @@ TRAFFIC SOURCES:
 ${a.utmCampaigns.length > 0 ? `UTM CAMPAIGNS:\n${a.utmCampaigns.map((c: any) => `- ${c.source || 'unknown'} / ${c.campaign || 'no campaign'}: ${c.visits} visits`).join('\n')}` : ''}
 ` : 'No analytics data available.'
 
-  const pageSpeedContext    = pageSpeed ? `PERFORMANCE (mobile):\n- Score: ${pageSpeed.performance}/100\n- LCP: ${pageSpeed.lcp}\n- CLS: ${pageSpeed.cls}\n- TBT: ${pageSpeed.fid}` : ''
+  const pageSpeedContext     = pageSpeed ? `PERFORMANCE (mobile):\n- Score: ${pageSpeed.performance}/100\n- LCP: ${pageSpeed.lcp}\n- CLS: ${pageSpeed.cls}\n- TBT: ${pageSpeed.fid}` : ''
   const previousFixesContext = previousFixes.length > 0 ? `ALREADY FIXED — DO NOT SUGGEST THESE AGAIN:\n${previousFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}` : ''
-  const dnaContext          = dna ? `BUSINESS DNA:\nWins:\n${dna.winsText}\nLosses:\n${dna.lossesText}` : ''
-  const competitorContext   = competitorData?.length > 0 ? `COMPETITOR INTELLIGENCE:\n${competitorData.map((c: any) => `Competitor: ${c.url}\n- Title: ${c.title}\n- Headlines: ${c.headlines.join(' | ')}\n- CTAs: ${c.ctas.join(' | ')}`).join('\n')}` : ''
-  const guardrailsContext   = guardrails ? `BRAND GUARDRAILS — FOLLOW THESE:\n${guardrails.tone ? `- Tone: ${guardrails.tone}` : ''}\n${guardrails.forbidden_patterns?.length ? `- NEVER: ${guardrails.forbidden_patterns.join(', ')}` : ''}\n${guardrails.protected_elements?.length ? `- NEVER change: ${guardrails.protected_elements.join(', ')}` : ''}\n${guardrails.custom_rules || ''}` : ''
-  const funnelContext       = funnelAnalysis ? `FUNNEL ANALYSIS (${funnelAnalysis.totalPages} pages):\nPage types: ${Object.entries(funnelAnalysis.pageTypes).map(([t, n]) => `${t}: ${n}`).join(', ')}\n${funnelAnalysis.funnelPages.filter((p: any) => p.views > 0).map((p: any) => `- ${p.filePath} (${p.pageType}) → ${p.views} views${p.dropOffScore ? `, ${p.dropOffScore}% drop-off` : ''}`).join('\n')}\n${funnelAnalysis.biggestDropOff ? `BIGGEST DROP-OFF: ${funnelAnalysis.biggestDropOff.filePath} — ${funnelAnalysis.biggestDropOff.dropOffScore}% drop-off` : ''}` : ''
+  const dnaContext           = dna ? `BUSINESS DNA:\nWins:\n${dna.winsText}\nLosses:\n${dna.lossesText}` : ''
+  const competitorContext    = competitorData?.length > 0 ? `COMPETITOR INTELLIGENCE:\n${competitorData.map((c: any) => `Competitor: ${c.url}\n- Title: ${c.title}\n- Headlines: ${c.headlines.join(' | ')}\n- CTAs: ${c.ctas.join(' | ')}`).join('\n')}` : ''
+  const guardrailsContext    = guardrails ? `BRAND GUARDRAILS — FOLLOW THESE:\n${guardrails.tone ? `- Tone: ${guardrails.tone}` : ''}\n${guardrails.forbidden_patterns?.length ? `- NEVER: ${guardrails.forbidden_patterns.join(', ')}` : ''}\n${guardrails.protected_elements?.length ? `- NEVER change: ${guardrails.protected_elements.join(', ')}` : ''}\n${guardrails.custom_rules || ''}` : ''
+  const funnelContext        = funnelAnalysis ? `FUNNEL ANALYSIS (${funnelAnalysis.totalPages} pages):\nPage types: ${Object.entries(funnelAnalysis.pageTypes).map(([t, n]) => `${t}: ${n}`).join(', ')}\n${funnelAnalysis.funnelPages.filter((p: any) => p.views > 0).map((p: any) => `- ${p.filePath} (${p.pageType}) → ${p.views} views${p.dropOffScore ? `, ${p.dropOffScore}% drop-off` : ''}`).join('\n')}\n${funnelAnalysis.biggestDropOff ? `BIGGEST DROP-OFF: ${funnelAnalysis.biggestDropOff.filePath} — ${funnelAnalysis.biggestDropOff.dropOffScore}% drop-off` : ''}` : ''
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -491,6 +496,7 @@ RULES:
 - Reference specific data points in your analysis
 - RESPECT ALL BRAND GUARDRAILS
 - If funnel shows big drop-off on non-landing page, fix THAT page
+- The "find" text in code_change MUST be an EXACT verbatim copy from the source code
 
 Reply ONLY as JSON without Markdown:
 {
@@ -505,14 +511,27 @@ Reply ONLY as JSON without Markdown:
   "code_change": { "find": "exact text to replace", "replace": "new improved text" },
   "impact_prediction": { "conversion_lift_min": 8, "conversion_lift_max": 18, "confidence": "medium", "confidence_reason": "one sentence" },
   "risk_score": { "risk_level": "low", "effort_estimate": "15min", "rollback_safe": true, "risk_reason": "one sentence" }
-}`
+}`,
       }],
     }),
   })
 
-  const data     = await response.json()
-  const text     = data.choices[0].message.content
-  const analysis = JSON.parse(text.replace(/```json|```/g, '').trim())
+  const data = await response.json()
+  const text = data.choices?.[0]?.message?.content
+
+  // FIX: guard against missing/malformed AI response
+  if (!text) throw new Error(`AI returned empty response: ${JSON.stringify(data).slice(0, 200)}`)
+
+  let analysis
+  try {
+    analysis = JSON.parse(text.replace(/```json|```/g, '').trim())
+  } catch (e) {
+    throw new Error(`AI returned invalid JSON: ${text.slice(0, 200)}`)
+  }
+
+  if (!analysis.file_to_edit || !analysis.code_change?.find) {
+    throw new Error(`AI response missing required fields: ${JSON.stringify(analysis).slice(0, 200)}`)
+  }
 
   if (a?.uniqueVisitors && analysis.impact_prediction) {
     analysis.impact_prediction.revenue_estimate = estimateRevenueImpact(
@@ -531,8 +550,15 @@ async function createPR(octokit: any, owner: string, repo: string, analysis: any
   await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: ref.object.sha })
 
   const { data: fileData } = await octokit.rest.repos.getContent({ owner, repo, path: analysis.file_to_edit })
-  const currentContent     = base64Decode(fileData.content)
-  const newContent         = currentContent.replace(analysis.code_change.find, analysis.code_change.replace)
+
+  // FIX: these variables were missing — caused ReferenceError on every PR
+  const currentContent = base64Decode(fileData.content)
+  const newContent     = currentContent.replace(analysis.code_change.find, analysis.code_change.replace)
+
+  // FIX: detect when the find-text didn't match anything
+  if (newContent === currentContent) {
+    throw new Error(`Code change not found in file: ${analysis.file_to_edit}. Find text did not match.`)
+  }
 
   await octokit.rest.repos.createOrUpdateFileContents({
     owner, repo, path: analysis.file_to_edit,
@@ -569,10 +595,10 @@ async function sendTelegramNotification(analysis: any, pr: any, runId: string, a
 
   let impactBlock = ''
   if (analysis.impact_prediction) {
-    const ip            = analysis.impact_prediction
-    const confEmoji     = ({ high: '🎯', medium: '📐', low: '🔮' } as any)[ip.confidence] || '📐'
-    const revLine       = ip.revenue_estimate ? `💶 *Revenue impact:* +${ip.revenue_estimate.revenueMin}–${ip.revenue_estimate.revenueMax} €/month\n` : ''
-    impactBlock         = `${confEmoji} *Impact Prediction* _(${ip.confidence} confidence)_\n📈 Conversion lift: +${ip.conversion_lift_min}–${ip.conversion_lift_max}%\n${revLine}_${ip.confidence_reason}_\n\n`
+    const ip        = analysis.impact_prediction
+    const confEmoji = ({ high: '🎯', medium: '📐', low: '🔮' } as any)[ip.confidence] || '📐'
+    const revLine   = ip.revenue_estimate ? `💶 *Revenue impact:* +${ip.revenue_estimate.revenueMin}–${ip.revenue_estimate.revenueMax} €/month\n` : ''
+    impactBlock     = `${confEmoji} *Impact Prediction* _(${ip.confidence} confidence)_\n📈 Conversion lift: +${ip.conversion_lift_min}–${ip.conversion_lift_max}%\n${revLine}_${ip.confidence_reason}_\n\n`
   }
 
   let riskBlock = ''
@@ -614,6 +640,121 @@ Reply *approve ${runId}* or *reject ${runId}*`
   return data.result?.message_id || null
 }
 
+// ─── PROCESS SINGLE CONNECTION ───────────────────────────────────────────────
+// FIX: extracted from handleFullRun so Promise.allSettled can run them in parallel
+async function processConnection(conn: any) {
+  let run: any = null
+
+  try {
+    // PostHog auto-setup on first run
+    if (!conn.posthog_project_id) {
+      const phSetup = await setupPostHogForConnection(conn)
+      if (phSetup) {
+        conn.posthog_project_id = phSetup.posthogProjectId
+        conn.posthog_api_key    = Deno.env.get('POSTHOG_API_KEY')
+      }
+    }
+
+    const { data: runData } = await supabase
+      .from('agent_runs').insert({ subscription_id: conn.subscription_id, status: 'running' })
+      .select().single()
+    run = runData
+
+    // Step 1: Fetching repo
+    await supabase.from('agent_runs').update({ current_step: 'fetching_repo' }).eq('id', run.id)
+    const octokit        = await getOctokit(conn.github_installation_id)
+    const competitorUrls = await getCompetitorUrls(conn.subscription_id)
+
+    // Step 2: Pulling analytics
+    await supabase.from('agent_runs').update({ current_step: 'pulling_analytics' }).eq('id', run.id)
+    const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
+      analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
+      detectAllPages(octokit, conn.github_repo_owner, conn.github_repo_name),
+      getPostHogAnalytics(
+        conn.posthog_api_key    || Deno.env.get('POSTHOG_API_KEY')!,
+        conn.posthog_project_id || Deno.env.get('POSTHOG_PROJECT_ID')!,
+        conn.posthog_host       || Deno.env.get('POSTHOG_HOST')!,
+      ),
+      conn.website_url ? getPageSpeedScore(conn.website_url) : Promise.resolve(null),
+      getPreviousRuns(conn.subscription_id),
+      fetchBusinessDNA(conn.subscription_id),
+      competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
+      fetchBrandGuardrails(conn.subscription_id),
+    ])
+
+    // Step 3: Mapping funnel
+    await supabase.from('agent_runs').update({ current_step: 'mapping_funnel' }).eq('id', run.id)
+    const funnelAnalysis      = buildFunnelAnalysis(allPages, analytics)
+    const enrichedRepoContent = { ...repoContent }
+    for (const [path, info] of Object.entries(allPages) as any) {
+      if (!enrichedRepoContent[path]) enrichedRepoContent[path] = info.content
+    }
+
+    // Step 4: Finding biggest issue (AI)
+    await supabase.from('agent_runs').update({ current_step: 'finding_biggest_issue' }).eq('id', run.id)
+    const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
+
+    // Step 5: Writing fix
+    await supabase.from('agent_runs').update({ current_step: 'writing_fix' }).eq('id', run.id)
+    const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
+
+    // Step 6: Sending notification
+    await supabase.from('agent_runs').update({ current_step: 'sending_notification' }).eq('id', run.id)
+    const { data: sub } = await supabase.from('agent_subscriptions').select('telegram_chat_id').eq('id', conn.subscription_id).single()
+
+    // FIX: no fallback to Flo's chat ID — skip notification if user has none
+    const chatId = sub?.telegram_chat_id
+    if (!chatId) throw new Error(`No telegram_chat_id for subscription ${conn.subscription_id}`)
+
+    const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics, chatId)
+
+    // Done
+    await supabase.from('agent_runs').update({
+      status:        'waiting_approval',
+      current_step:  'done',
+      completed_at:  new Date().toISOString(),
+      analysis_result: { ...analysis, analytics_snapshot: analytics?.last7Days },
+      funnel_analysis: funnelAnalysis ? {
+        totalPages:     funnelAnalysis.totalPages,
+        pageTypes:      funnelAnalysis.pageTypes,
+        biggestDropOff: funnelAnalysis.biggestDropOff,
+      } : null,
+      pr_number:           pr.number,
+      pr_url:              pr.html_url,
+      telegram_message_id: messageId || null,
+    }).eq('id', run.id)
+
+    await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis)
+    await createABTest(conn, run.id, analysis)
+
+  } catch (err: any) {
+    console.error(`[processConnection] Error for subscription ${conn.subscription_id}:`, err)
+
+    if (run?.id) {
+      await supabase.from('agent_runs').update({
+        status:        'failed',
+        error_message: err.message || 'Unknown error',
+      }).eq('id', run.id)
+    }
+
+    try {
+      const { data: sub } = await supabase.from('agent_subscriptions').select('telegram_chat_id').eq('id', conn.subscription_id).single()
+      // FIX: no fallback to env TELEGRAM_CHAT_ID — only notify the actual user
+      const chatId = sub?.telegram_chat_id
+      if (!chatId) return
+
+      await fetch(`https://api.telegram.org/bot${Deno.env.get('TELEGRAM_BOT_TOKEN')}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `⚠️ *Velyr Agent — Run Failed*\n\n_${err.message || 'Unknown error'}_\n\nThe agent will retry next run.`,
+          parse_mode: 'Markdown',
+        }),
+      })
+    } catch (notifyErr) { console.error('Failed to send error notification:', notifyErr) }
+  }
+}
+
 // ─── MAIN RUN ─────────────────────────────────────────────────────────────────
 async function handleFullRun() {
   const { data: connections } = await supabase
@@ -624,112 +765,8 @@ async function handleFullRun() {
     return { success: true, message: 'No active connections' }
   }
 
-  for (const conn of connections) {
-    let run: any = null
-
-    try {
-      // PostHog auto-setup on first run
-      if (!conn.posthog_project_id) {
-        const phSetup = await setupPostHogForConnection(conn)
-        if (phSetup) {
-          conn.posthog_project_id = phSetup.posthogProjectId
-          conn.posthog_api_key    = Deno.env.get('POSTHOG_API_KEY')
-        }
-      }
-
-      const { data: runData } = await supabase
-        .from('agent_runs').insert({ subscription_id: conn.subscription_id, status: 'running' })
-        .select().single()
-      run = runData
-
-      // Step 1: Fetching repo
-      await supabase.from('agent_runs').update({ current_step: 'fetching_repo' }).eq('id', run.id)
-      const octokit        = await getOctokit(conn.github_installation_id)
-      const competitorUrls = await getCompetitorUrls(conn.subscription_id)
-
-      // Step 2: Pulling analytics
-      await supabase.from('agent_runs').update({ current_step: 'pulling_analytics' }).eq('id', run.id)
-      const [repoContent, allPages, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails] = await Promise.all([
-        analyzeRepo(octokit, conn.github_repo_owner, conn.github_repo_name),
-        detectAllPages(octokit, conn.github_repo_owner, conn.github_repo_name),
-        getPostHogAnalytics(
-          conn.posthog_api_key    || Deno.env.get('POSTHOG_API_KEY')!,
-          conn.posthog_project_id || Deno.env.get('POSTHOG_PROJECT_ID')!,
-          conn.posthog_host       || Deno.env.get('POSTHOG_HOST')!,
-        ),
-        conn.website_url ? getPageSpeedScore(conn.website_url) : Promise.resolve(null),
-        getPreviousRuns(conn.subscription_id),
-        fetchBusinessDNA(conn.subscription_id),
-        competitorUrls.length > 0 ? fetchCompetitorData(competitorUrls) : Promise.resolve(null),
-        fetchBrandGuardrails(conn.subscription_id),
-      ])
-
-      // Step 3: Mapping funnel
-      await supabase.from('agent_runs').update({ current_step: 'mapping_funnel' }).eq('id', run.id)
-      const funnelAnalysis    = buildFunnelAnalysis(allPages, analytics)
-      const enrichedRepoContent = { ...repoContent }
-      for (const [path, info] of Object.entries(allPages) as any) {
-        if (!enrichedRepoContent[path]) enrichedRepoContent[path] = info.content
-      }
-
-      // Step 4: Finding biggest issue (AI)
-      await supabase.from('agent_runs').update({ current_step: 'finding_biggest_issue' }).eq('id', run.id)
-      const analysis = await callAI(enrichedRepoContent, analytics, pageSpeed, previousFixes, dna, competitorData, guardrails, funnelAnalysis)
-
-      // Step 5: Writing fix
-      await supabase.from('agent_runs').update({ current_step: 'writing_fix' }).eq('id', run.id)
-      const pr = await createPR(octokit, conn.github_repo_owner, conn.github_repo_name, analysis)
-
-      // Step 6: Sending notification
-      await supabase.from('agent_runs').update({ current_step: 'sending_notification' }).eq('id', run.id)
-      const { data: sub } = await supabase.from('agent_subscriptions').select('telegram_chat_id').eq('id', conn.subscription_id).single()
-      const chatId    = sub?.telegram_chat_id || Deno.env.get('TELEGRAM_CHAT_ID')!
-      const messageId = await sendTelegramNotification(analysis, pr, run.id, analytics, chatId)
-
-      // Done
-      await supabase.from('agent_runs').update({
-        status:       'waiting_approval',
-        current_step: 'done',
-        analysis_result: { ...analysis, analytics_snapshot: analytics?.last7Days },
-        funnel_analysis: funnelAnalysis ? {
-          totalPages:    funnelAnalysis.totalPages,
-          pageTypes:     funnelAnalysis.pageTypes,
-          biggestDropOff: funnelAnalysis.biggestDropOff,
-        } : null,
-        pr_number:           pr.number,
-        pr_url:              pr.html_url,
-        telegram_message_id: messageId || null,
-      }).eq('id', run.id)
-
-      await saveFunnelPages(conn.subscription_id, run.id, funnelAnalysis)
-      await createABTest(conn, run.id, analysis)
-
-    } catch (err: any) {
-      console.error(`[handleFullRun] Error for subscription ${conn.subscription_id}:`, err)
-
-      if (run?.id) {
-        await supabase.from('agent_runs').update({
-          status:        'failed',
-          error_message: err.message || 'Unknown error',
-        }).eq('id', run.id)
-      }
-
-      try {
-        const { data: sub } = await supabase.from('agent_subscriptions').select('telegram_chat_id').eq('id', conn.subscription_id).single()
-        const chatId = sub?.telegram_chat_id || Deno.env.get('TELEGRAM_CHAT_ID')
-        if (chatId) {
-          await fetch(`https://api.telegram.org/bot${Deno.env.get('TELEGRAM_BOT_TOKEN')}/sendMessage`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: `⚠️ *Velyr Agent — Run Failed*\n\n_${err.message || 'Unknown error'}_\n\nThe agent will retry next run.`,
-              parse_mode: 'Markdown',
-            }),
-          })
-        }
-      } catch (notifyErr) { console.error('Failed to send error notification:', notifyErr) }
-    }
-  }
+  // FIX: parallel execution — each user runs independently, one failing doesn't block others
+  await Promise.allSettled(connections.map(conn => processConnection(conn)))
 
   return { success: true, processed: connections.length }
 }
