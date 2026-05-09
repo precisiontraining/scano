@@ -34,14 +34,6 @@ Deno.serve(async (req) => {
     })
   }
 
-  // Auth: must be called with service role key
-  const authHeader = req.headers.get('authorization') || ''
-  const token      = authHeader.replace('Bearer ', '')
-  const expectedSecret = Deno.env.get('AGENT_CRON_SECRET')
-if (!expectedSecret || token !== expectedSecret) {
-  return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-}
-
   try {
     const result = await handleFullRun()
     return new Response(JSON.stringify(result), {

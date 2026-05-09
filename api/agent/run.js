@@ -67,7 +67,7 @@ try {
   await fetch(edgeUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.AGENT_CRON_SECRET}`,
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ triggeredBy: 'cron' }),
