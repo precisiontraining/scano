@@ -129,10 +129,8 @@ function useNextMondayCountdown() {
     const now = new Date()
     const next = new Date(now)
     next.setHours(9, 0, 0, 0)
-    // getDay(): 0=Sun, 1=Mon ... 6=Sat
     const day = now.getDay()
     let daysToAdd = (1 - day + 7) % 7
-    // If today IS Monday but already past 9:00, go to next Monday
     if (daysToAdd === 0 && now >= next) daysToAdd = 7
     next.setDate(next.getDate() + daysToAdd)
 
@@ -141,7 +139,6 @@ function useNextMondayCountdown() {
     const d = Math.floor(diff / (1000 * 60 * 60 * 24))
     const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
     const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-    // progress bar: how far through the week we are (fills as Monday approaches)
     const elapsed = totalWeekMs - diff
     const pct = Math.max(1, Math.min(99, Math.round((elapsed / totalWeekMs) * 100)))
     return { label: `${d}d ${h}h ${m}m`, pct }
@@ -209,7 +206,6 @@ function Nav({ navigate }) {
             onMouseEnter={e => { e.target.style.borderColor='rgba(28,25,23,0.3)'; e.target.style.background='rgba(28,25,23,0.04)' }}
             onMouseLeave={e => { e.target.style.borderColor='rgba(28,25,23,0.15)'; e.target.style.background='transparent' }}
           >Free scan</button>
-          {/* FIX: Full report button → /premium (PremiumScanForm) */}
           <button onClick={() => navigate('/premium')}
             style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor:'pointer', transition:'background .2s', letterSpacing:'.01em' }}
             onMouseEnter={e => e.target.style.background='#1e4433'}
@@ -644,7 +640,6 @@ function SampleBmRow({ platform, metric, yours, benchmark, diff, up, note }) {
 }
 
 // ─── Agent Dashboard Preview ───────────────────────────────────────────────────
-// FIX: removed "Failed" run, added live "Next run in" countdown
 function AgentDashboardPreview({ navigate }) {
   const { label: nextRunLabel, pct: nextRunPct } = useNextMondayCountdown()
 
@@ -719,7 +714,6 @@ function AgentDashboardPreview({ navigate }) {
             </div>
           </div>
 
-          {/* This week — only "Awaiting Approval", no "Failed" */}
           <p style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:10 }}>This week <span style={{ float:'right', textTransform:'none', letterSpacing:0 }}>1 run</span></p>
 
           <div style={{ background:'#fff', border:`1px solid ${C.border}`, borderRadius:10, padding:'12px 16px', marginBottom:8, cursor:'pointer' }}>
@@ -953,11 +947,11 @@ function SampleReport({ navigate, onScanStart }) {
             <p style={{ fontSize:32, marginBottom:16 }}>📋</p>
             <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:32, letterSpacing:'-.02em', marginBottom:12, color:C.text }}>Full report includes everything.</h3>
             <p style={{ fontSize:15, color:C.textMuted, fontWeight:300, maxWidth:480, margin:'0 auto 32px', lineHeight:1.7 }}>All 5 priority actions with exact copy-paste fixes, deep social dive, hook analysis on every post, caption rewrites, brand clarity score, and an action plan by time required.</p>
-            <button onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth', block:'center' })} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'14px 28px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s' }}
+            <button onClick={() => navigate('/premium')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'14px 28px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s' }}
               onMouseEnter={e=>e.currentTarget.style.background='#1e4433'}
               onMouseLeave={e=>e.currentTarget.style.background=C.accent}
-            >Start with a free scan →</button>
-            <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>Free · No account · Instant</p>
+            >Get the full report — €9 →</button>
+            <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>No account · Results in ~60 seconds</p>
           </div>
         )}
 
@@ -984,26 +978,11 @@ function SampleReport({ navigate, onScanStart }) {
 }
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
-function Pricing({ navigate, onScanStart }) {
+function Pricing({ navigate }) {
   const [ref, visible] = useReveal()
-  const [fullUrl, setFullUrl] = useState('')
-  const [fullError, setFullError] = useState('')
 
   const scrollToScan = () => {
     document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth', block:'center' })
-  }
-
-  const normalizeUrl = (raw) => {
-    const trimmed = raw.trim()
-    if (!trimmed) return ''
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
-    return `https://${trimmed}`
-  }
-
-  const handleFullScan = () => {
-    if (!fullUrl.trim()) { setFullError('Please enter your website URL.'); return }
-    setFullError('')
-    onScanStart({ url: normalizeUrl(fullUrl), manualSocial: {} })
   }
 
   return (
@@ -1038,7 +1017,7 @@ function Pricing({ navigate, onScanStart }) {
             >Start for free</button>
           </div>
 
-          {/* Full report card — with inline form */}
+          {/* Full report card — navigates to /premium */}
           <div style={{
             background:'#fff', border:'1px solid rgba(42,92,69,0.28)', borderRadius:18, padding:32, position:'relative',
             opacity:visible?1:0, transform:visible?'none':'translateY(20px)', transition:'all .55s ease .12s',
@@ -1072,26 +1051,23 @@ function Pricing({ navigate, onScanStart }) {
               })}
             </div>
 
-            {/* Inline URL form */}
+            {/* CTA — goes to /premium (PremiumScanForm with handle input + auto-pull) */}
             <div style={{ background:'rgba(42,92,69,0.04)', border:'1px solid rgba(42,92,69,0.15)', borderRadius:12, padding:'16px', marginBottom:0 }}>
-              <p style={{ fontSize:12, color:C.accent, fontWeight:500, marginBottom:10 }}>Enter your website to get started:</p>
-              <div style={{ position:'relative', marginBottom:fullError?8:10 }}>
-                <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:14 }}>🌐</span>
-                <input
-                  className="inp"
-                  value={fullUrl}
-                  onChange={e => setFullUrl(e.target.value)}
-                  onKeyDown={e => e.key==='Enter' && handleFullScan()}
-                  placeholder="yourbusiness.com"
-                  style={{ paddingLeft:36, fontSize:14 }}
-                />
-              </div>
-              {fullError && <p style={{ fontSize:12, color:C.red, marginBottom:8 }}>{fullError}</p>}
-              <button onClick={handleFullScan} style={{ background:C.text, color:C.bg, border:'none', borderRadius:9, padding:'13px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', width:'100%', letterSpacing:'.02em', transition:'background .2s' }}
+              <p style={{ fontSize:12, color:C.accent, fontWeight:400, marginBottom:4 }}>
+                Website + social handles — all pulled automatically.
+              </p>
+              <p style={{ fontSize:11, color:C.textLight, fontWeight:300, marginBottom:12 }}>
+                No manual numbers needed. We scrape your real data.
+              </p>
+              <button onClick={() => navigate('/premium')} style={{
+                background:C.text, color:'#f7f4ef', border:'none', borderRadius:9,
+                padding:'13px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500,
+                cursor:'pointer', width:'100%', letterSpacing:'.02em', transition:'background .2s',
+              }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.accent}
                 onMouseLeave={e=>e.currentTarget.style.background=C.text}
-              >Get full report — €9</button>
-              <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:8, fontWeight:300 }}>Scan first · Pay after · No account</p>
+              >Get full report — €9 →</button>
+              <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:8, fontWeight:300 }}>No account · Results in ~60 seconds</p>
             </div>
           </div>
 
@@ -1161,7 +1137,6 @@ function FAQ() {
           <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 48px)', letterSpacing:'-.02em' }}>Questions you might have.</h2>
         </div>
 
-        {/* FAQ Tabs */}
         <div style={{ display:'flex', gap:0, marginBottom:32, background:'rgba(28,25,23,0.05)', borderRadius:10, padding:4, width:'fit-content' }}>
           {[{ key:'scan', label:'Free Scan & Full Report' }, { key:'agent', label:'Growth Agent' }].map(t => (
             <button key={t.key} onClick={() => { setActiveTab(t.key); setOpen(null) }} style={{
@@ -1248,7 +1223,7 @@ export default function Home({ navigate, onScanStart }) {
       <WhatWeCheck />
       <GrowthAgentSection navigate={navigate} />
       <SampleReport navigate={navigate} onScanStart={onScanStart} />
-      <Pricing navigate={navigate} onScanStart={onScanStart} />
+      <Pricing navigate={navigate} />
       <FAQ />
       <FinalCTA />
       <Footer navigate={navigate} />
