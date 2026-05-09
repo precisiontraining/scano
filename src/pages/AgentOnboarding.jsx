@@ -623,14 +623,15 @@ export default function AgentOnboarding({ navigate }) {
 
       // 1. Create subscription
       const { data: sub, error: subError } = await supabase
-        .from('agent_subscriptions')
-        .insert({
-          user_id: user.id,
-          auth_user_id: user.id,
-          email: user.email,
-          plan: 'growth',
-          status: 'active',
-        })
+  .from('agent_subscriptions')
+  .insert({
+    user_id: user.id,
+    auth_user_id: user.id,
+    email: user.email,
+    plan: 'growth',
+    status: 'active',
+    telegram_chat_id: allData.telegramChatId,  // ← hinzufügen
+  })
         .select()
         .single()
 
