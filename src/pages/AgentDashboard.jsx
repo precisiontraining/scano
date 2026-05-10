@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -6,158 +6,165 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
-  bg:         '#f7f4ef',
-  bgCard:     '#ffffff',
-  bgPanel:    '#faf8f4',
-  text:       '#1c1917',
-  textMuted:  '#6b6460',
-  textLight:  '#a09890',
-  border:     'rgba(28,25,23,0.09)',
-  borderMed:  'rgba(28,25,23,0.14)',
-  accent:     '#2a5c45',
-  accentSoft: 'rgba(42,92,69,0.08)',
-  accentMid:  'rgba(42,92,69,0.18)',
-  red:        '#c0392b',
-  redSoft:    'rgba(192,57,43,0.07)',
-  yellow:     '#d68910',
-  yellowSoft: 'rgba(214,137,16,0.08)',
-  green:      '#1e8449',
-  greenSoft:  'rgba(30,132,73,0.07)',
-  blue:       '#2563eb',
-  blueSoft:   'rgba(37,99,235,0.08)',
+  bg:          '#f5f2ec',
+  bgCard:      '#ffffff',
+  bgPanel:     '#faf8f4',
+  bgDark:      '#1a1916',
+  text:        '#1a1916',
+  textMuted:   '#6b6460',
+  textLight:   '#a09890',
+  border:      'rgba(26,25,22,0.08)',
+  borderMed:   'rgba(26,25,22,0.13)',
+  borderStrong:'rgba(26,25,22,0.2)',
+  accent:      '#2a5c45',
+  accentDark:  '#1e4433',
+  accentSoft:  'rgba(42,92,69,0.07)',
+  accentMid:   'rgba(42,92,69,0.15)',
+  red:         '#b83232',
+  redSoft:     'rgba(184,50,50,0.07)',
+  redMid:      'rgba(184,50,50,0.15)',
+  yellow:      '#c47d0e',
+  yellowSoft:  'rgba(196,125,14,0.07)',
+  yellowMid:   'rgba(196,125,14,0.18)',
+  green:       '#1e7a3c',
+  greenSoft:   'rgba(30,122,60,0.07)',
+  blue:        '#1d5fa8',
+  blueSoft:    'rgba(29,95,168,0.07)',
+  blueMid:     'rgba(29,95,168,0.15)',
 }
 
 const STATUS = {
-  running:          { label: 'Running',          color: C.blue,   bg: C.blueSoft,   border: 'rgba(37,99,235,0.2)',   dot: C.blue },
-  waiting_approval: { label: 'Awaiting Approval', color: C.yellow, bg: C.yellowSoft, border: 'rgba(214,137,16,0.25)', dot: '#f59e0b' },
-  deployed:         { label: 'Deployed',          color: C.green,  bg: C.greenSoft,  border: 'rgba(30,132,73,0.2)',   dot: '#22c55e' },
-  rejected:         { label: 'Rejected',          color: C.red,    bg: C.redSoft,    border: 'rgba(192,57,43,0.2)',   dot: C.red },
-  failed:           { label: 'Failed',            color: C.red,    bg: C.redSoft,    border: 'rgba(192,57,43,0.2)',   dot: C.red },
-  pending:          { label: 'Pending',           color: C.textLight, bg: 'rgba(28,25,23,0.04)', border: C.border, dot: C.textLight },
-  approved:         { label: 'Approved',          color: C.green,  bg: C.greenSoft,  border: 'rgba(30,132,73,0.2)',   dot: '#22c55e' },
-  rolled_back:      { label: 'Rolled Back',       color: C.textMuted, bg: 'rgba(107,100,96,0.08)', border: 'rgba(107,100,96,0.2)', dot: '#6b6460' },
+  running:          { label: 'Running',           color: C.blue,      bg: C.blueSoft,   border: C.blueMid,    dot: C.blue },
+  waiting_approval: { label: 'Awaiting Approval', color: C.yellow,    bg: C.yellowSoft, border: C.yellowMid,  dot: C.yellow },
+  deployed:         { label: 'Deployed',          color: C.green,     bg: C.greenSoft,  border: 'rgba(30,122,60,0.2)', dot: C.green },
+  rejected:         { label: 'Rejected',          color: C.red,       bg: C.redSoft,    border: C.redMid,     dot: C.red },
+  failed:           { label: 'Failed',            color: C.red,       bg: C.redSoft,    border: C.redMid,     dot: C.red },
+  pending:          { label: 'Pending',           color: C.textLight, bg: 'rgba(26,25,22,0.04)', border: C.border, dot: C.textLight },
+  approved:         { label: 'Approved',          color: C.green,     bg: C.greenSoft,  border: 'rgba(30,122,60,0.2)', dot: C.green },
+  rolled_back:      { label: 'Rolled Back',       color: C.textMuted, bg: 'rgba(107,100,96,0.07)', border: 'rgba(107,100,96,0.18)', dot: C.textMuted },
 }
 
 const PAGE_TYPE_EMOJI = {
-  landing: '🏠', pricing: '💰', checkout: '🛒', blog: '📝',
-  about: 'ℹ️', lead_magnet: '🎁', auth: '🔐', dashboard: '📊', other: '📄'
+  landing:'🏠', pricing:'💰', checkout:'🛒', blog:'📝',
+  about:'ℹ️', lead_magnet:'🎁', auth:'🔐', dashboard:'📊', other:'📄'
 }
 
-// Agent step definitions — simulated from run data
 const AGENT_STEPS = [
-  { id: 'fetch_repo',   icon: '📂', label: 'Fetching repo',         desc: 'Reading GitHub repository structure' },
-  { id: 'fetch_ph',     icon: '📊', label: 'Pulling analytics',     desc: 'Loading PostHog pageview & session data' },
-  { id: 'map_funnel',   icon: '🗺️', label: 'Mapping funnel',        desc: 'Detecting pages and conversion flow' },
-  { id: 'analyze',      icon: '🔍', label: 'Finding biggest issue',  desc: 'Claude analyzing drop-off & opportunities' },
-  { id: 'write_fix',    icon: '✍️', label: 'Writing fix',           desc: 'Editing file and generating patch' },
-  { id: 'open_pr',      icon: '🔀', label: 'Opening pull request',  desc: 'Pushing branch and creating PR on GitHub' },
-  { id: 'notify',       icon: '💬', label: 'Sending notification',  desc: 'Telegram message with approve/reject' },
+  { id:'fetch_repo',  label:'Fetching repo',        desc:'Reading GitHub repository structure' },
+  { id:'fetch_ph',    label:'Pulling analytics',    desc:'Loading PostHog pageview & session data' },
+  { id:'map_funnel',  label:'Mapping funnel',       desc:'Detecting pages and conversion flow' },
+  { id:'analyze',     label:'Finding biggest issue',desc:'Claude analyzing drop-off & opportunities' },
+  { id:'write_fix',   label:'Writing fix',          desc:'Editing file and generating patch' },
+  { id:'open_pr',     label:'Opening pull request', desc:'Pushing branch and creating PR on GitHub' },
+  { id:'notify',      label:'Sending notification', desc:'Telegram message with approve/reject' },
 ]
 
+const NAV_ITEMS = [
+  { id:'overview',    label:'Overview',    icon:'⊙' },
+  { id:'runs',        label:'Runs',        icon:'↻' },
+  { id:'insights',    label:'Insights',    icon:'◈' },
+  { id:'funnel',      label:'Funnel',      icon:'⬦' },
+  { id:'guardrails',  label:'Guardrails',  icon:'◻' },
+  { id:'settings',    label:'Settings',    icon:'⚙' },
+]
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #f7f4ef; color: #1c1917; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  html, body { height: 100%; }
+  body { background: #f5f2ec; color: #1a1916; font-family: 'DM Sans', sans-serif; font-weight: 400; -webkit-font-smoothing: antialiased; }
   @keyframes spin    { to { transform: rotate(360deg); } }
-  @keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
-  @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
-  @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
-  @keyframes slideR  { from { opacity:0; transform:translateX(12px); } to { opacity:1; transform:none; } }
-  @keyframes popIn   { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
-  @keyframes stepIn  { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
-  @keyframes grow    { from { width:0; } to { width:100%; } }
-  .fade-up  { animation: fadeUp .35s ease both; }
-  .slide-r  { animation: slideR .3s ease both; }
-  .pop-in   { animation: popIn .25s ease both; }
-  .run-row  { transition: background .15s; cursor: pointer; }
-  .run-row:hover { background: rgba(42,92,69,0.03) !important; }
-  .tab-btn  { transition: all .2s; cursor: pointer; border: none; background: none; }
-  .tag-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(28,25,23,0.06); border:1px solid rgba(28,25,23,0.12); border-radius:20px; padding:4px 10px; font-size:12px; }
-  .tag-remove { cursor:pointer; color:#a09890; font-size:14px; line-height:1; }
-  .tag-remove:hover { color:#c0392b; }
-  .stat-card { transition: box-shadow .2s, transform .2s; cursor: default; }
-  .stat-card:hover { box-shadow: 0 6px 24px rgba(28,25,23,0.08); transform: translateY(-1px); }
-  .step-row { animation: stepIn .3s ease both; }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(28,25,23,0.12); border-radius: 4px; }
+  @keyframes pulse   { 0%,100%{opacity:1}50%{opacity:0.25} }
+  @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none} }
+  @keyframes fadeIn  { from{opacity:0}to{opacity:1} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none} }
+  @keyframes popIn   { from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)} }
+  @keyframes streamIn{ from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none} }
+  @keyframes barGrow { from{width:0}to{width:var(--w)} }
+  .fade-up   { animation: fadeUp .3s ease both; }
+  .pop-in    { animation: popIn .25s ease both; }
+  .stream-in { animation: streamIn .2s ease both; }
+  .slide-in  { animation: slideIn .25s ease both; }
+  .pulse-dot { animation: pulse 2s ease infinite; }
+  .spin      { animation: spin 0.7s linear infinite; }
+  .nav-item  { cursor:pointer; transition: all .15s; border:none; background:none; width:100%; text-align:left; }
+  .nav-item:hover { background: rgba(42,92,69,0.06); }
+  .run-row   { cursor:pointer; transition: background .12s; }
+  .run-row:hover { background: rgba(26,25,22,0.025) !important; }
+  .btn       { cursor:pointer; transition: all .15s; border:none; font-family:'DM Sans',sans-serif; }
+  .btn:hover { filter: brightness(0.92); }
+  .btn:active{ transform: scale(0.98); }
+  .card-hover{ transition: box-shadow .2s, transform .15s; }
+  .card-hover:hover{ box-shadow: 0 4px 20px rgba(26,25,22,0.07); transform: translateY(-1px); }
+  .tag-remove{ cursor:pointer; color:#a09890; }
+  .tag-remove:hover{ color:#b83232; }
+  ::-webkit-scrollbar { width:3px; height:3px; }
+  ::-webkit-scrollbar-thumb { background:rgba(26,25,22,0.15); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  input, textarea { font-family:'DM Sans',sans-serif; outline:none; }
+  input:focus, textarea:focus { border-color: rgba(42,92,69,0.4) !important; box-shadow: 0 0 0 3px rgba(42,92,69,0.08); }
+  a { color: ${C.accent}; }
 `
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function timeAgo(iso) {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(mins / 60)
-  const days = Math.floor(hours / 24)
-  if (days > 0) return `${days}d ago`
-  if (hours > 0) return `${hours}h ago`
-  if (mins > 0) return `${mins}m ago`
-  return 'just now'
+  const m = Math.floor(diff/60000), h = Math.floor(m/60), d = Math.floor(h/24)
+  if (d>0) return `${d}d ago`; if (h>0) return `${h}h ago`; if (m>0) return `${m}m ago`; return 'just now'
 }
 
 function fmt(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
 }
 
 function nextMonday9am() {
-  const now = new Date()
-  const day = now.getDay()
-  const daysUntil = day === 1 ? (now.getHours() < 9 ? 0 : 7) : (8 - day) % 7 || 7
-  const next = new Date(now)
-  next.setDate(now.getDate() + daysUntil)
-  next.setHours(9, 0, 0, 0)
-  return next
+  const now=new Date(), day=now.getDay()
+  const daysUntil = day===1?(now.getHours()<9?0:7):(8-day)%7||7
+  const next=new Date(now); next.setDate(now.getDate()+daysUntil); next.setHours(9,0,0,0); return next
 }
 
 function useCountdown(target) {
-  const [remaining, setRemaining] = useState({ d: 0, h: 0, m: 0, s: 0, str: '' })
-  useEffect(() => {
-    function tick() {
-      const diff = target - Date.now()
-      if (diff <= 0) { setRemaining({ d:0, h:0, m:0, s:0, str: 'Running soon…' }); return }
-      const d = Math.floor(diff / 86400000)
-      const h = Math.floor((diff % 86400000) / 3600000)
-      const m = Math.floor((diff % 3600000) / 60000)
-      const s = Math.floor((diff % 60000) / 1000)
-      const str = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`
-      setRemaining({ d, h, m, s, str })
+  const [r,setR] = useState({str:''})
+  useEffect(()=>{
+    function tick(){
+      const diff=target-Date.now()
+      if(diff<=0){setR({str:'Running soon…'});return}
+      const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000)
+      setR({str:d>0?`${d}d ${h}h ${m}m`:h>0?`${h}h ${m}m ${s}s`:`${m}m ${s}s`})
     }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [target])
-  return remaining
+    tick(); const id=setInterval(tick,1000); return()=>clearInterval(id)
+  },[target])
+  return r
 }
 
-// Derive agent step from run status + data
 function deriveAgentStep(run) {
-  if (!run) return null
-  switch (run.status) {
-    case 'running':          return 4 // analyzing
-    case 'waiting_approval': return 6 // notified, waiting
-    case 'deployed':         return 6 // complete
-    case 'approved':         return 6
-    case 'failed':           return 3
-    case 'rejected':         return 6
-    case 'rolled_back':      return 6
-    default:                 return 0
+  if (!run) return -1
+  switch(run.status){
+    case 'running': return run.current_step==='fetch_repo'?0:run.current_step==='fetch_ph'?1:run.current_step==='map_funnel'?2:run.current_step==='write_fix'?4:run.current_step==='open_pr'?5:run.current_step==='notify'?6:3
+    case 'waiting_approval': return 6
+    case 'deployed': case 'approved': return 6
+    case 'failed': return 3
+    case 'rejected': case 'rolled_back': return 6
+    default: return -1
   }
 }
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
-function Logo({ size = 24, color = '#2a5c45' }) {
+function VelyrLogo({ size=22, color=C.accent }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="1.1" opacity="0.35"/>
-      <circle cx="16" cy="16" r="9"  stroke={color} strokeWidth="1.1" opacity="0.6"/>
-      <circle cx="16" cy="16" r="3.2" fill={color}/>
-      <line x1="16" y1="2"  x2="16" y2="7"  stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
-      <line x1="16" y1="25" x2="16" y2="30" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
-      <line x1="2"  y1="16" x2="7"  y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
-      <line x1="25" y1="16" x2="30" y2="16" stroke={color} strokeWidth="1.1" strokeLinecap="round" opacity="0.45"/>
+      <circle cx="16" cy="16" r="13" stroke={color} strokeWidth="1" opacity="0.3"/>
+      <circle cx="16" cy="16" r="8"  stroke={color} strokeWidth="1" opacity="0.55"/>
+      <circle cx="16" cy="16" r="3"  fill={color}/>
+      <line x1="16" y1="3"  x2="16" y2="8"  stroke={color} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+      <line x1="16" y1="24" x2="16" y2="29" stroke={color} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+      <line x1="3"  y1="16" x2="8"  y2="16" stroke={color} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+      <line x1="24" y1="16" x2="29" y2="16" stroke={color} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
     </svg>
   )
 }
@@ -166,159 +173,582 @@ function StatusBadge({ status, small }) {
   const s = STATUS[status] || STATUS.pending
   return (
     <span style={{
-      fontSize: small ? 10 : 11, fontWeight: 400, letterSpacing: '.04em',
-      padding: small ? '2px 7px' : '3px 9px', borderRadius: 6,
-      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
-      whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize:small?10:11, fontWeight:500, letterSpacing:'.03em',
+      padding:small?'2px 7px':'3px 9px', borderRadius:5,
+      background:s.bg, color:s.color, border:`1px solid ${s.border}`,
+      whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:5,
     }}>
       <span style={{
-        width: small ? 4 : 5, height: small ? 4 : 5, borderRadius: '50%',
-        background: s.dot, display: 'inline-block',
-        animation: status === 'running' ? 'pulse 1.5s ease infinite' : 'none'
-      }} />
+        width:small?4:5,height:small?4:5,borderRadius:'50%',background:s.dot,display:'inline-block',
+        animation:status==='running'?'pulse 2s ease infinite':'none'
+      }}/>
       {s.label}
     </span>
   )
 }
 
-function Spinner({ size = 20 }) {
-  return <div style={{ width: size, height: size, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+function Spinner({size=18}) {
+  return <div style={{width:size,height:size,border:`1.5px solid ${C.border}`,borderTopColor:C.accent,borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
 }
 
-// ─── AGENT STATUS PANEL (right sticky) ───────────────────────────────────────
-function AgentPanel({ subscription, runs, onTogglePause, actionLoading, onSelectRun }) {
-  const isPaused = subscription?.status === 'paused'
-  const isRunning = runs.some(r => r.status === 'running')
-  const lastRun = runs[0] || null
-  const pending = runs.filter(r => r.status === 'waiting_approval')
-  const target = nextMonday9am()
-  const countdown = useCountdown(target)
-  const stepIdx = isRunning ? 3 : (lastRun ? deriveAgentStep(lastRun) : -1)
+function SectionLabel({children, style}) {
+  return <p style={{fontSize:10,letterSpacing:'.1em',textTransform:'uppercase',fontWeight:500,color:C.textLight,...style}}>{children}</p>
+}
 
-  // Weekly progress bar
-  const now = new Date()
-  const weekMs = 7 * 24 * 3600000
-  const elapsed = now - new Date(target.getTime() - weekMs)
-  const weekProgress = Math.min(100, Math.max(0, (elapsed / weekMs) * 100))
+function Card({children,style,className}) {
+  return (
+    <div className={className} style={{
+      background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,
+      ...style
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// ─── SPARKLINE ────────────────────────────────────────────────────────────────
+function Sparkline({data, color=C.accent, height=32, width=80}) {
+  if (!data || data.length < 2) return null
+  const max = Math.max(...data), min = Math.min(...data)
+  const range = max - min || 1
+  const pts = data.map((v,i) => {
+    const x = (i/(data.length-1))*width
+    const y = height - ((v-min)/range)*(height-4) - 2
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg width={width} height={height} style={{overflow:'visible'}}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/>
+    </svg>
+  )
+}
+
+// ─── MINI SPARKLINE BAR ───────────────────────────────────────────────────────
+function RunHistoryBar({runs}) {
+  const last12 = [...runs].slice(0,12).reverse()
+  return (
+    <div style={{display:'flex',gap:3,alignItems:'flex-end',height:24}}>
+      {last12.map((run,i) => {
+        const s = STATUS[run.status]||STATUS.pending
+        const h = run.status==='deployed'||run.status==='approved'?24:run.status==='waiting_approval'?16:run.status==='failed'||run.status==='rejected'?8:14
+        return <div key={run.id} title={`${run.status} · ${timeAgo(run.created_at)}`} style={{
+          flex:1,height:h,background:s.dot,borderRadius:2,
+          opacity:0.4+(i/12)*0.6,
+        }}/>
+      })}
+    </div>
+  )
+}
+
+// ─── LIVE ACTIVITY STREAM ─────────────────────────────────────────────────────
+function LiveActivityStream({runs, activeRun}) {
+  const streamItems = []
+
+  // If agent is running, show live steps
+  if (activeRun) {
+    const stepIdx = deriveAgentStep(activeRun)
+    AGENT_STEPS.forEach((step, i) => {
+      const done = i < stepIdx
+      const current = i === stepIdx
+      streamItems.push({
+        id: `step-${i}`,
+        type: 'step',
+        done, current,
+        label: step.label,
+        desc: current ? step.desc : null,
+        time: current ? 'now' : done ? '✓' : null,
+      })
+    })
+  }
+
+  // Recent run events
+  runs.slice(0,8).forEach(run => {
+    if (run.status==='running') return
+    const analysis = run.analysis_result||{}
+    streamItems.push({
+      id: run.id,
+      type: 'run',
+      status: run.status,
+      label: analysis.problem || 'Run completed',
+      sub: analysis.expected_improvement ? `Expected: ${analysis.expected_improvement}` : null,
+      time: timeAgo(run.created_at),
+      file: analysis.file_to_edit?.split('/').pop(),
+    })
+  })
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:0}}>
+      {streamItems.map((item, i) => (
+        <div key={item.id} className="stream-in" style={{
+          animationDelay:`${i*0.04}s`,
+          display:'flex',gap:12,alignItems:'flex-start',
+          padding:'10px 0',
+          borderBottom:i<streamItems.length-1?`1px solid ${C.border}`:'none',
+        }}>
+          {/* indicator */}
+          <div style={{width:20,flexShrink:0,display:'flex',justifyContent:'center',paddingTop:2}}>
+            {item.type==='step' ? (
+              <div style={{
+                width:item.current?10:8, height:item.current?10:8,
+                borderRadius:'50%',
+                background: item.done ? C.accent : item.current ? C.blue : 'rgba(26,25,22,0.1)',
+                border: item.current?`2px solid ${C.blue}`:`1px solid ${item.done?C.accent:C.border}`,
+                animation: item.current?'pulse 2s ease infinite':'none',
+              }}/>
+            ) : (
+              <div style={{width:8,height:8,borderRadius:'50%',background:(STATUS[item.status]||STATUS.pending).dot,marginTop:1}}/>
+            )}
+          </div>
+          {/* content */}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+              <p style={{
+                fontSize:12,fontWeight:item.type==='step'&&item.current?500:400,
+                color:item.type==='step'?(item.done?C.textMuted:item.current?C.blue:C.textLight):C.text,
+                lineHeight:1.4,
+                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,
+              }}>
+                {item.label}
+              </p>
+              {item.time && (
+                <span style={{fontSize:10,color:item.time==='now'?C.blue:item.time==='✓'?C.accent:C.textLight,fontWeight:item.time==='now'?500:300,flexShrink:0}}>
+                  {item.time}
+                </span>
+              )}
+            </div>
+            {item.desc && <p style={{fontSize:10,color:C.textMuted,marginTop:2}}>{item.desc}</p>}
+            {item.sub && <p style={{fontSize:10,color:C.green,marginTop:2}}>{item.sub}</p>}
+            {item.file && <code style={{fontSize:10,color:C.accent,background:C.accentSoft,padding:'1px 5px',borderRadius:3,marginTop:3,display:'inline-block'}}>{item.file}</code>}
+          </div>
+        </div>
+      ))}
+      {streamItems.length===0 && (
+        <p style={{fontSize:12,color:C.textLight,padding:'16px 0',textAlign:'center'}}>No activity yet. Agent runs every Monday.</p>
+      )}
+    </div>
+  )
+}
+
+// ─── PR MISSION CONTROL ───────────────────────────────────────────────────────
+function PRMissionControl({run}) {
+  const analysis = run.analysis_result || {}
+  const confidence = analysis.confidence_score || analysis.confidence || 'High'
+  const confNum = typeof confidence === 'number' ? confidence : 88
 
   return (
     <div style={{
-      width: 300, flexShrink: 0,
-      position: 'sticky', top: 80,
-      alignSelf: 'flex-start',
-      display: 'flex', flexDirection: 'column', gap: 12,
+      background:C.bgCard,
+      border:`1px solid ${C.yellowMid}`,
+      borderRadius:12,
+      overflow:'hidden',
+      boxShadow:`0 0 0 3px ${C.yellowSoft}`,
     }}>
-
-      {/* Agent Status Card */}
+      {/* header bar */}
       <div style={{
-        background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16,
-        overflow: 'hidden',
+        background:C.yellowSoft,
+        borderBottom:`1px solid ${C.yellowMid}`,
+        padding:'10px 18px',
+        display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
       }}>
-        {/* Header */}
-        <div style={{
-          padding: '14px 18px',
-          background: isPaused ? C.yellowSoft : isRunning ? C.blueSoft : C.accentSoft,
-          borderBottom: `1px solid ${isPaused ? 'rgba(214,137,16,0.15)' : isRunning ? 'rgba(37,99,235,0.15)' : C.accentMid}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: isPaused ? C.yellow : isRunning ? C.blue : C.accent,
-              animation: isRunning ? 'pulse 1.5s ease infinite' : 'none',
-            }} />
-            <span style={{
-              fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 500,
-              color: isPaused ? C.yellow : isRunning ? C.blue : C.accent,
-            }}>
-              {isPaused ? 'Paused' : isRunning ? 'Running' : 'Idle'}
-            </span>
-          </div>
-          <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, color: C.textLight }}>
-            Growth Agent
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span className="pulse-dot" style={{width:7,height:7,borderRadius:'50%',background:C.yellow,display:'inline-block'}}/>
+          <SectionLabel style={{color:C.yellow,marginBottom:0}}>Awaiting your approval · PR #{run.pr_number||'—'}</SectionLabel>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <a href={run.pr_url} target="_blank" rel="noreferrer" style={{
+            fontSize:11,color:C.accent,background:C.accentSoft,
+            border:`1px solid ${C.accentMid}`,borderRadius:6,padding:'4px 10px',
+            textDecoration:'none',fontWeight:500,
+          }}>View on GitHub ↗</a>
+          <span style={{fontSize:11,color:C.yellow,background:C.yellowSoft,border:`1px solid ${C.yellowMid}`,borderRadius:6,padding:'4px 10px'}}>
+            Reply <code style={{fontFamily:'DM Mono,monospace',fontSize:10}}>approve {run.id?.slice(0,6)}</code> on Telegram
           </span>
         </div>
+      </div>
 
-        {/* Countdown / status */}
-        <div style={{ padding: '16px 18px', borderBottom: `1px solid ${C.border}` }}>
+      {/* main content */}
+      <div style={{padding:'16px 18px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
+        {/* problem */}
+        <div>
+          <SectionLabel style={{marginBottom:6}}>Problem identified</SectionLabel>
+          <p style={{fontSize:13,fontWeight:500,color:C.text,lineHeight:1.5,marginBottom:6}}>
+            {analysis.problem || 'Conversion issue detected'}
+          </p>
+          {analysis.data_insight && (
+            <p style={{fontSize:11,color:C.textMuted,lineHeight:1.55}}>{analysis.data_insight}</p>
+          )}
+        </div>
+
+        {/* fix */}
+        <div>
+          <SectionLabel style={{marginBottom:6}}>Fix applied</SectionLabel>
+          <p style={{fontSize:12,color:C.text,lineHeight:1.5,marginBottom:8}}>
+            {analysis.solution || 'Code changes applied'}
+          </p>
+          {analysis.file_to_edit && (
+            <code style={{fontSize:11,color:C.accent,background:C.accentSoft,padding:'3px 8px',borderRadius:5,border:`1px solid ${C.accentMid}`,display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {analysis.file_to_edit}
+            </code>
+          )}
+        </div>
+
+        {/* metrics */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <SectionLabel style={{marginBottom:0}}>Expected impact</SectionLabel>
+          <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+            <span style={{fontFamily:'Instrument Serif,serif',fontSize:32,color:C.green,lineHeight:1}}>
+              {analysis.expected_improvement || '+?%'}
+            </span>
+            <span style={{fontSize:11,color:C.textMuted}}>conversion</span>
+          </div>
+          {/* confidence bar */}
+          <div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:10,color:C.textLight}}>Confidence</span>
+              <span style={{fontSize:10,fontWeight:500,color:C.text}}>{confNum}%</span>
+            </div>
+            <div style={{height:4,background:'rgba(26,25,22,0.08)',borderRadius:2}}>
+              <div style={{height:'100%',width:`${confNum}%`,background:confNum>75?C.green:confNum>50?C.yellow:C.red,borderRadius:2,transition:'width .5s'}}/>
+            </div>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:10}}>
+            <span style={{color:C.textLight}}>Auto-rollback</span>
+            <span style={{color:C.textMuted}}>48h if no uplift</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── KPI BAR ──────────────────────────────────────────────────────────────────
+function KPIBar({runs, impactMetrics}) {
+  const total    = runs.length
+  const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved').length
+  const pending  = runs.filter(r=>r.status==='waiting_approval').length
+  const rate     = total>0?Math.round((deployed/total)*100):0
+
+  // Avg impact from impact_metrics
+  const bounceImprove = impactMetrics.filter(m=>m.metric_type==='bounce_rate'&&m.value_before&&m.value_after)
+  const avgDelta = bounceImprove.length>0
+    ? Math.round(bounceImprove.reduce((s,m)=>s+(m.value_before-m.value_after),0)/bounceImprove.length)
+    : null
+
+  // Spark data: deployed per last 8 weeks (simplified: last 8 runs deployed=1 else 0)
+  const sparkData = [...runs].slice(0,8).reverse().map(r=>r.status==='deployed'||r.status==='approved'?1:0)
+
+  const kpis = [
+    {
+      label:'Total Runs', value:total, sub:`${pending>0?`${pending} awaiting`:'All processed'}`,
+      accent:false, highlight:false, sparkData:null,
+    },
+    {
+      label:'Fixes Deployed', value:deployed, sub:`+${runs.filter(r=>r.created_at>new Date(Date.now()-7*86400000).toISOString()&&(r.status==='deployed'||r.status==='approved')).length} this week`,
+      accent:true, highlight:false, sparkData,
+    },
+    {
+      label:'Deploy Rate', value:`${rate}%`, sub:rate>=70?'On track':'Needs review',
+      accent:false, highlight:false, sparkData:null,
+    },
+    {
+      label:'Avg. Bounce Δ', value:avgDelta!=null?`−${avgDelta}%`:'—', sub:avgDelta!=null?'After agent fixes':'No data yet',
+      accent:false, highlight:false, sparkData:null,
+    },
+  ]
+
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+      {kpis.map((k,i)=>(
+        <div key={i} className="card-hover fade-up" style={{
+          animationDelay:`${i*0.06}s`,
+          background:k.accent?C.accentSoft:C.bgCard,
+          border:`1px solid ${k.accent?C.accentMid:C.border}`,
+          borderRadius:12, padding:'16px 18px',
+        }}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:8}}>
+            <SectionLabel style={{color:k.accent?C.accent:C.textLight,marginBottom:0}}>{k.label}</SectionLabel>
+            {k.sparkData && <Sparkline data={k.sparkData} color={k.accent?C.accent:C.textLight} height={24} width={50}/>}
+          </div>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:36,fontWeight:400,color:k.accent?C.accent:C.text,lineHeight:1,marginBottom:4}}>
+            {k.value}
+          </p>
+          <p style={{fontSize:10,color:C.textLight,fontWeight:300}}>{k.sub}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── TOP INSIGHTS PANEL ───────────────────────────────────────────────────────
+function TopInsights({runs, funnelPages, learnings, impactMetrics}) {
+  const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved')
+  const pending  = runs.filter(r=>r.status==='waiting_approval')
+
+  // Biggest drop-off page
+  const topDropOff = [...funnelPages].filter(p=>p.drop_off_score>0).sort((a,b)=>b.drop_off_score-a.drop_off_score)[0]
+
+  // Most improved (highest positive impact metric)
+  const bestImpact = [...impactMetrics].filter(m=>m.value_before>m.value_after).sort((a,b)=>(b.value_before-b.value_after)-(a.value_before-a.value_after))[0]
+  const bestRun = bestImpact ? runs.find(r=>r.id===bestImpact.run_id) : null
+
+  // Revenue estimate (if avg conversion improvement * assumed traffic)
+  const avgConvStr = deployed.map(r=>r.analysis_result?.expected_improvement).filter(Boolean)
+  const avgConvNum = avgConvStr.length>0
+    ? avgConvStr.reduce((s,v)=>{const n=parseFloat(v.replace(/[^0-9.]/g,''));return s+(isNaN(n)?0:n)},0)/avgConvStr.length
+    : null
+
+  // A/B tests running (from learnings)
+  const positiveLearnings = learnings.filter(l=>l.outcome==='positive')
+  const winRate = learnings.length>0?Math.round((positiveLearnings.length/learnings.length)*100):null
+
+  const insights = [
+    topDropOff && {
+      icon:'⚠️', color:C.yellow, bg:C.yellowSoft, border:C.yellowMid,
+      label:'Biggest Drop-off',
+      value: topDropOff.page_path,
+      sub: `${topDropOff.drop_off_score}% exit rate · ${topDropOff.views_7d||0} views/week`,
+      detail: 'Agent will prioritize this page next run',
+    },
+    bestRun && {
+      icon:'📈', color:C.green, bg:C.greenSoft, border:'rgba(30,122,60,0.2)',
+      label:'Most Improved',
+      value: bestRun.analysis_result?.file_to_edit?.split('/').pop() || 'Last fix',
+      sub: `Bounce −${Math.round(bestImpact.value_before-bestImpact.value_after)}% after deployment`,
+      detail: timeAgo(bestRun.completed_at),
+    },
+    pending.length>0 && {
+      icon:'🔔', color:C.yellow, bg:C.yellowSoft, border:C.yellowMid,
+      label:'Awaiting Review',
+      value:`${pending.length} PR${pending.length>1?'s':''}`,
+      sub: pending[0]?.analysis_result?.problem?.slice(0,55)||'Fix ready to deploy',
+      detail: 'Reply approve [id] on Telegram',
+    },
+    avgConvNum!=null && {
+      icon:'💡', color:C.accent, bg:C.accentSoft, border:C.accentMid,
+      label:'Top Recommendation',
+      value: deployed[0]?.analysis_result?.problem?.slice(0,35)||'No runs yet',
+      sub: `Est. impact: +${Math.round(avgConvNum)}% avg conversion`,
+      detail: 'Based on last fix',
+    },
+    winRate!=null && {
+      icon:'🧠', color:C.blue, bg:C.blueSoft, border:C.blueMid,
+      label:'Agent Win Rate',
+      value:`${winRate}%`,
+      sub: `${positiveLearnings.length} of ${learnings.length} changes improved metrics`,
+      detail: 'Business DNA learning',
+    },
+    funnelPages.length>0 && {
+      icon:'🗺️', color:C.textMuted, bg:'rgba(26,25,22,0.04)', border:C.border,
+      label:'Pages Analyzed',
+      value: funnelPages.length,
+      sub: `${funnelPages.filter(p=>p.drop_off_score>50).length} high-priority pages`,
+      detail: 'Funnel map updated last run',
+    },
+  ].filter(Boolean)
+
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+      {insights.map((ins,i)=>(
+        <div key={i} className="card-hover fade-up" style={{
+          animationDelay:`${i*0.05}s`,
+          background:ins.bg, border:`1px solid ${ins.border}`,
+          borderRadius:10, padding:'13px 15px',
+        }}>
+          <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+            <span style={{fontSize:16,flexShrink:0}}>{ins.icon}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <SectionLabel style={{color:ins.color,marginBottom:4}}>{ins.label}</SectionLabel>
+              <p style={{fontSize:13,fontWeight:500,color:C.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:2}}>
+                {ins.value}
+              </p>
+              <p style={{fontSize:11,color:C.textMuted,lineHeight:1.4,marginBottom:4}}>{ins.sub}</p>
+              <p style={{fontSize:10,color:C.textLight}}>{ins.detail}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+      {insights.length===0 && (
+        <div style={{gridColumn:'1/-1',padding:'24px',textAlign:'center'}}>
+          <p style={{fontSize:13,color:C.textLight}}>Insights will appear after the first agent run.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── REVENUE IMPACT ESTIMATOR ─────────────────────────────────────────────────
+function RevenueEstimator({runs, impactMetrics}) {
+  const [monthlyVisitors, setMonthlyVisitors] = useState(5000)
+  const [convRate, setConvRate] = useState(3)
+  const [avgOrderValue, setAvgOrderValue] = useState(50)
+
+  const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved')
+  const avgImprovementStr = deployed.map(r=>r.analysis_result?.expected_improvement).filter(Boolean)
+  const avgImprovementNum = avgImprovementStr.length>0
+    ? avgImprovementStr.reduce((s,v)=>{const n=parseFloat(v.replace(/[^0-9.]/g,''));return s+(isNaN(n)?0:n)},0)/avgImprovementStr.length
+    : 12
+
+  const baseRevenue = (monthlyVisitors * (convRate/100) * avgOrderValue)
+  const improvedConvRate = convRate * (1 + avgImprovementNum/100)
+  const improvedRevenue = monthlyVisitors * (improvedConvRate/100) * avgOrderValue
+  const delta = improvedRevenue - baseRevenue
+
+  const inp = {
+    background:'rgba(26,25,22,0.04)', border:`1px solid ${C.border}`,
+    borderRadius:6, padding:'7px 10px', fontSize:13, color:C.text,
+    width:'100%', fontFamily:'DM Sans,sans-serif',
+  }
+
+  return (
+    <Card style={{padding:'20px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+        <SectionLabel style={{marginBottom:0}}>Revenue Impact Estimator</SectionLabel>
+        <span style={{fontSize:10,color:C.textLight,background:'rgba(26,25,22,0.06)',padding:'2px 6px',borderRadius:4}}>
+          based on {deployed.length} deployed fixes · avg +{Math.round(avgImprovementNum)}%
+        </span>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:16}}>
+        <div>
+          <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Monthly visitors</label>
+          <input type="number" value={monthlyVisitors} onChange={e=>setMonthlyVisitors(+e.target.value)} style={inp}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Current conv. rate %</label>
+          <input type="number" value={convRate} step="0.1" onChange={e=>setConvRate(+e.target.value)} style={inp}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Avg. order value (€)</label>
+          <input type="number" value={avgOrderValue} onChange={e=>setAvgOrderValue(+e.target.value)} style={inp}/>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        <div style={{background:'rgba(26,25,22,0.04)',borderRadius:8,padding:'12px 14px'}}>
+          <p style={{fontSize:10,color:C.textLight,marginBottom:4}}>Current revenue</p>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:26,color:C.text,lineHeight:1}}>
+            €{Math.round(baseRevenue).toLocaleString()}
+          </p>
+          <p style={{fontSize:10,color:C.textLight,marginTop:2}}>/month</p>
+        </div>
+        <div style={{background:C.accentSoft,border:`1px solid ${C.accentMid}`,borderRadius:8,padding:'12px 14px'}}>
+          <p style={{fontSize:10,color:C.accent,marginBottom:4}}>After Velyr fixes</p>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:26,color:C.accent,lineHeight:1}}>
+            €{Math.round(improvedRevenue).toLocaleString()}
+          </p>
+          <p style={{fontSize:10,color:C.accent,marginTop:2}}>/month</p>
+        </div>
+        <div style={{background:C.greenSoft,border:`1px solid rgba(30,122,60,0.2)`,borderRadius:8,padding:'12px 14px'}}>
+          <p style={{fontSize:10,color:C.green,marginBottom:4}}>Estimated uplift</p>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:26,color:C.green,lineHeight:1}}>
+            +€{Math.round(delta).toLocaleString()}
+          </p>
+          <p style={{fontSize:10,color:C.green,marginTop:2}}>/month</p>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ─── AGENT STATUS SIDEBAR ─────────────────────────────────────────────────────
+function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelectRun}) {
+  const isPaused  = subscription?.status==='paused'
+  const activeRun = runs.find(r=>r.status==='running')
+  const isRunning = !!activeRun
+  const lastRun   = runs[0]||null
+  const pending   = runs.filter(r=>r.status==='waiting_approval')
+  const target    = nextMonday9am()
+  const countdown = useCountdown(target)
+  const stepIdx   = isRunning ? deriveAgentStep(activeRun) : (lastRun ? deriveAgentStep(lastRun) : -1)
+
+  const now = new Date()
+  const weekMs = 7*24*3600000
+  const weekProgress = Math.min(100,Math.max(0,((now-(new Date(target.getTime()-weekMs)))/weekMs)*100))
+
+  const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved').length
+  const total    = runs.length
+  const rate     = total>0?Math.round((deployed/total)*100):0
+
+  return (
+    <div style={{width:272,flexShrink:0,position:'sticky',top:20,alignSelf:'flex-start',display:'flex',flexDirection:'column',gap:10}}>
+
+      {/* Agent state card */}
+      <Card style={{overflow:'hidden'}}>
+        {/* status header */}
+        <div style={{
+          padding:'12px 16px',
+          background: isPaused?C.yellowSoft:isRunning?C.blueSoft:C.accentSoft,
+          borderBottom:`1px solid ${isPaused?C.yellowMid:isRunning?C.blueMid:C.accentMid}`,
+          display:'flex',alignItems:'center',justifyContent:'space-between',
+        }}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span className={isRunning?'pulse-dot':''} style={{
+              width:7,height:7,borderRadius:'50%',display:'inline-block',
+              background:isPaused?C.yellow:isRunning?C.blue:C.accent,
+            }}/>
+            <span style={{fontSize:10,letterSpacing:'.1em',textTransform:'uppercase',fontWeight:500,color:isPaused?C.yellow:isRunning?C.blue:C.accent}}>
+              {isPaused?'Paused':isRunning?'Running now':'Idle'}
+            </span>
+          </div>
+          <span style={{fontSize:10,color:C.textLight,fontFamily:'DM Mono,monospace'}}>Growth Agent</span>
+        </div>
+
+        {/* countdown or live status */}
+        <div style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`}}>
           {isPaused ? (
-            <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>
-              Agent is paused. Resume in Settings to run again on Monday.
-            </p>
+            <p style={{fontSize:12,color:C.textMuted,lineHeight:1.6}}>Agent is paused. Resume to run again next Monday.</p>
           ) : isRunning ? (
             <div>
-              <p style={{ fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Currently running</p>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Spinner size={14} />
-                <p style={{ fontSize: 13, color: C.text, fontWeight: 400 }}>Analyzing your repo…</p>
+              <SectionLabel style={{marginBottom:8}}>Currently running</SectionLabel>
+              <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                <Spinner size={13}/>
+                <p style={{fontSize:13,color:C.text,fontWeight:500}}>{AGENT_STEPS[stepIdx]?.label||'Analyzing…'}</p>
               </div>
+              <p style={{fontSize:11,color:C.textMuted}}>{AGENT_STEPS[stepIdx]?.desc||''}</p>
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Next run in</p>
-              <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, color: C.text, letterSpacing: '.04em', marginBottom: 12 }}>
-                {countdown.str}
-              </p>
-              {/* Week progress bar */}
-              <div style={{ height: 2, background: 'rgba(42,92,69,0.1)', borderRadius: 2, marginBottom: 6 }}>
-                <div style={{ height: '100%', width: `${weekProgress}%`, background: C.accent, borderRadius: 2, transition: 'width 1s linear' }} />
+              <SectionLabel style={{marginBottom:8}}>Next run in</SectionLabel>
+              <p style={{fontFamily:'DM Mono,monospace',fontSize:22,color:C.text,letterSpacing:'.02em',marginBottom:10}}>{countdown.str}</p>
+              <div style={{height:2,background:'rgba(42,92,69,0.1)',borderRadius:2,marginBottom:5}}>
+                <div style={{height:'100%',width:`${weekProgress}%`,background:C.accent,borderRadius:2,transition:'width 1s'}}/>
               </div>
-              <p style={{ fontSize: 10, color: C.textLight }}>Every Monday · 9:00 am</p>
+              <p style={{fontSize:10,color:C.textLight}}>Every Monday · 9:00 am</p>
             </div>
           )}
         </div>
 
-        {/* Last run step breakdown */}
+        {/* step tracker */}
         {lastRun && (
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
-            <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 12 }}>
-              Last run · {timeAgo(lastRun.created_at)}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {AGENT_STEPS.map((step, i) => {
-                const done = i <= stepIdx
-                const current = i === stepIdx && isRunning
-                const failed = (lastRun.status === 'failed' || lastRun.status === 'rejected') && i === stepIdx
-
+          <div style={{padding:'13px 16px',borderBottom:`1px solid ${C.border}`}}>
+            <SectionLabel style={{marginBottom:11}}>{isRunning?'Live steps':'Last run · '+timeAgo(lastRun.created_at)}</SectionLabel>
+            <div style={{display:'flex',flexDirection:'column',gap:0}}>
+              {AGENT_STEPS.map((step,i)=>{
+                const done = i<stepIdx
+                const current = i===stepIdx
+                const failed = (lastRun.status==='failed')&&i===stepIdx
                 return (
-                  <div key={step.id} className="step-row" style={{
-                    animationDelay: `${i * 0.05}s`,
-                    display: 'flex', gap: 10, alignItems: 'flex-start',
-                    paddingBottom: i < AGENT_STEPS.length - 1 ? 10 : 0,
-                    position: 'relative',
+                  <div key={step.id} style={{
+                    display:'flex',gap:9,alignItems:'flex-start',
+                    paddingBottom:i<AGENT_STEPS.length-1?8:0,
+                    position:'relative',
                   }}>
-                    {/* Connector line */}
-                    {i < AGENT_STEPS.length - 1 && (
-                      <div style={{
-                        position: 'absolute', left: 9, top: 18, width: 1, height: 'calc(100% - 8px)',
-                        background: done && !current ? C.accent : C.border,
-                        opacity: done ? 0.3 : 0.5,
-                      }} />
+                    {i<AGENT_STEPS.length-1&&(
+                      <div style={{position:'absolute',left:7,top:15,width:1,height:'calc(100% - 4px)',background:done?C.accent:C.border,opacity:0.3,zIndex:0}}/>
                     )}
-                    {/* Step dot */}
                     <div style={{
-                      width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                      background: failed ? C.red : current ? C.blue : done ? C.accent : 'rgba(28,25,23,0.06)',
-                      border: `1px solid ${failed ? C.red : current ? C.blue : done ? C.accent : C.border}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 9, color: done ? '#fff' : C.textLight,
-                      animation: current ? 'pulse 1.5s ease infinite' : 'none',
-                      zIndex: 1,
+                      width:15,height:15,borderRadius:'50%',flexShrink:0,zIndex:1,
+                      background:failed?C.red:current?C.blue:done?C.accent:'rgba(26,25,22,0.07)',
+                      border:`1px solid ${failed?C.red:current?C.blue:done?C.accent:C.border}`,
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:8,color:'#fff',
+                      animation:current?'pulse 2s ease infinite':'none',
                     }}>
-                      {failed ? '✕' : done ? '✓' : ''}
+                      {done&&!current?'✓':''}
                     </div>
-                    <div style={{ paddingTop: 1, minWidth: 0 }}>
-                      <p style={{
-                        fontSize: 12, fontWeight: current ? 500 : 400,
-                        color: failed ? C.red : current ? C.blue : done ? C.text : C.textLight,
-                        lineHeight: 1.3, marginBottom: 1,
-                      }}>
-                        {step.label}
-                      </p>
-                      {current && (
-                        <p style={{ fontSize: 10, color: C.textMuted, fontWeight: 300 }}>{step.desc}</p>
-                      )}
-                    </div>
+                    <p style={{
+                      fontSize:11,paddingTop:1,
+                      color:failed?C.red:current?C.blue:done?C.text:C.textLight,
+                      fontWeight:current?500:300,
+                    }}>{step.label}</p>
                   </div>
                 )
               })}
@@ -326,445 +756,687 @@ function AgentPanel({ subscription, runs, onTogglePause, actionLoading, onSelect
           </div>
         )}
 
-        {/* Pending PRs */}
-        {pending.length > 0 && (
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.yellowSoft }}>
-            <p style={{ fontSize: 11, color: C.yellow, fontWeight: 500, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-              🔔 {pending.length} awaiting approval
-            </p>
-            {pending.slice(0, 2).map(run => (
-              <div key={run.id} onClick={() => onSelectRun(run)} style={{
-                cursor: 'pointer', padding: '8px 0', borderBottom: `1px solid rgba(214,137,16,0.12)`,
-              }}>
-                <p style={{ fontSize: 12, color: C.text, fontWeight: 400, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {run.analysis_result?.problem || 'Fix pending review'}
+        {/* pending PRs */}
+        {pending.length>0&&(
+          <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,background:C.yellowSoft}}>
+            <SectionLabel style={{color:C.yellow,marginBottom:8}}>🔔 {pending.length} awaiting approval</SectionLabel>
+            {pending.slice(0,2).map(run=>(
+              <div key={run.id} onClick={()=>onSelectRun(run)} style={{cursor:'pointer',padding:'6px 0',borderBottom:`1px solid rgba(196,125,14,0.1)`}}>
+                <p style={{fontSize:11,color:C.text,fontWeight:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:1}}>
+                  {run.analysis_result?.problem||'Fix pending review'}
                 </p>
-                <p style={{ fontSize: 10, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>
-                  {run.pr_url ? `PR #${run.pr_number}` : ''} · {timeAgo(run.created_at)}
+                <p style={{fontSize:10,color:C.textMuted,fontFamily:'DM Mono,monospace'}}>
+                  {run.pr_url?`PR #${run.pr_number}`:''} · {timeAgo(run.created_at)}
                 </p>
               </div>
             ))}
-            <p style={{ fontSize: 10, color: C.yellow, marginTop: 8, lineHeight: 1.6 }}>
-              Reply <code style={{ background: 'rgba(214,137,16,0.15)', padding: '1px 5px', borderRadius: 3, fontFamily: 'DM Mono, monospace' }}>approve [id]</code> on Telegram
-            </p>
           </div>
         )}
 
-        {/* Quick actions */}
-        <div style={{ padding: '14px 18px' }}>
-          <button onClick={onTogglePause} disabled={actionLoading} style={{
-            width: '100%', padding: '10px', borderRadius: 8, fontSize: 12,
-            fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: actionLoading ? 'not-allowed' : 'pointer',
-            background: isPaused ? C.accent : 'transparent',
-            color: isPaused ? '#fff' : C.textMuted,
-            border: `1px solid ${isPaused ? C.accent : C.border}`,
-            transition: 'all .2s', opacity: actionLoading ? 0.6 : 1,
+        {/* pause button */}
+        <div style={{padding:'12px 16px'}}>
+          <button className="btn" onClick={onTogglePause} disabled={actionLoading} style={{
+            width:'100%',padding:'9px',borderRadius:7,fontSize:12,
+            background:isPaused?C.accent:'transparent',
+            color:isPaused?'#fff':C.textMuted,
+            border:`1px solid ${isPaused?C.accent:C.border}`,
+            opacity:actionLoading?0.5:1,cursor:actionLoading?'not-allowed':'pointer',
           }}>
-            {actionLoading ? '…' : isPaused ? '▶ Resume Agent' : '⏸ Pause Agent'}
+            {actionLoading?'…':isPaused?'▶ Resume Agent':'⏸ Pause Agent'}
           </button>
         </div>
-      </div>
+      </Card>
 
-      {/* Mini performance card */}
-      <MiniPerfCard runs={runs} />
+      {/* Quick perf stats */}
+      <Card style={{padding:'14px 16px'}}>
+        <SectionLabel style={{marginBottom:12}}>Performance</SectionLabel>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          {[
+            {label:'Deploy rate',value:`${rate}%`,color:C.green},
+            {label:'Fixes merged',value:deployed,color:C.accent},
+            {label:'Awaiting',value:pending.length,color:pending.length>0?C.yellow:C.textLight},
+            {label:'Failed/rejected',value:runs.filter(r=>r.status==='failed'||r.status==='rejected').length,color:C.textLight},
+          ].map((s,i)=>(
+            <div key={i}>
+              <p style={{fontFamily:'Instrument Serif,serif',fontSize:24,fontWeight:400,color:s.color,lineHeight:1}}>{s.value}</p>
+              <p style={{fontSize:10,color:C.textLight,marginTop:3}}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+        {runs.length>0&&(
+          <>
+            <SectionLabel style={{marginBottom:6}}>Run history</SectionLabel>
+            <RunHistoryBar runs={runs}/>
+            <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+              <span style={{fontSize:9,color:C.textLight}}>oldest</span>
+              <span style={{fontSize:9,color:C.textLight}}>latest</span>
+            </div>
+          </>
+        )}
+      </Card>
     </div>
   )
 }
 
-// ─── MINI PERF CARD ───────────────────────────────────────────────────────────
-function MiniPerfCard({ runs }) {
-  const deployed = runs.filter(r => r.status === 'deployed' || r.status === 'approved').length
-  const total = runs.length
-  const rate = total > 0 ? Math.round((deployed / total) * 100) : 0
-  const pending = runs.filter(r => r.status === 'waiting_approval').length
-  const failed = runs.filter(r => r.status === 'failed' || r.status === 'rejected').length
-
-  const stats = [
-    { label: 'Deploy rate',    value: `${rate}%`, color: C.green },
-    { label: 'Fixes merged',   value: deployed,   color: C.accent },
-    { label: 'Awaiting',       value: pending,    color: pending > 0 ? C.yellow : C.textLight },
-    { label: 'Failed/rejected',value: failed,     color: failed > 0 ? C.red : C.textLight },
-  ]
+// ─── OVERVIEW PAGE ────────────────────────────────────────────────────────────
+function OverviewPage({runs, subscription, funnelPages, learnings, impactMetrics, onSelectRun, onTogglePause, actionLoading}) {
+  const activeRun = runs.find(r=>r.status==='running')
+  const pendingRun = runs.find(r=>r.status==='waiting_approval')
 
   return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
-      <p style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 14 }}>
-        Performance
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {stats.map((s, i) => (
-          <div key={i}>
-            <p style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 26, fontWeight: 300, color: s.color, lineHeight: 1 }}>{s.value}</p>
-            <p style={{ fontSize: 10, color: C.textLight, marginTop: 3, fontWeight: 300 }}>{s.label}</p>
+    <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+      {/* LEFT: main content */}
+      <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:14}}>
+
+        {/* PR mission control */}
+        {pendingRun && <div className="fade-up"><PRMissionControl run={pendingRun}/></div>}
+
+        {/* KPI bar */}
+        <div className="fade-up" style={{animationDelay:'.05s'}}>
+          <KPIBar runs={runs} impactMetrics={impactMetrics}/>
+        </div>
+
+        {/* Middle row: live stream + top insights */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          {/* live activity stream */}
+          <Card className="fade-up" style={{padding:'16px 18px',animationDelay:'.1s'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div>
+                <SectionLabel style={{marginBottom:2}}>
+                  {activeRun?'🟢 Agent is running':'Activity Stream'}
+                </SectionLabel>
+                <p style={{fontSize:11,color:C.textLight}}>
+                  {activeRun?'Real-time progress':'Last actions taken'}
+                </p>
+              </div>
+              {activeRun&&<div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <Spinner size={13}/>
+                <span style={{fontSize:10,color:C.blue}}>Live</span>
+              </div>}
+            </div>
+            <LiveActivityStream runs={runs} activeRun={activeRun}/>
+          </Card>
+
+          {/* top insights */}
+          <div className="fade-up" style={{animationDelay:'.12s',display:'flex',flexDirection:'column',gap:10}}>
+            <SectionLabel>Top Insights</SectionLabel>
+            <TopInsights runs={runs} funnelPages={funnelPages} learnings={learnings} impactMetrics={impactMetrics}/>
+          </div>
+        </div>
+
+        {/* Revenue estimator */}
+        <div className="fade-up" style={{animationDelay:'.15s'}}>
+          <RevenueEstimator runs={runs} impactMetrics={impactMetrics}/>
+        </div>
+
+        {/* Bottom learning strip */}
+        <AgentLearningStrip learnings={learnings}/>
+      </div>
+
+      {/* RIGHT: sticky sidebar */}
+      <AgentSidebar
+        subscription={subscription}
+        runs={runs}
+        onTogglePause={onTogglePause}
+        actionLoading={actionLoading}
+        onSelectRun={onSelectRun}
+      />
+    </div>
+  )
+}
+
+// ─── AGENT LEARNING STRIP ────────────────────────────────────────────────────
+function AgentLearningStrip({learnings}) {
+  if (learnings.length===0) return null
+  const wins = learnings.filter(l=>l.outcome==='positive').length
+  const losses = learnings.filter(l=>l.outcome==='negative').length
+  const rate = Math.round((wins/learnings.length)*100)
+  const posAvgDelta = learnings.filter(l=>l.outcome==='positive'&&l.delta)
+  const avgLift = posAvgDelta.length>0?Math.round(posAvgDelta.reduce((s,l)=>s+(l.delta||0),0)/posAvgDelta.length):null
+
+  return (
+    <Card className="fade-up" style={{padding:'16px 18px',borderColor:C.accentMid,background:C.accentSoft}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+        <span style={{fontSize:18}}>🧠</span>
+        <div>
+          <SectionLabel style={{color:C.accent,marginBottom:1}}>Business DNA · Agent is learning</SectionLabel>
+          <p style={{fontSize:11,color:C.textMuted}}>Every fix makes the agent smarter for your site</p>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        <div>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:28,color:C.accent,lineHeight:1}}>{learnings.length}</p>
+          <p style={{fontSize:10,color:C.textMuted,marginTop:3}}>total learnings</p>
+        </div>
+        <div>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:28,color:C.green,lineHeight:1}}>{rate}%</p>
+          <p style={{fontSize:10,color:C.textMuted,marginTop:3}}>win rate</p>
+        </div>
+        <div>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:28,color:C.green,lineHeight:1}}>{avgLift!=null?`+${avgLift}%`:'—'}</p>
+          <p style={{fontSize:10,color:C.textMuted,marginTop:3}}>avg improvement on wins</p>
+        </div>
+        <div>
+          <p style={{fontFamily:'Instrument Serif,serif',fontSize:28,color:C.textMuted,lineHeight:1}}>{losses}</p>
+          <p style={{fontSize:10,color:C.textMuted,marginTop:3}}>rolled back / avoided</p>
+        </div>
+      </div>
+      {/* recent learnings */}
+      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
+        {learnings.slice(0,3).map((l,i)=>(
+          <div key={l.id||i} style={{display:'flex',alignItems:'center',gap:10,fontSize:11}}>
+            <span style={{color:l.outcome==='positive'?C.green:C.red,flexShrink:0}}>{l.outcome==='positive'?'✓':'✕'}</span>
+            <span style={{color:C.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.summary}</span>
+            {l.delta&&<span style={{color:l.outcome==='positive'?C.green:C.red,flexShrink:0,fontWeight:500}}>{l.outcome==='positive'?'+':''}{l.delta}%</span>}
           </div>
         ))}
       </div>
-
-      {/* Sparkline */}
-      {runs.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <p style={{ fontSize: 10, color: C.textLight, marginBottom: 6 }}>Run history</p>
-          <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 28 }}>
-            {[...runs].slice(0, 10).reverse().map((run, i) => {
-              const s = STATUS[run.status] || STATUS.pending
-              const h = run.status === 'deployed' || run.status === 'approved' ? 28
-                : run.status === 'waiting_approval' ? 20
-                : run.status === 'failed' || run.status === 'rejected' ? 10
-                : 16
-              return (
-                <div key={run.id} title={`${run.status} · ${timeAgo(run.created_at)}`} style={{
-                  flex: 1, height: h, background: s.dot, borderRadius: 3,
-                  opacity: 0.5 + (i / 10) * 0.5, transition: 'height .3s',
-                }} />
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontSize: 9, color: C.textLight }}>oldest</span>
-            <span style={{ fontSize: 9, color: C.textLight }}>latest</span>
-          </div>
-        </div>
-      )}
-    </div>
+    </Card>
   )
 }
 
-// ─── STATS BAR ────────────────────────────────────────────────────────────────
-function StatsBar({ runs }) {
-  const total    = runs.length
-  const deployed = runs.filter(r => r.status === 'deployed' || r.status === 'approved').length
-  const pending  = runs.filter(r => r.status === 'waiting_approval').length
-  const failed   = runs.filter(r => r.status === 'failed' || r.status === 'rejected').length
-  const rate     = total > 0 ? Math.round((deployed / total) * 100) : 0
+// ─── RUNS PAGE ────────────────────────────────────────────────────────────────
+function RunsPage({runs, loading, onSelect}) {
+  const [filter, setFilter] = useState('all')
+  const filters = ['all','deployed','waiting_approval','failed','rejected','rolled_back']
 
-  const cards = [
-    { label: 'Total Runs',      value: total,    icon: '🔄', accent: false, highlight: false },
-    { label: 'Fixes Deployed',  value: deployed, icon: '🚀', accent: true,  highlight: false },
-    { label: 'Deploy Rate',     value: `${rate}%`, icon: '📈', accent: false, highlight: false },
-    { label: 'Awaiting Review', value: pending,  icon: pending > 0 ? '🔔' : '✓', accent: false, highlight: pending > 0 },
-  ]
+  const filtered = filter==='all'?runs:runs.filter(r=>r.status===filter)
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-      {cards.map((card, i) => (
-        <div key={i} className="stat-card fade-up" style={{
-          animationDelay: `${i * 0.06}s`,
-          background: card.accent ? C.accentSoft : card.highlight ? C.yellowSoft : C.bgCard,
-          border: `1px solid ${card.accent ? C.accentMid : card.highlight ? 'rgba(214,137,16,0.25)' : C.border}`,
-          borderRadius: 14, padding: '18px 20px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{
-              fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 500,
-              color: card.accent ? C.accent : card.highlight ? C.yellow : C.textLight,
-            }}>{card.label}</p>
-            <span style={{ fontSize: 15 }}>{card.icon}</span>
-          </div>
-          <p style={{
-            fontFamily: 'Cormorant Garant, serif', fontSize: 38, fontWeight: 300,
-            color: card.highlight ? C.yellow : card.accent ? C.accent : C.text, lineHeight: 1,
-          }}>{card.value}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── RUN LIST ─────────────────────────────────────────────────────────────────
-function RunList({ runs, loading, onSelect, activeFilter, onFilterChange }) {
-  const filters = ['all', 'deployed', 'waiting_approval', 'failed', 'rejected']
-
-  const filtered = activeFilter === 'all'
-    ? runs
-    : runs.filter(r => r.status === activeFilter)
-
-  // Group by week
   function weekLabel(iso) {
-    const d = new Date(iso), now = new Date()
-    const diff = Math.floor((now - d) / 86400000)
-    if (diff < 7) return 'This week'
-    if (diff < 14) return 'Last week'
-    return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    const d=new Date(iso),now=new Date(),diff=Math.floor((now-d)/86400000)
+    if(diff<7)return'This week'; if(diff<14)return'Last week'
+    return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'})
   }
-
-  const grouped = []
-  let cur = null
-  filtered.forEach(run => {
-    const lbl = weekLabel(run.created_at)
-    if (!cur || cur.label !== lbl) { cur = { label: lbl, runs: [] }; grouped.push(cur) }
+  const grouped=[]; let cur=null
+  filtered.forEach(run=>{
+    const lbl=weekLabel(run.created_at)
+    if(!cur||cur.label!==lbl){cur={label:lbl,runs:[]}; grouped.push(cur)}
     cur.runs.push(run)
   })
 
   return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', flex: 1 }}>
-      {/* Header + filter */}
-      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+    <Card style={{overflow:'hidden'}}>
+      <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 1 }}>Activity Log</p>
-          <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>Click any run for full details</p>
+          <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:1}}>Activity Log</p>
+          <p style={{fontSize:11,color:C.textLight}}>Click any run for full details</p>
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {filters.map(f => (
-            <button key={f} onClick={() => onFilterChange(f)} style={{
-              background: activeFilter === f ? C.text : 'transparent',
-              color: activeFilter === f ? C.bg : C.textMuted,
-              border: `1px solid ${activeFilter === f ? C.text : C.border}`,
-              borderRadius: 6, padding: '4px 10px', fontSize: 10,
-              fontFamily: 'Jost, sans-serif', fontWeight: activeFilter === f ? 500 : 300,
-              cursor: 'pointer', transition: 'all .15s', textTransform: 'capitalize',
-              letterSpacing: '.02em',
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {filters.map(f=>(
+            <button key={f} className="btn" onClick={()=>setFilter(f)} style={{
+              background:filter===f?C.text:'transparent',
+              color:filter===f?C.bg:C.textMuted,
+              border:`1px solid ${filter===f?C.text:C.border}`,
+              borderRadius:5, padding:'3px 9px', fontSize:10,
+              fontFamily:'DM Sans,sans-serif',fontWeight:filter===f?500:400,
+              textTransform:'capitalize',
             }}>
-              {f === 'all' ? 'All' : STATUS[f]?.label || f}
+              {f==='all'?'All':STATUS[f]?.label||f}
             </button>
           ))}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ padding: '48px', display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-      ) : filtered.length === 0 ? (
-        <div style={{ padding: '48px 32px', textAlign: 'center' }}>
-          <p style={{ fontSize: 28, marginBottom: 10 }}>🤖</p>
-          <p style={{ fontSize: 14, color: C.text, fontWeight: 400, marginBottom: 4 }}>
-            {activeFilter === 'all' ? 'No runs yet' : `No ${STATUS[activeFilter]?.label || activeFilter} runs`}
-          </p>
-          <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>
-            {activeFilter === 'all' ? 'The agent runs every Monday at 9am.' : 'Try changing the filter above.'}
-          </p>
+        <div style={{padding:'48px',display:'flex',justifyContent:'center'}}><Spinner/></div>
+      ) : filtered.length===0 ? (
+        <div style={{padding:'48px',textAlign:'center'}}>
+          <p style={{fontSize:13,color:C.textLight}}>{filter==='all'?'No runs yet.':'No runs with this filter.'}</p>
         </div>
-      ) : (
-        grouped.map((group, gi) => (
-          <div key={gi}>
-            {/* Week divider */}
-            <div style={{ padding: '12px 20px 6px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(28,25,23,0.015)' }}>
-              <span style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {group.label}
-              </span>
-              <div style={{ flex: 1, height: 1, background: C.border }} />
-              <span style={{ fontSize: 10, color: C.textLight, fontWeight: 300 }}>{group.runs.length} run{group.runs.length !== 1 ? 's' : ''}</span>
-            </div>
+      ) : grouped.map((group,gi)=>(
+        <div key={gi}>
+          <div style={{padding:'10px 18px 5px',display:'flex',alignItems:'center',gap:10,background:'rgba(26,25,22,0.02)'}}>
+            <span style={{fontSize:10,letterSpacing:'.1em',textTransform:'uppercase',color:C.textLight,fontWeight:500,whiteSpace:'nowrap'}}>{group.label}</span>
+            <div style={{flex:1,height:1,background:C.border}}/>
+            <span style={{fontSize:10,color:C.textLight}}>{group.runs.length} run{group.runs.length!==1?'s':''}</span>
+          </div>
+          {group.runs.map((run,i)=>{
+            const analysis=run.analysis_result||{}
+            const s=STATUS[run.status]||STATUS.pending
+            return (
+              <div key={run.id} className="run-row fade-up" onClick={()=>onSelect(run)}
+                style={{
+                  animationDelay:`${(gi*4+i)*0.03}s`,
+                  display:'flex',gap:0,background:'#fff',
+                  borderBottom:i<group.runs.length-1?`1px solid ${C.border}`:'none',
+                }}
+              >
+                <div style={{width:40,display:'flex',flexDirection:'column',alignItems:'center',paddingTop:18,flexShrink:0,position:'relative'}}>
+                  {i<group.runs.length-1&&(
+                    <div style={{position:'absolute',top:28,bottom:0,left:'50%',width:1,background:C.border,transform:'translateX(-50%)'}}/>
+                  )}
+                  <div style={{
+                    width:9,height:9,borderRadius:'50%',zIndex:1,
+                    background:s.dot,border:`2px solid #fff`,boxShadow:`0 0 0 1.5px ${s.dot}44`,
+                    animation:run.status==='running'?'pulse 2s ease infinite':'none',
+                  }}/>
+                </div>
+                <div style={{flex:1,padding:'14px 18px 14px 0',minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:5}}>
+                    <p style={{fontSize:13,fontWeight:400,color:C.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {analysis.problem||'Analysis pending…'}
+                    </p>
+                    <StatusBadge status={run.status} small/>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    {analysis.file_to_edit&&(
+                      <code style={{fontSize:10,color:C.accent,background:C.accentSoft,padding:'1px 6px',borderRadius:4,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'inline-block'}}>
+                        {analysis.file_to_edit.split('/').pop()}
+                      </code>
+                    )}
+                    {analysis.expected_improvement&&(
+                      <span style={{fontSize:10,color:C.green}}>↑ {analysis.expected_improvement}</span>
+                    )}
+                    {run.pr_url&&(
+                      <a href={run.pr_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{fontSize:10,color:C.accent,textDecoration:'none'}}>
+                        PR #{run.pr_number} ↗
+                      </a>
+                    )}
+                    <span style={{fontSize:10,color:C.textLight,marginLeft:'auto',whiteSpace:'nowrap'}}>{fmt(run.created_at)}</span>
+                  </div>
+                  {analysis.data_insight&&(
+                    <p style={{fontSize:11,color:C.textMuted,marginTop:5,lineHeight:1.5,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
+                      {analysis.data_insight}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </Card>
+  )
+}
 
-            {group.runs.map((run, i) => {
-              const analysis = run.analysis_result || {}
-              const s = STATUS[run.status] || STATUS.pending
-              const isLast = i === group.runs.length - 1
+// ─── INSIGHTS PAGE ────────────────────────────────────────────────────────────
+function InsightsPage({runs, impactMetrics, learnings, funnelPages}) {
+  const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved')
 
+  // Build before/after data
+  const impactData = impactMetrics.map(m=>{
+    const run = runs.find(r=>r.id===m.run_id)
+    return {...m, run}
+  }).filter(m=>m.run&&m.value_before&&m.value_after)
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+
+      {/* Revenue estimator */}
+      <RevenueEstimator runs={runs} impactMetrics={impactMetrics}/>
+
+      {/* Impact metrics: before/after */}
+      {impactData.length>0&&(
+        <Card style={{padding:'16px 18px'}}>
+          <SectionLabel style={{marginBottom:14}}>Before / After Impact</SectionLabel>
+          <div style={{display:'flex',flexDirection:'column',gap:0}}>
+            {impactData.map((m,i)=>{
+              const improvement = m.value_before - m.value_after
+              const isGood = improvement > 0
               return (
-                <div key={run.id} className="run-row fade-up" onClick={() => onSelect(run)}
-                  style={{
-                    animationDelay: `${(gi * 4 + i) * 0.03}s`,
-                    display: 'flex', gap: 0,
-                    background: '#fff',
-                    borderBottom: !isLast ? `1px solid ${C.border}` : 'none',
-                  }}
-                >
-                  {/* Timeline column */}
-                  <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 20, flexShrink: 0, position: 'relative' }}>
-                    {!isLast && (
-                      <div style={{ position: 'absolute', top: 32, bottom: 0, left: '50%', width: 1, background: C.border, transform: 'translateX(-50%)' }} />
-                    )}
-                    <div style={{
-                      width: 10, height: 10, borderRadius: '50%', zIndex: 1,
-                      background: s.dot, border: `2px solid #fff`,
-                      boxShadow: `0 0 0 2px ${s.dot}33`,
-                      animation: run.status === 'running' ? 'pulse 1.5s ease infinite' : 'none',
-                    }} />
+                <div key={m.id} style={{
+                  display:'grid',gridTemplateColumns:'1fr auto auto',gap:16,alignItems:'center',
+                  padding:'12px 0',borderBottom:i<impactData.length-1?`1px solid ${C.border}`:'none',
+                }}>
+                  <div>
+                    <p style={{fontSize:12,fontWeight:500,color:C.text,marginBottom:2}}>
+                      {m.run?.analysis_result?.problem||'Change'}
+                    </p>
+                    <p style={{fontSize:10,color:C.textMuted}}>
+                      {m.metric_type==='bounce_rate'?'Bounce rate':m.metric_type} · {timeAgo(m.measured_at)}
+                    </p>
                   </div>
-
-                  {/* Main content */}
-                  <div style={{ flex: 1, padding: '16px 20px 16px 0', minWidth: 0 }}>
-                    {/* Top row */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-                      <p style={{ fontSize: 13, fontWeight: 400, color: C.text, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {analysis.problem || 'Analysis pending…'}
-                      </p>
-                      <StatusBadge status={run.status} small />
-                    </div>
-
-                    {/* Meta row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      {analysis.file_to_edit && (
-                        <code style={{
-                          fontSize: 10, color: C.accent, fontFamily: 'DM Mono, monospace',
-                          background: C.accentSoft, padding: '2px 7px', borderRadius: 4,
-                          maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          display: 'inline-block',
-                        }}>
-                          {analysis.file_to_edit.split('/').pop()}
-                        </code>
-                      )}
-                      {analysis.expected_improvement && (
-                        <span style={{ fontSize: 10, color: C.green, fontWeight: 300 }}>
-                          ↑ {analysis.expected_improvement}
-                        </span>
-                      )}
-                      {run.pr_url && (
-                        <a href={run.pr_url} target="_blank" rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ fontSize: 10, color: C.accent, textDecoration: 'none', fontWeight: 400 }}>
-                          PR #{run.pr_number} ↗
-                        </a>
-                      )}
-                      <span style={{ fontSize: 10, color: C.textLight, fontWeight: 300, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                        {fmt(run.created_at)}
-                      </span>
-                    </div>
-
-                    {/* Insight preview if available */}
-                    {analysis.data_insight && (
-                      <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 300, marginTop: 6, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {analysis.data_insight}
-                      </p>
-                    )}
+                  <div style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+                    <span style={{color:C.textMuted}}>{m.value_before}%</span>
+                    <span style={{color:C.textLight}}>→</span>
+                    <span style={{color:isGood?C.green:C.red,fontWeight:500}}>{m.value_after}%</span>
                   </div>
+                  <span style={{
+                    fontSize:12,fontWeight:500,
+                    color:isGood?C.green:C.red,
+                    background:isGood?C.greenSoft:C.redSoft,
+                    border:`1px solid ${isGood?'rgba(30,122,60,0.2)':C.redMid}`,
+                    borderRadius:5,padding:'3px 8px',whiteSpace:'nowrap',
+                  }}>
+                    {isGood?'−':'+'}{ Math.abs(Math.round(improvement))}%
+                  </span>
                 </div>
               )
             })}
           </div>
-        ))
+        </Card>
+      )}
+
+      {/* Business DNA / learnings */}
+      <AgentLearningStrip learnings={learnings}/>
+
+      {/* Learning details */}
+      {learnings.length>0&&(
+        <Card style={{overflow:'hidden'}}>
+          <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`}}>
+            <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:1}}>Agent Learnings</p>
+            <p style={{fontSize:11,color:C.textLight}}>Every outcome improves future decisions</p>
+          </div>
+          {learnings.map((l,i)=>(
+            <div key={l.id||i} style={{
+              display:'flex',alignItems:'flex-start',gap:12,padding:'12px 18px',
+              borderBottom:i<learnings.length-1?`1px solid ${C.border}`:'none',
+              background:l.outcome==='positive'?C.greenSoft:C.redSoft,
+            }}>
+              <span style={{fontSize:14,color:l.outcome==='positive'?C.green:C.red,flexShrink:0,paddingTop:1}}>
+                {l.outcome==='positive'?'✓':'✕'}
+              </span>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:12,color:C.text,marginBottom:2}}>{l.summary}</p>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                  <span style={{fontSize:10,color:C.textMuted}}>{l.change_type}</span>
+                  {l.delta&&<span style={{fontSize:10,color:l.outcome==='positive'?C.green:C.red,fontWeight:500}}>{l.outcome==='positive'?'+':''}{l.delta}% {l.metric_type}</span>}
+                  <span style={{fontSize:10,color:C.textLight}}>{l.confidence} confidence</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </Card>
       )}
     </div>
   )
 }
 
-// ─── RUN DETAIL MODAL ─────────────────────────────────────────────────────────
-function RunDetail({ run, onClose }) {
-  const analysis = run.analysis_result || {}
-  const funnel   = run.funnel_analysis
+// ─── FUNNEL PAGE ──────────────────────────────────────────────────────────────
+function FunnelPage({subscriptionId}) {
+  const [funnelPages, setFunnelPages] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const fields = [
-    { label: '💡 Data Insight',          text: analysis.data_insight },
-    { label: '💥 Impact',                text: analysis.impact },
-    { label: '✅ Solution',              text: analysis.solution },
-    { label: '📈 Expected improvement',  text: analysis.expected_improvement },
-    { label: '🔍 Competitor angle',      text: analysis.competitor_insight },
+  useEffect(()=>{
+    if(!subscriptionId)return
+    supabase.from('agent_funnel_pages').select('*').eq('subscription_id',subscriptionId).order('created_at',{ascending:false}).limit(30)
+      .then(({data})=>{
+        if(data){
+          const seen=new Set()
+          setFunnelPages(data.filter(p=>{if(seen.has(p.page_path))return false;seen.add(p.page_path);return true}))
+        }
+        setLoading(false)
+      })
+  },[subscriptionId])
+
+  if(loading) return <div style={{padding:'48px',display:'flex',justifyContent:'center'}}><Spinner/></div>
+  if(!funnelPages.length) return (
+    <div style={{padding:'40px',textAlign:'center'}}>
+      <p style={{fontSize:24,marginBottom:10}}>🗺️</p>
+      <p style={{fontSize:13,color:C.text,marginBottom:4}}>No funnel data yet</p>
+      <p style={{fontSize:11,color:C.textLight}}>Funnel analysis runs automatically every Monday.</p>
+    </div>
+  )
+
+  const biggestOpp = [...funnelPages].filter(p=>p.drop_off_score>0).sort((a,b)=>b.drop_off_score-a.drop_off_score)[0]
+  const maxScore = Math.max(...funnelPages.map(p=>p.drop_off_score||0),1)
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      {biggestOpp&&(
+        <div style={{background:C.yellowSoft,border:`1px solid ${C.yellowMid}`,borderRadius:10,padding:'14px 18px'}}>
+          <SectionLabel style={{color:C.yellow,marginBottom:6}}>⚠️ Biggest Opportunity</SectionLabel>
+          <p style={{fontSize:14,color:C.text,fontWeight:500,marginBottom:3}}>{PAGE_TYPE_EMOJI[biggestOpp.page_type]} {biggestOpp.page_path}</p>
+          <p style={{fontSize:11,color:C.textMuted}}>{biggestOpp.drop_off_score}% drop-off · {biggestOpp.views_7d||0} views/week</p>
+          {biggestOpp.ai_insight&&<p style={{fontSize:11,color:C.textMuted,marginTop:6,fontStyle:'italic'}}>{biggestOpp.ai_insight}</p>}
+        </div>
+      )}
+
+      <Card style={{overflow:'hidden'}}>
+        <div style={{padding:'12px 18px',borderBottom:`1px solid ${C.border}`}}>
+          <p style={{fontSize:12,fontWeight:500,color:C.text}}>{funnelPages.length} pages in funnel</p>
+        </div>
+        {funnelPages.map((page,i)=>{
+          const dropColor = page.drop_off_score>=60?C.red:page.drop_off_score>=30?C.yellow:C.green
+          const barW = Math.round(((page.drop_off_score||0)/maxScore)*100)
+          return (
+            <div key={page.id} style={{padding:'12px 18px',borderBottom:i<funnelPages.length-1?`1px solid ${C.border}`:'none'}}>
+              <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
+                <span style={{fontSize:15,flexShrink:0}}>{PAGE_TYPE_EMOJI[page.page_type]||'📄'}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:12,color:C.text,fontFamily:'DM Mono,monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{page.page_path}</p>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  {page.views_7d>0&&<p style={{fontSize:11,color:C.text,fontWeight:400}}>{page.views_7d} views</p>}
+                  {page.drop_off_score>0&&<p style={{fontSize:10,color:dropColor,marginTop:1}}>{page.drop_off_score}% drop-off</p>}
+                </div>
+              </div>
+              {page.drop_off_score>0&&(
+                <div style={{height:3,background:'rgba(26,25,22,0.07)',borderRadius:2}}>
+                  <div style={{height:'100%',width:`${barW}%`,background:dropColor,borderRadius:2,opacity:0.6}}/>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </Card>
+    </div>
+  )
+}
+
+// ─── GUARDRAILS PAGE ──────────────────────────────────────────────────────────
+function GuardrailsPage({subscriptionId}) {
+  const [saving,setSaving]=useState(false), [saved,setSaved]=useState(false)
+  const [tone,setTone]=useState('')
+  const [forbidden,setForbidden]=useState([]), [forbInput,setForbInput]=useState('')
+  const [protected_,setProtected]=useState([]), [protInput,setProtInput]=useState('')
+  const [customRules,setCustomRules]=useState('')
+
+  useEffect(()=>{
+    if(!subscriptionId)return
+    supabase.from('agent_brand_guardrails').select('*').eq('subscription_id',subscriptionId).single()
+      .then(({data})=>{
+        if(data){setTone(data.tone||'');setForbidden(data.forbidden_patterns||[]);setProtected(data.protected_elements||[]);setCustomRules(data.custom_rules||'')}
+      })
+  },[subscriptionId])
+
+  function addTag(list,setList,input,setInput){const v=input.trim();if(v&&!list.includes(v))setList([...list,v]);setInput('')}
+  function removeTag(list,setList,val){setList(list.filter(v=>v!==val))}
+
+  async function handleSave(){
+    setSaving(true)
+    await supabase.from('agent_brand_guardrails').upsert({subscription_id:subscriptionId,tone:tone||null,forbidden_patterns:forbidden,protected_elements:protected_,custom_rules:customRules||null,updated_at:new Date().toISOString()},{onConflict:'subscription_id'})
+    setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2500)
+  }
+
+  const inp = {width:'100%',background:'rgba(26,25,22,0.04)',border:`1px solid ${C.border}`,borderRadius:7,padding:'9px 11px',fontSize:13,fontFamily:'DM Sans,sans-serif',color:C.text}
+  const lbl = {fontSize:10,letterSpacing:'.08em',textTransform:'uppercase',color:C.textLight,fontWeight:500,display:'block',marginBottom:7}
+
+  return (
+    <Card style={{padding:'22px'}}>
+      <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:20}}>
+        These rules are enforced on every run — the agent will not make changes that violate them.
+      </p>
+      <div style={{display:'flex',flexDirection:'column',gap:18}}>
+        <div>
+          <label style={lbl}>Tone of voice</label>
+          <input value={tone} onChange={e=>setTone(e.target.value)} placeholder='"friendly but direct", "professional, no fluff"' style={inp}/>
+        </div>
+        {[
+          {label:'Never do these',list:forbidden,setList:setForbidden,input:forbInput,setInput:setForbInput,placeholder:'"clickbait headlines"'},
+          {label:'Never change these',list:protected_,setList:setProtected,input:protInput,setInput:setProtInput,placeholder:'"brand colors"'},
+        ].map(({label,list,setList,input,setInput,placeholder})=>(
+          <div key={label}>
+            <label style={lbl}>{label}</label>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
+              {list.map(tag=>(
+                <span key={tag} style={{display:'inline-flex',alignItems:'center',gap:5,background:'rgba(26,25,22,0.06)',border:`1px solid ${C.border}`,borderRadius:20,padding:'3px 9px',fontSize:12}}>
+                  {tag}<span className="tag-remove" onClick={()=>removeTag(list,setList,tag)}>×</span>
+                </span>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addTag(list,setList,input,setInput)} placeholder={`e.g. ${placeholder} — press Enter`} style={{...inp,flex:1}}/>
+              <button className="btn" onClick={()=>addTag(list,setList,input,setInput)} style={{background:C.text,color:C.bg,borderRadius:7,padding:'9px 13px',fontSize:13,fontFamily:'DM Sans,sans-serif'}}>Add</button>
+            </div>
+          </div>
+        ))}
+        <div>
+          <label style={lbl}>Additional rules</label>
+          <textarea value={customRules} onChange={e=>setCustomRules(e.target.value)} placeholder="Any other instructions for the agent..." rows={3} style={{...inp,resize:'vertical',lineHeight:1.6}}/>
+        </div>
+        <button className="btn" onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:C.accent,color:'#fff',borderRadius:8,
+          padding:'12px',fontSize:14,fontFamily:'DM Sans,sans-serif',fontWeight:500,
+          opacity:saving?0.7:1,transition:'background .25s',
+        }}>
+          {saving?'Saving…':saved?'✓ Saved':'Save Guardrails'}
+        </button>
+      </div>
+    </Card>
+  )
+}
+
+// ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
+function SettingsPage({subscription, user, onTogglePause, actionLoading, onDeleteRequest}) {
+  return (
+    <Card style={{overflow:'hidden'}}>
+      <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+        <div>
+          <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:2}}>
+            {subscription?.status==='paused'?'⏸ Agent is paused':'▶ Agent is active'}
+          </p>
+          <p style={{fontSize:11,color:C.textMuted,fontWeight:300}}>
+            {subscription?.status==='paused'?'Resume to run again every Monday.':'Runs every Monday at 9am.'}
+          </p>
+        </div>
+        <button className="btn" onClick={onTogglePause} disabled={actionLoading} style={{
+          background:subscription?.status==='paused'?C.accent:'transparent',
+          color:subscription?.status==='paused'?'#fff':C.textMuted,
+          border:`1px solid ${subscription?.status==='paused'?C.accent:C.border}`,
+          borderRadius:7,padding:'8px 15px',fontSize:12,fontFamily:'DM Sans,sans-serif',fontWeight:400,
+          opacity:actionLoading?0.6:1,
+        }}>
+          {actionLoading?'…':subscription?.status==='paused'?'Resume Agent':'Pause Agent'}
+        </button>
+      </div>
+      <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`}}>
+        <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:8}}>Account</p>
+        <p style={{fontSize:12,color:C.textMuted,marginBottom:2}}>Email: {user?.email}</p>
+        <p style={{fontSize:12,color:C.textMuted}}>Plan: {subscription?.plan||'Growth'}</p>
+      </div>
+      <div style={{padding:'18px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+        <div>
+          <p style={{fontSize:13,fontWeight:500,color:C.red,marginBottom:2}}>Delete account</p>
+          <p style={{fontSize:11,color:C.textMuted}}>Permanently deletes your account and all data.</p>
+        </div>
+        <button className="btn" onClick={onDeleteRequest} style={{
+          background:'transparent',color:C.red,
+          border:`1px solid rgba(184,50,50,0.3)`,
+          borderRadius:7,padding:'7px 14px',fontSize:12,fontFamily:'DM Sans,sans-serif',
+        }}>
+          Delete account
+        </button>
+      </div>
+    </Card>
+  )
+}
+
+// ─── RUN DETAIL MODAL ─────────────────────────────────────────────────────────
+function RunDetail({run, onClose}) {
+  const analysis = run.analysis_result||{}
+  const funnel   = run.funnel_analysis
+  const fields   = [
+    {label:'💡 Data Insight',         text:analysis.data_insight},
+    {label:'💥 Impact',               text:analysis.impact},
+    {label:'✅ Solution',             text:analysis.solution},
+    {label:'📈 Expected improvement', text:analysis.expected_improvement},
+    {label:'🔍 Competitor angle',     text:analysis.competitor_insight},
   ]
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 999,
-      background: 'rgba(28,25,23,0.45)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-    }} onClick={onClose}>
-      <div className="pop-in" onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 20, padding: '32px 28px',
-        maxWidth: 580, width: '100%', maxHeight: '88vh', overflowY: 'auto',
-        boxShadow: '0 24px 80px rgba(28,25,23,0.18)', position: 'relative',
+    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(26,25,22,0.4)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}} onClick={onClose}>
+      <div className="pop-in" onClick={e=>e.stopPropagation()} style={{
+        background:'#fff',borderRadius:16,padding:'28px 26px',
+        maxWidth:560,width:'100%',maxHeight:'88vh',overflowY:'auto',
+        boxShadow:'0 20px 60px rgba(26,25,22,0.15)',position:'relative',
       }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 18, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.textLight, lineHeight: 1 }}>×</button>
-
-        {/* Status + date */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <StatusBadge status={run.status} />
-          <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>
-            {new Date(run.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </span>
+        <button onClick={onClose} style={{position:'absolute',top:14,right:16,background:'none',border:'none',fontSize:20,cursor:'pointer',color:C.textLight}}>×</button>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+          <StatusBadge status={run.status}/>
+          <span style={{fontSize:11,color:C.textLight}}>{new Date(run.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
         </div>
-
-        {/* Problem headline */}
-        {analysis.problem && (
-          <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 26, letterSpacing: '-.015em', marginBottom: 22, color: C.text, lineHeight: 1.2 }}>
-            {analysis.problem}
-          </h3>
+        {analysis.problem&&(
+          <h3 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:24,letterSpacing:'-.01em',marginBottom:20,color:C.text,lineHeight:1.25}}>{analysis.problem}</h3>
         )}
-
-        {/* Agent step timeline in modal */}
-        <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
-          <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 12 }}>What the agent did</p>
-          <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
-            {AGENT_STEPS.map((step, i) => {
-              const stepI = deriveAgentStep(run)
-              const done = i <= stepI
-              const failed = (run.status === 'failed') && i === stepI
+        {/* agent step flow */}
+        <div style={{background:'rgba(26,25,22,0.02)',border:`1px solid ${C.border}`,borderRadius:10,padding:'13px 15px',marginBottom:16}}>
+          <SectionLabel style={{marginBottom:12}}>What the agent did</SectionLabel>
+          <div style={{display:'flex',gap:0,overflowX:'auto',paddingBottom:4}}>
+            {AGENT_STEPS.map((step,i)=>{
+              const stepI=deriveAgentStep(run), done=i<=stepI, failed=run.status==='failed'&&i===stepI
               return (
-                <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div key={step.id} style={{display:'flex',alignItems:'center',gap:0,flexShrink:0}}>
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
                     <div style={{
-                      width: 26, height: 26, borderRadius: '50%', fontSize: 12,
-                      background: failed ? C.red : done ? C.accent : 'rgba(28,25,23,0.06)',
-                      border: `1px solid ${failed ? C.red : done ? C.accent : C.border}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width:24,height:24,borderRadius:'50%',fontSize:11,
+                      background:failed?C.red:done?C.accent:'rgba(26,25,22,0.07)',
+                      border:`1px solid ${failed?C.red:done?C.accent:C.border}`,
+                      display:'flex',alignItems:'center',justifyContent:'center',color:done?'#fff':C.textLight,
                     }}>
-                      <span style={{ fontSize: 13 }}>{failed ? '✕' : done ? '✓' : step.icon}</span>
+                      {failed?'✕':done?'✓':''}
                     </div>
-                    <p style={{ fontSize: 9, color: done ? C.accent : C.textLight, fontWeight: done ? 400 : 300, textAlign: 'center', maxWidth: 56, lineHeight: 1.3 }}>
-                      {step.label}
-                    </p>
+                    <p style={{fontSize:9,color:done?C.accent:C.textLight,textAlign:'center',maxWidth:54,lineHeight:1.3}}>{step.label}</p>
                   </div>
-                  {i < AGENT_STEPS.length - 1 && (
-                    <div style={{ width: 24, height: 1, background: done ? C.accent : C.border, opacity: 0.4, flexShrink: 0, marginBottom: 20 }} />
-                  )}
+                  {i<AGENT_STEPS.length-1&&<div style={{width:20,height:1,background:done?C.accent:C.border,opacity:0.35,flexShrink:0,marginBottom:18}}/>}
                 </div>
               )
             })}
           </div>
         </div>
-
-        {/* Detail fields */}
-        {fields.map((item, i) => item.text && (
-          <div key={i} style={{ background: 'rgba(28,25,23,0.025)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
-            <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 5 }}>{item.label}</p>
-            <p style={{ fontSize: 14, color: C.text, fontWeight: 300, lineHeight: 1.65 }}>{item.text}</p>
+        {fields.map((item,i)=>item.text&&(
+          <div key={i} style={{background:'rgba(26,25,22,0.025)',border:`1px solid ${C.border}`,borderRadius:9,padding:'12px 14px',marginBottom:8}}>
+            <SectionLabel style={{marginBottom:5}}>{item.label}</SectionLabel>
+            <p style={{fontSize:13,color:C.text,lineHeight:1.65}}>{item.text}</p>
           </div>
         ))}
-
-        {/* File edited */}
-        {analysis.file_to_edit && (
-          <div style={{ background: C.accentSoft, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
-            <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 5 }}>📄 File edited</p>
-            <p style={{ fontSize: 13, color: C.text, fontFamily: 'DM Mono, monospace' }}>{analysis.file_to_edit}</p>
+        {analysis.file_to_edit&&(
+          <div style={{background:C.accentSoft,border:`1px solid ${C.accentMid}`,borderRadius:9,padding:'12px 14px',marginBottom:8}}>
+            <SectionLabel style={{color:C.accent,marginBottom:5}}>📄 File edited</SectionLabel>
+            <p style={{fontSize:12,color:C.text,fontFamily:'DM Mono,monospace'}}>{analysis.file_to_edit}</p>
           </div>
         )}
-
-        {/* Analytics snapshot */}
-        {analysis.analytics_snapshot && (
-          <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
-            <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 8 }}>📊 Analytics snapshot</p>
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+        {analysis.analytics_snapshot&&(
+          <div style={{background:'rgba(26,25,22,0.02)',border:`1px solid ${C.border}`,borderRadius:9,padding:'12px 14px',marginBottom:8}}>
+            <SectionLabel style={{marginBottom:8}}>📊 Analytics snapshot</SectionLabel>
+            <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
               {[
-                { label: 'Pageviews', value: analysis.analytics_snapshot.totalPageviews },
-                { label: 'Bounce Rate', value: analysis.analytics_snapshot.bounceRate != null ? `${analysis.analytics_snapshot.bounceRate}%` : null },
-                { label: 'Sessions', value: analysis.analytics_snapshot.uniqueVisitors },
-              ].map(({ label, value }) => (
+                {label:'Pageviews',value:analysis.analytics_snapshot.totalPageviews},
+                {label:'Bounce Rate',value:analysis.analytics_snapshot.bounceRate!=null?`${analysis.analytics_snapshot.bounceRate}%`:null},
+                {label:'Sessions',value:analysis.analytics_snapshot.uniqueVisitors},
+              ].map(({label,value})=>(
                 <div key={label}>
-                  <p style={{ fontSize: 10, color: C.textLight }}>{label}</p>
-                  <p style={{ fontSize: 20, fontFamily: 'Cormorant Garant, serif', fontWeight: 400, color: C.text }}>{value ?? '—'}</p>
+                  <p style={{fontSize:10,color:C.textLight}}>{label}</p>
+                  <p style={{fontFamily:'Instrument Serif,serif',fontSize:22,color:C.text}}>{value??'—'}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Funnel snapshot */}
-        {funnel && (
-          <div style={{ background: 'rgba(28,25,23,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 15px', marginBottom: 10 }}>
-            <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, marginBottom: 6 }}>🗺️ Funnel snapshot</p>
-            <p style={{ fontSize: 13, color: C.text, fontWeight: 300 }}>{funnel.totalPages} pages · {Object.keys(funnel.pageTypes || {}).length} types</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
-              {Object.entries(funnel.pageTypes || {}).map(([type, count]) => (
-                <span key={type} style={{ fontSize: 10, background: C.accentSoft, border: '1px solid rgba(42,92,69,0.15)', borderRadius: 5, padding: '2px 7px', color: C.accent }}>
-                  {PAGE_TYPE_EMOJI[type] || '📄'} {type}: {count}
+        {funnel&&(
+          <div style={{background:'rgba(26,25,22,0.02)',border:`1px solid ${C.border}`,borderRadius:9,padding:'12px 14px',marginBottom:8}}>
+            <SectionLabel style={{marginBottom:6}}>🗺️ Funnel snapshot</SectionLabel>
+            <p style={{fontSize:12,color:C.text}}>{funnel.totalPages} pages · {Object.keys(funnel.pageTypes||{}).length} types</p>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:7}}>
+              {Object.entries(funnel.pageTypes||{}).map(([type,count])=>(
+                <span key={type} style={{fontSize:10,background:C.accentSoft,border:`1px solid ${C.accentMid}`,borderRadius:5,padding:'2px 6px',color:C.accent}}>
+                  {PAGE_TYPE_EMOJI[type]||'📄'} {type}: {count}
                 </span>
               ))}
             </div>
-            {funnel.biggestDropOff && (
-              <p style={{ fontSize: 11, color: C.yellow, marginTop: 8 }}>
-                ⚠️ Drop-off: {funnel.biggestDropOff.filePath} ({funnel.biggestDropOff.dropOffScore}%)
-              </p>
+            {funnel.biggestDropOff&&(
+              <p style={{fontSize:11,color:C.yellow,marginTop:7}}>⚠️ Drop-off: {funnel.biggestDropOff.filePath} ({funnel.biggestDropOff.dropOffScore}%)</p>
             )}
           </div>
         )}
-
-        {/* PR button */}
-        {run.pr_url && (
+        {run.pr_url&&(
           <a href={run.pr_url} target="_blank" rel="noreferrer" style={{
-            display: 'block', textAlign: 'center', marginTop: 22,
-            background: C.text, color: C.bg, borderRadius: 10,
-            padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif',
-            fontWeight: 500, textDecoration: 'none', letterSpacing: '.02em', transition: 'background .2s',
+            display:'block',textAlign:'center',marginTop:20,
+            background:C.text,color:C.bg,borderRadius:9,padding:'12px',
+            fontSize:14,fontFamily:'DM Sans,sans-serif',fontWeight:500,textDecoration:'none',transition:'background .2s',
           }}
-            onMouseEnter={e => e.currentTarget.style.background = C.accent}
-            onMouseLeave={e => e.currentTarget.style.background = C.text}
+            onMouseEnter={e=>e.currentTarget.style.background=C.accent}
+            onMouseLeave={e=>e.currentTarget.style.background=C.text}
           >View Pull Request on GitHub →</a>
         )}
       </div>
@@ -772,20 +1444,18 @@ function RunDetail({ run, onClose }) {
   )
 }
 
-// ─── DELETE MODAL ─────────────────────────────────────────────────────────────
-function DeleteConfirmModal({ onConfirm, onCancel, loading }) {
+// ─── DELETE CONFIRM ───────────────────────────────────────────────────────────
+function DeleteConfirmModal({onConfirm, onCancel, loading}) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(28,25,23,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onCancel}>
-      <div className="pop-in" onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, padding: '32px 28px', maxWidth: 420, width: '100%', boxShadow: '0 24px 80px rgba(28,25,23,0.18)' }}>
-        <p style={{ fontSize: 28, marginBottom: 12 }}>⚠️</p>
-        <h3 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 24, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>Delete your account?</h3>
-        <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 24 }}>
-          This permanently deletes your account, all agent runs, and all connected data. Cannot be undone.
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onCancel} style={{ flex: 1, background: 'transparent', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={onConfirm} disabled={loading} style={{ flex: 1, background: C.red, color: '#fff', border: 'none', borderRadius: 10, padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Deleting…' : 'Yes, delete everything'}
+    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(26,25,22,0.4)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}} onClick={onCancel}>
+      <div className="pop-in" onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 26px',maxWidth:400,width:'100%',boxShadow:'0 20px 60px rgba(26,25,22,0.15)'}}>
+        <p style={{fontSize:26,marginBottom:12}}>⚠️</p>
+        <h3 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:22,marginBottom:8,color:C.text}}>Delete your account?</h3>
+        <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:22}}>This permanently deletes your account, all agent runs, and all connected data. Cannot be undone.</p>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn" onClick={onCancel} style={{flex:1,background:'transparent',color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:'12px',fontSize:13,fontFamily:'DM Sans,sans-serif'}}>Cancel</button>
+          <button className="btn" onClick={onConfirm} disabled={loading} style={{flex:1,background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'12px',fontSize:13,fontFamily:'DM Sans,sans-serif',fontWeight:500,opacity:loading?0.6:1}}>
+            {loading?'Deleting…':'Yes, delete everything'}
           </button>
         </div>
       </div>
@@ -793,202 +1463,86 @@ function DeleteConfirmModal({ onConfirm, onCancel, loading }) {
   )
 }
 
-// ─── GUARDRAILS PANEL ─────────────────────────────────────────────────────────
-function GuardrailsPanel({ subscriptionId }) {
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [tone, setTone] = useState('')
-  const [forbidden, setForbidden] = useState([])
-  const [forbiddenInput, setForbiddenInput] = useState('')
-  const [protected_, setProtected] = useState([])
-  const [protectedInput, setProtectedInput] = useState('')
-  const [customRules, setCustomRules] = useState('')
-
-  useEffect(() => {
-    if (!subscriptionId) return
-    supabase.from('agent_brand_guardrails').select('*').eq('subscription_id', subscriptionId).single()
-      .then(({ data }) => {
-        if (data) { setTone(data.tone || ''); setForbidden(data.forbidden_patterns || []); setProtected(data.protected_elements || []); setCustomRules(data.custom_rules || '') }
-      })
-  }, [subscriptionId])
-
-  function addTag(list, setList, input, setInput) {
-    const val = input.trim()
-    if (val && !list.includes(val)) setList([...list, val])
-    setInput('')
-  }
-  function removeTag(list, setList, val) { setList(list.filter(v => v !== val)) }
-
-  async function handleSave() {
-    setSaving(true)
-    await supabase.from('agent_brand_guardrails').upsert({ subscription_id: subscriptionId, tone: tone || null, forbidden_patterns: forbidden, protected_elements: protected_, custom_rules: customRules || null, updated_at: new Date().toISOString() }, { onConflict: 'subscription_id' })
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500)
-  }
-
-  const inp = { width: '100%', background: 'rgba(28,25,23,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 300, color: C.text, outline: 'none' }
-  const lbl = { fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textLight, fontWeight: 500, display: 'block', marginBottom: 8 }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.7 }}>
-        These rules are enforced on every run — the agent will not make changes that violate them.
-      </p>
-      <div>
-        <label style={lbl}>Tone of voice</label>
-        <input value={tone} onChange={e => setTone(e.target.value)} placeholder='"friendly but direct", "professional, no fluff"' style={inp} />
-      </div>
-      {[
-        { label: 'Never do these', list: forbidden, setList: setForbidden, input: forbiddenInput, setInput: setForbiddenInput, placeholder: '"clickbait headlines"' },
-        { label: 'Never change these', list: protected_, setList: setProtected, input: protectedInput, setInput: setProtectedInput, placeholder: '"brand colors"' },
-      ].map(({ label, list, setList, input, setInput, placeholder }) => (
-        <div key={label}>
-          <label style={lbl}>{label}</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-            {list.map(tag => <span key={tag} className="tag-pill">{tag}<span className="tag-remove" onClick={() => removeTag(list, setList, tag)}>×</span></span>)}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTag(list, setList, input, setInput)} placeholder={`e.g. ${placeholder} — press Enter`} style={{ ...inp, flex: 1 }} />
-            <button onClick={() => addTag(list, setList, input, setInput)} style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer' }}>Add</button>
-          </div>
-        </div>
-      ))}
-      <div>
-        <label style={lbl}>Additional rules</label>
-        <textarea value={customRules} onChange={e => setCustomRules(e.target.value)} placeholder="Any other instructions for the agent..." rows={3} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
-      </div>
-      <button onClick={handleSave} disabled={saving} style={{ background: saved ? C.green : C.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '13px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'background .3s' }}>
-        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Guardrails'}
-      </button>
-    </div>
-  )
-}
-
-// ─── FUNNEL PANEL ─────────────────────────────────────────────────────────────
-function FunnelPanel({ subscriptionId }) {
-  const [funnelPages, setFunnelPages] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!subscriptionId) return
-    supabase.from('agent_funnel_pages').select('*').eq('subscription_id', subscriptionId).order('created_at', { ascending: false }).limit(30)
-      .then(({ data }) => {
-        if (data) {
-          const seen = new Set()
-          setFunnelPages(data.filter(p => { if (seen.has(p.page_path)) return false; seen.add(p.page_path); return true }))
-        }
-        setLoading(false)
-      })
-  }, [subscriptionId])
-
-  if (loading) return <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-  if (!funnelPages.length) return (
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <p style={{ fontSize: 28, marginBottom: 12 }}>🗺️</p>
-      <p style={{ fontSize: 14, color: C.text, fontWeight: 400, marginBottom: 4 }}>No funnel data yet</p>
-      <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>Funnel analysis runs automatically every Monday.</p>
-    </div>
-  )
-
-  const biggestOpportunity = [...funnelPages].filter(p => p.drop_off_score > 0).sort((a, b) => b.drop_off_score - a.drop_off_score)[0]
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {biggestOpportunity && (
-        <div style={{ background: C.yellowSoft, border: '1px solid rgba(214,137,16,0.25)', borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: C.yellow, fontWeight: 500, marginBottom: 6 }}>⚠️ Biggest Drop-off</p>
-          <p style={{ fontSize: 14, color: C.text, fontWeight: 400, marginBottom: 3 }}>{PAGE_TYPE_EMOJI[biggestOpportunity.page_type]} {biggestOpportunity.page_path}</p>
-          <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>{biggestOpportunity.drop_off_score}% drop-off · {biggestOpportunity.views_7d} views/week</p>
-          <p style={{ fontSize: 11, color: C.textLight, marginTop: 6, fontStyle: 'italic' }}>The agent will prioritize this page on the next run.</p>
-        </div>
-      )}
-      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}` }}>
-          <p style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{funnelPages.length} pages detected</p>
-        </div>
-        {funnelPages.map((page, i) => {
-          const dropOffColor = page.drop_off_score >= 60 ? C.red : page.drop_off_score >= 30 ? C.yellow : C.green
-          return (
-            <div key={page.id} style={{ padding: '13px 18px', borderBottom: i < funnelPages.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: 13 }}>
-              <span style={{ fontSize: 17, flexShrink: 0 }}>{PAGE_TYPE_EMOJI[page.page_type] || '📄'}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 12, color: C.text, fontFamily: 'DM Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.page_path}</p>
-                <p style={{ fontSize: 10, color: C.textLight, marginTop: 2, textTransform: 'capitalize' }}>{page.page_type}</p>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                {page.views_7d > 0 && <p style={{ fontSize: 12, color: C.text, fontWeight: 400 }}>{page.views_7d} views</p>}
-                {page.drop_off_score > 0 && <p style={{ fontSize: 10, color: dropOffColor, marginTop: 2 }}>{page.drop_off_score}% drop-off</p>}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function AgentDashboard({ navigate }) {
-  const [user, setUser]                   = useState(null)
-  const [authLoading, setAuthLoading]     = useState(true)
-  const [runs, setRuns]                   = useState([])
-  const [loading, setLoading]             = useState(true)
-  const [selected, setSelected]           = useState(null)
-  const [subscription, setSubscription]   = useState(null)
-  const [actionLoading, setActionLoading] = useState(false)
+  const [user,           setUser]           = useState(null)
+  const [authLoading,    setAuthLoading]    = useState(true)
+  const [runs,           setRuns]           = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [selected,       setSelected]       = useState(null)
+  const [subscription,   setSubscription]   = useState(null)
+  const [actionLoading,  setActionLoading]  = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [activeTab, setActiveTab]         = useState('runs')
-  const [runFilter, setRunFilter]         = useState('all')
+  const [activePage,     setActivePage]     = useState('overview')
+  const [funnelPages,    setFunnelPages]    = useState([])
+  const [learnings,      setLearnings]      = useState([])
+  const [impactMetrics,  setImpactMetrics]  = useState([])
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { navigate('/agent/login'); return }
-      setUser(session.user); setAuthLoading(false)
+  // auth
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(!session){navigate('/agent/login');return}
+      setUser(session.user);setAuthLoading(false)
     })
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) { navigate('/agent/login'); return }
-      setUser(session.user); setAuthLoading(false)
+    const {data:{subscription:authSub}}=supabase.auth.onAuthStateChange((_,session)=>{
+      if(!session){navigate('/agent/login');return}
+      setUser(session.user);setAuthLoading(false)
     })
-    return () => authSub.unsubscribe()
-  }, [])
+    return()=>authSub.unsubscribe()
+  },[])
 
-  useEffect(() => {
-    if (!user) return
+  // data
+  useEffect(()=>{
+    if(!user)return
     fetchData()
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
-  }, [user])
+    const interval=setInterval(fetchData,30000)
+    return()=>clearInterval(interval)
+  },[user])
 
   async function fetchData() {
-    const { data: subs } = await supabase.from('agent_subscriptions').select('*').eq('auth_user_id', user.id).single()
+    const {data:subs}=await supabase.from('agent_subscriptions').select('*').eq('auth_user_id',user.id).single()
     setSubscription(subs)
-    if (!subs) { setLoading(false); return }
-    const { data: runsData } = await supabase.from('agent_runs').select('*').eq('subscription_id', subs.id).order('created_at', { ascending: false }).limit(50)
-    if (runsData) setRuns(runsData)
+    if(!subs){setLoading(false);return}
+
+    const [runsRes, funnelRes, learningsRes, impactRes] = await Promise.all([
+      supabase.from('agent_runs').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(50),
+      supabase.from('agent_funnel_pages').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(30),
+      supabase.from('agent_learnings').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(50),
+      supabase.from('impact_metrics').select('*').order('measured_at',{ascending:false}).limit(20),
+    ])
+
+    if(runsRes.data) setRuns(runsRes.data)
+    if(funnelRes.data){
+      const seen=new Set()
+      setFunnelPages(funnelRes.data.filter(p=>{if(seen.has(p.page_path))return false;seen.add(p.page_path);return true}))
+    }
+    if(learningsRes.data) setLearnings(learningsRes.data)
+    if(impactRes.data) setImpactMetrics(impactRes.data)
     setLoading(false)
   }
 
   async function getToken() {
-    const { data: { session } } = await supabase.auth.getSession()
+    const {data:{session}}=await supabase.auth.getSession()
     return session?.access_token
   }
 
   async function handleTogglePause() {
     setActionLoading(true)
-    const token = await getToken()
-    const action = subscription?.status === 'paused' ? 'resume' : 'pause'
-    const res = await fetch(`/api/agent/run?action=${action}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } })
-    const data = await res.json()
-    if (data.success) setSubscription(prev => ({ ...prev, status: data.status }))
+    const token=await getToken()
+    const action=subscription?.status==='paused'?'resume':'pause'
+    const res=await fetch(`/api/agent/run?action=${action}`,{method:'POST',headers:{'Authorization':`Bearer ${token}`}})
+    const data=await res.json()
+    if(data.success) setSubscription(prev=>({...prev,status:data.status}))
     setActionLoading(false)
   }
 
   async function handleDeleteAccount() {
     setActionLoading(true)
-    const token = await getToken()
-    const res = await fetch('/api/agent/run?action=delete', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } })
-    const data = await res.json()
-    if (data.success) { await supabase.auth.signOut(); navigate('/') }
-    else { setActionLoading(false); setShowDeleteConfirm(false) }
+    const token=await getToken()
+    const res=await fetch('/api/agent/run?action=delete',{method:'POST',headers:{'Authorization':`Bearer ${token}`}})
+    const data=await res.json()
+    if(data.success){await supabase.auth.signOut();navigate('/')}
+    else{setActionLoading(false);setShowDeleteConfirm(false)}
   }
 
   async function handleLogout() {
@@ -996,241 +1550,213 @@ export default function AgentDashboard({ navigate }) {
     navigate('/agent/login')
   }
 
-  const pending = runs.filter(r => r.status === 'waiting_approval').length
+  const pending = runs.filter(r=>r.status==='waiting_approval').length
 
-  const tabs = [
-    { id: 'runs',       label: 'Runs' },
-    { id: 'funnel',     label: '🗺️ Funnel' },
-    { id: 'guardrails', label: '🛡️ Guardrails' },
-    { id: 'settings',   label: 'Settings' },
-  ]
-
-  if (authLoading) return (
+  if(authLoading) return (
     <>
       <style>{CSS}</style>
-      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spinner size={24} />
-      </div>
+      <div style={{minHeight:'100vh',background:C.bg,display:'flex',alignItems:'center',justifyContent:'center'}}><Spinner size={24}/></div>
     </>
   )
 
   return (
     <>
       <style>{CSS}</style>
-      {selected && <RunDetail run={selected} onClose={() => setSelected(null)} />}
-      {showDeleteConfirm && <DeleteConfirmModal onConfirm={handleDeleteAccount} onCancel={() => setShowDeleteConfirm(false)} loading={actionLoading} />}
+      {selected&&<RunDetail run={selected} onClose={()=>setSelected(null)}/>}
+      {showDeleteConfirm&&<DeleteConfirmModal onConfirm={handleDeleteAccount} onCancel={()=>setShowDeleteConfirm(false)} loading={actionLoading}/>}
 
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
 
-        {/* ── NAV ── */}
-        <nav style={{
-          height: 60, padding: '0 24px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          borderBottom: `1px solid ${C.border}`,
-          background: 'rgba(247,244,239,0.93)', backdropFilter: 'blur(16px)',
-          position: 'sticky', top: 0, zIndex: 100,
+        {/* ── LEFT SIDEBAR NAV ── */}
+        <div style={{
+          width:200,flexShrink:0,background:C.bgCard,
+          borderRight:`1px solid ${C.border}`,
+          display:'flex',flexDirection:'column',
+          position:'sticky',top:0,height:'100vh',
+          overflowY:'auto',
         }}>
-          <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
-            <Logo size={22} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
-            <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300, marginLeft: 4 }}>/ Growth Agent</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {pending > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.yellowSoft, border: '1px solid rgba(214,137,16,0.25)', borderRadius: 8, padding: '5px 12px' }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.yellow, animation: 'pulse 1.5s ease infinite' }} />
-                <span style={{ fontSize: 11, color: C.yellow, fontWeight: 400 }}>{pending} awaiting approval</span>
-              </div>
-            )}
-            <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>{user?.email}</span>
-            <button onClick={handleLogout} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 13px', fontSize: 11, fontFamily: 'Jost, sans-serif', fontWeight: 300, color: C.textMuted, cursor: 'pointer', transition: 'all .2s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted }}
-            >Log out</button>
-          </div>
-        </nav>
-
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 24px 80px' }}>
-
-          {/* No subscription */}
-          {!loading && !subscription && (
-            <div className="fade-up" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '48px 32px', textAlign: 'center', maxWidth: 500, margin: '0 auto' }}>
-              <p style={{ fontSize: 36, marginBottom: 16 }}>🤖</p>
-              <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 30, letterSpacing: '-.015em', marginBottom: 12, color: C.text }}>Set up your Growth Agent</h2>
-              <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 28 }}>
-                Connect your website and GitHub repo to start optimizing automatically.
-              </p>
-              <button onClick={() => navigate('/agent/onboarding')} style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 10, padding: '14px 28px', fontSize: 14, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', transition: 'background .2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = C.accent}
-                onMouseLeave={e => e.currentTarget.style.background = C.text}
-              >Start setup →</button>
+          {/* Logo */}
+          <div onClick={()=>navigate('/')} style={{
+            padding:'18px 16px 14px',
+            display:'flex',alignItems:'center',gap:9,cursor:'pointer',
+            borderBottom:`1px solid ${C.border}`,
+          }}>
+            <VelyrLogo size={22}/>
+            <div>
+              <p style={{fontFamily:'Instrument Serif,serif',fontSize:17,color:C.text,lineHeight:1}}>Velyr</p>
+              <p style={{fontSize:9,color:C.textLight,letterSpacing:'.06em',textTransform:'uppercase',marginTop:2}}>Growth Agent</p>
             </div>
-          )}
+          </div>
 
-          {subscription && (
-            <>
-              {/* Page header */}
-              <div className="fade-up" style={{ marginBottom: 28 }}>
-                <p style={{ fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: C.accent, marginBottom: 8, fontWeight: 500 }}>
-                  Growth Agent Dashboard
-                </p>
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 300, fontSize: 'clamp(26px, 3.5vw, 42px)', letterSpacing: '-.025em', lineHeight: 1.1, color: C.text }}>
-                    Your website,{' '}<em style={{ fontStyle: 'italic', color: C.accent }}>always improving.</em>
-                  </h1>
-                  <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300 }}>
-                    Auto-refreshes every 30s
-                  </p>
+          {/* Nav items */}
+          <nav style={{padding:'10px 8px',flex:1}}>
+            {NAV_ITEMS.map(item=>(
+              <button key={item.id} className="nav-item" onClick={()=>setActivePage(item.id)} style={{
+                display:'flex',alignItems:'center',gap:9,
+                padding:'8px 10px',borderRadius:7,marginBottom:2,
+                background:activePage===item.id?C.accentSoft:'transparent',
+                color:activePage===item.id?C.accent:C.textMuted,
+              }}>
+                <span style={{fontSize:13,flexShrink:0,opacity:activePage===item.id?1:0.6}}>{item.icon}</span>
+                <span style={{fontSize:12,fontWeight:activePage===item.id?500:400}}>{item.label}</span>
+                {item.id==='runs'&&pending>0&&(
+                  <span style={{
+                    marginLeft:'auto',fontSize:9,fontWeight:500,
+                    background:C.yellow,color:'#fff',borderRadius:10,
+                    padding:'1px 5px',minWidth:16,textAlign:'center',
+                  }}>{pending}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {/* Agent status indicator bottom */}
+          <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`}}>
+            {subscription ? (
+              <div style={{display:'flex',alignItems:'center',gap:7}}>
+                <span className={runs.some(r=>r.status==='running')?'pulse-dot':''} style={{
+                  width:6,height:6,borderRadius:'50%',display:'inline-block',
+                  background:subscription.status==='paused'?C.yellow:runs.some(r=>r.status==='running')?C.blue:C.accent,
+                  flexShrink:0,
+                }}/>
+                <div>
+                  <p style={{fontSize:11,color:C.text,fontWeight:400}}>Agent {subscription.status==='paused'?'paused':runs.some(r=>r.status==='running')?'running':'active'}</p>
+                  <p style={{fontSize:9,color:C.textLight}}>Autonomous mode</p>
                 </div>
               </div>
+            ) : null}
+            {subscription&&(
+              <button className="btn" onClick={handleTogglePause} disabled={actionLoading} style={{
+                width:'100%',marginTop:8,padding:'6px',borderRadius:6,fontSize:10,
+                background:'transparent',color:C.textMuted,border:`1px solid ${C.border}`,
+                fontFamily:'DM Sans,sans-serif',
+              }}>
+                {subscription.status==='paused'?'▶ Resume':'⏸ Pause'}
+              </button>
+            )}
+          </div>
+        </div>
 
-              {/* Pending alert */}
-              {pending > 0 && (
-                <div className="fade-up" style={{ background: C.yellowSoft, border: '1px solid rgba(214,137,16,0.25)', borderRadius: 12, padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 18 }}>💬</span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, fontWeight: 400, color: C.text, marginBottom: 2 }}>
-                      {pending} PR{pending > 1 ? 's are' : ' is'} waiting for your approval
-                    </p>
-                    <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 300 }}>
-                      Reply <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 3 }}>approve [id]</code> or <code style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, background: 'rgba(28,25,23,0.07)', padding: '1px 5px', borderRadius: 3 }}>reject [id]</code> on Telegram
-                    </p>
-                  </div>
-                  <button onClick={() => { setActiveTab('runs'); setRunFilter('waiting_approval') }} style={{ background: C.yellow, color: '#fff', border: 'none', borderRadius: 7, padding: '7px 13px', fontSize: 11, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>
-                    Review →
-                  </button>
+        {/* ── MAIN CONTENT ── */}
+        <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
+
+          {/* top nav bar */}
+          <div style={{
+            height:52,padding:'0 24px',
+            display:'flex',alignItems:'center',justifyContent:'space-between',
+            borderBottom:`1px solid ${C.border}`,
+            background:'rgba(245,242,236,0.9)',backdropFilter:'blur(16px)',
+            position:'sticky',top:0,zIndex:50,
+          }}>
+            <div>
+              <p style={{fontSize:13,fontWeight:500,color:C.text,textTransform:'capitalize'}}>
+                {activePage}
+              </p>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              {pending>0&&(
+                <div style={{display:'flex',alignItems:'center',gap:6,background:C.yellowSoft,border:`1px solid ${C.yellowMid}`,borderRadius:7,padding:'4px 11px',cursor:'pointer'}} onClick={()=>setActivePage('runs')}>
+                  <span className="pulse-dot" style={{width:5,height:5,borderRadius:'50%',background:C.yellow,display:'inline-block'}}/>
+                  <span style={{fontSize:11,color:C.yellow,fontWeight:500}}>{pending} awaiting approval</span>
                 </div>
               )}
+              <span style={{fontSize:11,color:C.textLight}}>{user?.email}</span>
+              <button className="btn" onClick={handleLogout} style={{
+                background:'none',border:`1px solid ${C.border}`,borderRadius:6,
+                padding:'4px 12px',fontSize:11,fontFamily:'DM Sans,sans-serif',
+                color:C.textMuted,
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.red;e.currentTarget.style.color=C.red}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textMuted}}
+              >Log out</button>
+            </div>
+          </div>
 
-              {/* Stats bar */}
-              {!loading && <StatsBar runs={runs} />}
+          {/* page content */}
+          <div style={{flex:1,padding:'24px',overflowY:'auto'}}>
 
-              {/* Main 2-column layout */}
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            {/* no subscription */}
+            {!loading&&!subscription&&(
+              <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
+                <p style={{fontSize:32,marginBottom:14}}>🤖</p>
+                <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:28,marginBottom:10,color:C.text}}>Set up your Growth Agent</h2>
+                <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:24}}>Connect your website and GitHub repo to start optimizing automatically.</p>
+                <button className="btn" onClick={()=>navigate('/agent/onboarding')} style={{
+                  background:C.text,color:C.bg,border:'none',borderRadius:9,
+                  padding:'13px 26px',fontSize:14,fontFamily:'DM Sans,sans-serif',fontWeight:500,
+                }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.accent}
+                  onMouseLeave={e=>e.currentTarget.style.background=C.text}
+                >Start setup →</button>
+              </div>
+            )}
 
-                {/* LEFT — tab content */}
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-                  {/* Tab nav */}
-                  <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, marginBottom: 16, gap: 0, overflowX: 'auto' }}>
-                    {tabs.map(tab => (
-                      <button key={tab.id} className="tab-btn" onClick={() => setActiveTab(tab.id)} style={{
-                        padding: '10px 16px', fontSize: 12,
-                        fontFamily: 'Jost, sans-serif', fontWeight: activeTab === tab.id ? 500 : 300,
-                        color: activeTab === tab.id ? C.text : C.textLight,
-                        borderBottom: `2px solid ${activeTab === tab.id ? C.accent : 'transparent'}`,
-                        marginBottom: -1, whiteSpace: 'nowrap', letterSpacing: '.01em',
-                      }}>{tab.label}</button>
-                    ))}
+            {subscription&&!loading&&(
+              <>
+                {/* Page header */}
+                {activePage==='overview'&&(
+                  <div className="fade-up" style={{marginBottom:20}}>
+                    <SectionLabel style={{color:C.accent,marginBottom:6}}>Growth Agent Dashboard</SectionLabel>
+                    <h1 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:'clamp(24px,3vw,38px)',letterSpacing:'-.02em',lineHeight:1.1,color:C.text,marginBottom:4}}>
+                      Autonomous growth <em style={{fontStyle:'italic',color:C.accent}}>optimization.</em>
+                    </h1>
+                    <p style={{fontSize:12,color:C.textLight}}>Your agent analyzes, fixes and improves your website — continuously. · Auto-refreshes every 30s</p>
                   </div>
+                )}
 
-                  {/* ── RUNS TAB ── */}
-                  {activeTab === 'runs' && (
-                    <div className="fade-up">
-                      <RunList
-                        runs={runs}
-                        loading={loading}
-                        onSelect={setSelected}
-                        activeFilter={runFilter}
-                        onFilterChange={setRunFilter}
-                      />
-                    </div>
-                  )}
+                {activePage==='overview'&&(
+                  <OverviewPage
+                    runs={runs} subscription={subscription}
+                    funnelPages={funnelPages} learnings={learnings}
+                    impactMetrics={impactMetrics}
+                    onSelectRun={setSelected}
+                    onTogglePause={handleTogglePause}
+                    actionLoading={actionLoading}
+                  />
+                )}
 
-                  {/* ── FUNNEL TAB ── */}
-                  {activeTab === 'funnel' && (
-                    <div className="fade-up">
-                      <div style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300, lineHeight: 1.7 }}>
-                          The agent automatically detects all pages in your repo and maps the conversion funnel. Pages with high drop-off are prioritized on the next run.
-                        </p>
-                      </div>
-                      <FunnelPanel subscriptionId={subscription?.id} />
-                    </div>
-                  )}
+                {activePage==='runs'&&(
+                  <div className="fade-up">
+                    <RunsPage runs={runs} loading={loading} onSelect={setSelected}/>
+                  </div>
+                )}
 
-                  {/* ── GUARDRAILS TAB ── */}
-                  {activeTab === 'guardrails' && (
-                    <div className="fade-up" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px' }}>
-                      <GuardrailsPanel subscriptionId={subscription?.id} />
-                    </div>
-                  )}
+                {activePage==='insights'&&(
+                  <div className="fade-up">
+                    <InsightsPage runs={runs} impactMetrics={impactMetrics} learnings={learnings} funnelPages={funnelPages}/>
+                  </div>
+                )}
 
-                  {/* ── SETTINGS TAB ── */}
-                  {activeTab === 'settings' && (
-                    <div className="fade-up" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-                      {/* Pause/Resume */}
-                      <div style={{ padding: '20px 22px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 400, color: C.text, marginBottom: 3 }}>
-                            {subscription.status === 'paused' ? '⏸ Agent is paused' : '▶ Agent is active'}
-                          </p>
-                          <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>
-                            {subscription.status === 'paused' ? 'Resume to run again every Monday.' : 'Pause temporarily without losing data.'}
-                          </p>
-                        </div>
-                        <button onClick={handleTogglePause} disabled={actionLoading} style={{
-                          background: subscription.status === 'paused' ? C.accent : 'transparent',
-                          color: subscription.status === 'paused' ? '#fff' : C.textMuted,
-                          border: `1px solid ${subscription.status === 'paused' ? C.accent : C.border}`,
-                          borderRadius: 8, padding: '8px 16px', fontSize: 12, fontFamily: 'Jost, sans-serif', fontWeight: 400,
-                          cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1, transition: 'all .2s', whiteSpace: 'nowrap',
-                        }}>
-                          {actionLoading ? '…' : subscription.status === 'paused' ? 'Resume Agent' : 'Pause Agent'}
-                        </button>
-                      </div>
-                      {/* Account */}
-                      <div style={{ padding: '20px 22px', borderBottom: `1px solid ${C.border}` }}>
-                        <p style={{ fontSize: 13, fontWeight: 400, color: C.text, marginBottom: 8 }}>Account</p>
-                        <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300, marginBottom: 2 }}>Email: {user?.email}</p>
-                        <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>Plan: {subscription.plan || 'Growth'}</p>
-                      </div>
-                      {/* Delete */}
-                      <div style={{ padding: '20px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 400, color: C.red, marginBottom: 3 }}>Delete account</p>
-                          <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>Permanently deletes your account and all data.</p>
-                        </div>
-                        <button onClick={() => setShowDeleteConfirm(true)} style={{ background: 'transparent', color: C.red, border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', transition: 'all .2s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.06)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >Delete account</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {activePage==='funnel'&&(
+                  <div className="fade-up">
+                    <p style={{fontSize:12,color:C.textMuted,lineHeight:1.7,marginBottom:14}}>
+                      The agent automatically detects all pages in your repo and maps the conversion funnel. Pages with high drop-off are prioritized on the next run.
+                    </p>
+                    <FunnelPage subscriptionId={subscription?.id}/>
+                  </div>
+                )}
 
-                {/* RIGHT — Sticky Agent Panel */}
-                <AgentPanel
-                  subscription={subscription}
-                  runs={runs}
-                  onTogglePause={handleTogglePause}
-                  actionLoading={actionLoading}
-                  onSelectRun={setSelected}
-                />
-              </div>
+                {activePage==='guardrails'&&(
+                  <div className="fade-up">
+                    <p style={{fontSize:12,color:C.textMuted,lineHeight:1.7,marginBottom:14}}>
+                      These rules are enforced on every run — the agent will not make changes that violate them.
+                    </p>
+                    <GuardrailsPage subscriptionId={subscription?.id}/>
+                  </div>
+                )}
 
-              {/* How it works footer */}
-              <div className="fade-up" style={{ marginTop: 20, background: C.accentSoft, border: `1px solid ${C.accentMid}`, borderRadius: 14, padding: '18px 22px' }}>
-                <p style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 12 }}>How it works</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                  {[
-                    'Every Monday at 9am, the agent reads your GitHub repo + analytics',
-                    'It detects all pages and maps your conversion funnel automatically',
-                    'Claude finds the biggest drop-off — respecting your Brand Guardrails',
-                    'It writes the fix and opens a Pull Request on GitHub',
-                    'You get a Telegram message — reply approve [id] to merge',
-                    'After 48h the agent checks metrics — auto-rolls back if no improvement',
-                  ].map((text, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.accent, color: '#fff', fontSize: 9, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                      <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>{text}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+                {activePage==='settings'&&(
+                  <div className="fade-up">
+                    <SettingsPage
+                      subscription={subscription} user={user}
+                      onTogglePause={handleTogglePause} actionLoading={actionLoading}
+                      onDeleteRequest={()=>setShowDeleteConfirm(true)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>
