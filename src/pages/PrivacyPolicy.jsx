@@ -35,7 +35,7 @@ export default function PrivacyPolicy({ navigate }) {
         <nav style={{ borderBottom: '1px solid rgba(28,25,23,0.08)', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)' }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={24} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>Velyr</span>
           </button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300, transition: 'color .2s' }}
             onMouseEnter={e => e.target.style.color = '#6b6460'}
@@ -50,19 +50,21 @@ export default function PrivacyPolicy({ navigate }) {
 
           <div style={block}>
             <h2>Who we are</h2>
-            <p>Scano is operated by Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München, Germany. If you have any questions about this privacy policy, you can contact us at <a href="mailto:info@velyr.io">info@velyr.io</a>.</p>
+            <p>Velyr is operated by Florian Rappold, Maikäferstraße 3f, 85551 Kirchheim bei München, Germany. If you have any questions about this privacy policy, contact us at <a href="mailto:info@velyr.io">info@velyr.io</a>.</p>
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid rgba(28,25,23,0.09)', margin: '8px 0 36px' }} />
 
           <div style={block}>
             <h2>What data we collect</h2>
-            <p style={{ marginBottom: 12 }}>When you use Scano, we may collect the following information:</p>
+            <p style={{ marginBottom: 12 }}>When you use Velyr, we may collect the following information:</p>
             <ul>
-              <li><strong style={{ fontWeight: 500 }}>Website URL and social media handles</strong> you enter into the scan form. These are used solely to perform the audit and are not stored beyond what is necessary to generate and display your report.</li>
-              <li><strong style={{ fontWeight: 500 }}>Your email address</strong>, if you choose to have your report sent to you by email. This is used only to deliver your report link and is stored in our database linked to your scan.</li>
-              <li><strong style={{ fontWeight: 500 }}>Your email address</strong>, if you sign up for the waitlist for the full report feature. This is used only to notify you when the feature becomes available. You can request removal at any time.</li>
-              <li><strong style={{ fontWeight: 500 }}>Publicly available social media data</strong> such as follower counts, post captions, and engagement statistics. We only access data that is publicly visible on each platform — we never access private accounts or require login credentials.</li>
+              <li><strong style={{ fontWeight: 500 }}>Website URL and social media handles</strong> you enter into the scan form. These are used solely to perform the audit and generate your report.</li>
+              <li><strong style={{ fontWeight: 500 }}>Your email address</strong>, if you choose to have your report sent to you by email. Used only to deliver your report link.</li>
+              <li><strong style={{ fontWeight: 500 }}>Payment information</strong>, when you purchase a Full Report (€9) or subscribe to the Growth Agent (€29/month). Payment data is processed exclusively by Stripe — we never see or store your card details.</li>
+              <li><strong style={{ fontWeight: 500 }}>GitHub repository access</strong>, if you connect the Growth Agent. We access only the repositories you explicitly authorise, solely to read page code and open Pull Requests on your behalf.</li>
+              <li><strong style={{ fontWeight: 500 }}>PostHog analytics data</strong>, if you connect the Growth Agent. We read your site's analytics (bounce rates, traffic sources, page views) solely to identify conversion improvements. We do not store this data beyond what is needed for each weekly run.</li>
+              <li><strong style={{ fontWeight: 500 }}>Publicly available social media data</strong> such as follower counts, post captions, and engagement statistics. We only access data that is publicly visible — we never access private accounts or require social login.</li>
               <li><strong style={{ fontWeight: 500 }}>Technical data</strong> such as IP address and browser type, collected automatically by our hosting provider (Vercel) for security and performance purposes.</li>
             </ul>
           </div>
@@ -74,7 +76,8 @@ export default function PrivacyPolicy({ navigate }) {
               <li>We do not use Google Analytics or any behavioral tracking service.</li>
               <li>We do not share or sell your data to any third party.</li>
               <li>We do not access private social media accounts or require any social media login.</li>
-              <li>We do not store payment data — no payment processing is currently active on this platform.</li>
+              <li>We do not store your payment card details — this is handled entirely by Stripe.</li>
+              <li>We do not store your PostHog or GitHub credentials — only short-lived access tokens are used per run.</li>
             </ul>
           </div>
 
@@ -83,27 +86,43 @@ export default function PrivacyPolicy({ navigate }) {
             <ul>
               <li>To run your business audit and generate your report.</li>
               <li>To send you your report link by email, if you requested this.</li>
-              <li>To notify you when new features (such as the full paid report) become available, if you signed up for the waitlist.</li>
+              <li>To process your payment for the Full Report or Growth Agent subscription via Stripe.</li>
+              <li>To operate the Growth Agent: reading your GitHub repo and PostHog analytics weekly, writing code fixes, opening Pull Requests, and sending you Telegram notifications.</li>
+              <li>To notify you when new features become available, if you signed up for the waitlist.</li>
             </ul>
-            <p style={{ marginTop: 12 }}>The legal basis for processing is your consent (Art. 6(1)(a) GDPR) where you have actively provided your email, and our legitimate interest (Art. 6(1)(f) GDPR) for technical data collected by our hosting infrastructure.</p>
+            <p style={{ marginTop: 12 }}>The legal basis for processing is your consent (Art. 6(1)(a) GDPR) where you have actively provided data, performance of a contract (Art. 6(1)(b) GDPR) for paid services, and our legitimate interest (Art. 6(1)(f) GDPR) for technical infrastructure data.</p>
           </div>
 
           <div style={block}>
             <h2>Third-party services</h2>
-            <p style={{ marginBottom: 12 }}>Scano uses the following third-party services to operate:</p>
+            <p style={{ marginBottom: 12 }}>Velyr uses the following third-party services to operate:</p>
             <ul>
-              <li><strong style={{ fontWeight: 500 }}>Vercel</strong> — hosting and content delivery (USA, with EU adequacy). Privacy policy: <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">vercel.com/legal/privacy-policy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>Supabase</strong> — secure database storage for scan results and email addresses. Privacy policy: <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">supabase.com/privacy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>Apify</strong> — used to retrieve publicly available social media data (follower counts, post captions, engagement statistics) to power the audit. Only public data is accessed. Privacy policy: <a href="https://apify.com/privacy-policy" target="_blank" rel="noopener noreferrer">apify.com/privacy-policy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>Mailjet</strong> — used to send transactional emails (your report link). Your email address is transmitted to Mailjet solely for this purpose. Privacy policy: <a href="https://www.mailjet.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer">mailjet.com/legal/privacy-policy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>Google PageSpeed Insights API</strong> — used to measure your website's loading performance. Your website URL is sent to Google's API for this purpose. Privacy policy: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>OpenRouter / Anthropic</strong> — used to generate the AI-written analysis in your report. Scan data (website metrics and social statistics) is sent to this service. No personal data beyond what you enter is included. Privacy policy: <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer">openrouter.ai/privacy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Vercel</strong> — hosting and content delivery (USA, with EU adequacy). <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Supabase</strong> — secure database storage for scan results, user accounts, and report data. <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Stripe</strong> — payment processing for the Full Report (€9) and Growth Agent subscription (€29/month). Stripe is a PCI-DSS certified payment processor. Your payment data is transmitted directly to Stripe and never stored by Velyr. Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin, D02 H210, Ireland. <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Apify</strong> — retrieves publicly available social media data (follower counts, post captions, engagement statistics) to power the audit. Only public data is accessed. <a href="https://apify.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Anthropic (Claude API)</strong> — generates the AI-written analysis in your report and powers the Growth Agent's code fixes. Scan data (website metrics and social statistics) is sent to this service. No unnecessary personal data is included. <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Google PageSpeed Insights API</strong> — measures your website's loading performance. Your website URL is sent to Google's API for this purpose. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>GitHub</strong> — used by the Growth Agent to read your repository code and open Pull Requests. Only repositories you explicitly authorise are accessed. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>PostHog</strong> — used by the Growth Agent to read your site's analytics data (bounce rates, traffic sources, page views) to identify the highest-impact conversion fixes. Only data from your own PostHog project is accessed, with your explicit authorisation. <a href="https://posthog.com/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Telegram</strong> — used by the Growth Agent to send you weekly notifications, Pull Request approval requests, and rollback alerts. Your Telegram chat ID is stored solely for this purpose and can be removed at any time. <a href="https://telegram.org/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
+              <li><strong style={{ fontWeight: 500 }}>Mailjet</strong> — used to send transactional emails (report links). Your email address is transmitted to Mailjet solely for this purpose. <a href="https://www.mailjet.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
             </ul>
           </div>
 
           <div style={block}>
             <h2>Cookies</h2>
-            <p>Scano does not use marketing or tracking cookies. No cookie consent banner is required as we only use strictly necessary technical cookies (e.g. session management) where applicable. These do not require consent under GDPR.</p>
+            <p>Velyr does not use marketing or tracking cookies. We use strictly necessary technical cookies only (e.g. authentication session tokens for the Growth Agent dashboard). These do not require consent under GDPR and no cookie consent banner is displayed. You can disable cookies in your browser settings, but this may prevent the Growth Agent dashboard from functioning correctly.</p>
+          </div>
+
+          <div style={block}>
+            <h2>Payments & subscriptions</h2>
+            <p style={{ marginBottom: 12 }}>Paid services on Velyr:</p>
+            <ul>
+              <li><strong style={{ fontWeight: 500 }}>Full Report — €9 one-time.</strong> You are charged once at the time of purchase. No recurring charges.</li>
+              <li><strong style={{ fontWeight: 500 }}>Growth Agent — €29/month.</strong> This is a recurring monthly subscription. You can cancel at any time from your dashboard. Cancellation takes effect at the end of the current billing period — no partial refunds are issued for unused days.</li>
+            </ul>
+            <p style={{ marginTop: 12 }}>All payments are processed by Stripe. Velyr never stores your payment card details. Invoices are issued by Stripe on behalf of Velyr.</p>
           </div>
 
           <div style={block}>
@@ -111,9 +130,11 @@ export default function PrivacyPolicy({ navigate }) {
             <ul>
               <li><strong style={{ fontWeight: 500 }}>Scan reports</strong> are stored for up to 12 months after creation, then automatically deleted.</li>
               <li><strong style={{ fontWeight: 500 }}>Email addresses</strong> linked to a report are stored for the same duration as the report.</li>
-              <li><strong style={{ fontWeight: 500 }}>Waitlist emails</strong> are stored until the feature launches or until you request removal — whichever comes first.</li>
+              <li><strong style={{ fontWeight: 500 }}>Growth Agent account data</strong> (GitHub token, PostHog token, Telegram chat ID, Brand Guardrails) is stored for the duration of your active subscription and deleted within 30 days of cancellation.</li>
+              <li><strong style={{ fontWeight: 500 }}>Payment records</strong> are retained for 10 years as required by German tax law (§ 147 AO). These records are held by Stripe.</li>
+              <li><strong style={{ fontWeight: 500 }}>Waitlist emails</strong> are stored until the feature launches or until you request removal.</li>
             </ul>
-            <p style={{ marginTop: 12 }}>You can request deletion of your data at any time by contacting us.</p>
+            <p style={{ marginTop: 12 }}>You can request deletion of your data at any time by contacting us at <a href="mailto:info@velyr.io">info@velyr.io</a>. Note that payment records required by law cannot be deleted early.</p>
           </div>
 
           <div style={block}>
@@ -122,7 +143,7 @@ export default function PrivacyPolicy({ navigate }) {
             <ul>
               <li>The right to access the personal data we hold about you.</li>
               <li>The right to have inaccurate data corrected.</li>
-              <li>The right to have your data deleted ("right to be forgotten").</li>
+              <li>The right to have your data deleted ("right to be forgotten"), subject to legal retention requirements.</li>
               <li>The right to restrict or object to processing.</li>
               <li>The right to data portability.</li>
               <li>The right to withdraw consent at any time, without affecting the lawfulness of processing before withdrawal.</li>
@@ -137,15 +158,16 @@ export default function PrivacyPolicy({ navigate }) {
 
           <div style={block}>
             <h2>Changes to this policy</h2>
-            <p>We will update the date at the top of this page when significant changes are made. We recommend checking back periodically if you use Scano regularly.</p>
+            <p>We will update the date at the top of this page when significant changes are made. For material changes, we will notify active Growth Agent subscribers by email.</p>
           </div>
         </div>
 
         <div style={{ borderTop: '1px solid rgba(28,25,23,0.08)', padding: '24px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ fontSize: 13, color: '#a09890', fontWeight: 300 }}>© 2026 Scano</span>
+          <span style={{ fontSize: 13, color: '#a09890', fontWeight: 300 }}>© 2026 Velyr</span>
           <div style={{ display: 'flex', gap: 20 }}>
-            <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+            <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+            <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
           </div>
         </div>
 

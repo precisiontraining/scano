@@ -35,7 +35,7 @@ export default function Impressum({ navigate }) {
         <nav style={{ borderBottom: '1px solid rgba(28,25,23,0.08)', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)' }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={24} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: '#1c1917', letterSpacing: '-.01em' }}>Velyr</span>
           </button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300, transition: 'color .2s' }}
             onMouseEnter={e => e.target.style.color = '#6b6460'}
@@ -64,7 +64,12 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Hinweis zur Dienstleistung</span>
-            <p>Scano ist ein KI-gestütztes Analyse-Tool für Online-Auftritte. Die Ergebnisse basieren auf öffentlich zugänglichen Daten und automatisierten Analysen. Sie stellen keine rechtliche, steuerliche oder geschäftliche Beratung dar. Für Entscheidungen auf Basis der Berichte übernehmen wir keine Haftung.</p>
+            <p>Velyr ist ein KI-gestütztes Analyse- und Optimierungstool für Online-Auftritte. Die Ergebnisse basieren auf öffentlich zugänglichen Daten und automatisierten Analysen. Sie stellen keine rechtliche, steuerliche oder geschäftliche Beratung dar. Für Entscheidungen auf Basis der Berichte wird keine Haftung übernommen.</p>
+          </div>
+
+          <div style={block}>
+            <span style={label}>Zahlungsabwicklung</span>
+            <p>Die Zahlungsabwicklung für kostenpflichtige Leistungen (Full Report €9, Growth Agent €29/Monat) erfolgt über Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, D02 H210, Irland. Zahlungsdaten werden ausschließlich von Stripe verarbeitet und nicht von Velyr gespeichert.</p>
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid rgba(28,25,23,0.09)', margin: '8px 0 36px' }} />
@@ -73,7 +78,12 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Haftung für Inhalte</span>
-            <p>Die Inhalte dieser Website wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG sind wir als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen.</p>
+            <p>Die Inhalte dieser Website wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte kann jedoch keine Gewähr übernommen werden. Als Diensteanbieter sind wir gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG sind wir als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen.</p>
+          </div>
+
+          <div style={block}>
+            <span style={label}>KI-generierte Inhalte</span>
+            <p>Die in den Berichten enthaltenen Analysen und Empfehlungen werden teilweise durch KI-Systeme (Anthropic Claude) generiert. Diese stellen automatisierte Auswertungen dar und ersetzen keine fachkundige Beratung. Velyr übernimmt keine Haftung für Entscheidungen, die auf Basis dieser Analysen getroffen werden.</p>
           </div>
 
           <div style={block}>
@@ -97,21 +107,24 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Soziale Medien — öffentliche Daten</span>
-            <p>Scano greift ausschließlich auf öffentlich zugängliche Daten sozialer Netzwerke zu (z. B. Follower-Zahlen, öffentliche Beiträge). Es werden keine privaten Konten analysiert und keine Zugangsdaten gespeichert. Die Verarbeitung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).</p>
+            <p>Velyr greift ausschließlich auf öffentlich zugängliche Daten sozialer Netzwerke zu (z. B. Follower-Zahlen, öffentliche Beiträge). Es werden keine privaten Konten analysiert und keine Zugangsdaten gespeichert. Die Verarbeitung dieser Daten erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).</p>
           </div>
 
           <div style={block}>
             <span style={label}>Weitere Informationen</span>
-            <p>Weitere Informationen zum Datenschutz finden Sie in unserer <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2a5c45', fontFamily: 'Jost, sans-serif', fontSize: 15, fontWeight: 300, textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)', padding: 0 }}>Datenschutzerklärung</button>.</p>
+            <p>Weitere Informationen zum Datenschutz finden Sie in unserer{' '}
+              <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2a5c45', fontFamily: 'Jost, sans-serif', fontSize: 15, fontWeight: 300, textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)', padding: 0 }}>Datenschutzerklärung</button>.
+            </p>
           </div>
 
         </div>
 
         <div style={{ borderTop: '1px solid rgba(28,25,23,0.08)', padding: '24px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ fontSize: 13, color: '#a09890', fontWeight: 300 }}>© 2026 Scano</span>
+          <span style={{ fontSize: 13, color: '#a09890', fontWeight: 300 }}>© 2026 Velyr</span>
           <div style={{ display: 'flex', gap: 20 }}>
-            <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+            <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+            <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
           </div>
         </div>
 
