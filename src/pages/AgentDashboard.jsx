@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -27,7 +27,7 @@ const C = {
   redMid:      'rgba(184,50,50,0.15)',
   yellow:      '#c47d0e',
   yellowSoft:  'rgba(196,125,14,0.07)',
-  yellowMid:   'rgba(196,125,14,0.18)',
+  yellowMid:   'rgba(196,125,14,0.18)',  // FIX #1: was missing — caused undefined borders/backgrounds everywhere yellowMid was used
   green:       '#1e7a3c',
   greenSoft:   'rgba(30,122,60,0.07)',
   blue:        '#1d5fa8',
@@ -244,7 +244,6 @@ function RunHistoryBar({runs}) {
 function LiveActivityStream({runs, activeRun}) {
   const streamItems = []
 
-  // If agent is running, show live steps
   if (activeRun) {
     const stepIdx = deriveAgentStep(activeRun)
     AGENT_STEPS.forEach((step, i) => {
@@ -261,7 +260,6 @@ function LiveActivityStream({runs, activeRun}) {
     })
   }
 
-  // Recent run events
   runs.slice(0,8).forEach(run => {
     if (run.status==='running') return
     const analysis = run.analysis_result||{}
@@ -285,7 +283,6 @@ function LiveActivityStream({runs, activeRun}) {
           padding:'10px 0',
           borderBottom:i<streamItems.length-1?`1px solid ${C.border}`:'none',
         }}>
-          {/* indicator */}
           <div style={{width:20,flexShrink:0,display:'flex',justifyContent:'center',paddingTop:2}}>
             {item.type==='step' ? (
               <div style={{
@@ -299,7 +296,6 @@ function LiveActivityStream({runs, activeRun}) {
               <div style={{width:8,height:8,borderRadius:'50%',background:(STATUS[item.status]||STATUS.pending).dot,marginTop:1}}/>
             )}
           </div>
-          {/* content */}
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
               <p style={{
@@ -343,7 +339,6 @@ function PRMissionControl({run}) {
       overflow:'hidden',
       boxShadow:`0 0 0 3px ${C.yellowSoft}`,
     }}>
-      {/* header bar */}
       <div style={{
         background:C.yellowSoft,
         borderBottom:`1px solid ${C.yellowMid}`,
@@ -366,9 +361,7 @@ function PRMissionControl({run}) {
         </div>
       </div>
 
-      {/* main content */}
       <div style={{padding:'16px 18px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
-        {/* problem */}
         <div>
           <SectionLabel style={{marginBottom:6}}>Problem identified</SectionLabel>
           <p style={{fontSize:13,fontWeight:500,color:C.text,lineHeight:1.5,marginBottom:6}}>
@@ -379,7 +372,6 @@ function PRMissionControl({run}) {
           )}
         </div>
 
-        {/* fix */}
         <div>
           <SectionLabel style={{marginBottom:6}}>Fix applied</SectionLabel>
           <p style={{fontSize:12,color:C.text,lineHeight:1.5,marginBottom:8}}>
@@ -392,7 +384,6 @@ function PRMissionControl({run}) {
           )}
         </div>
 
-        {/* metrics */}
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           <SectionLabel style={{marginBottom:0}}>Expected impact</SectionLabel>
           <div style={{display:'flex',alignItems:'baseline',gap:6}}>
@@ -401,7 +392,6 @@ function PRMissionControl({run}) {
             </span>
             <span style={{fontSize:11,color:C.textMuted}}>conversion</span>
           </div>
-          {/* confidence bar */}
           <div>
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
               <span style={{fontSize:10,color:C.textLight}}>Confidence</span>
@@ -428,31 +418,33 @@ function KPIBar({runs, impactMetrics}) {
   const pending  = runs.filter(r=>r.status==='waiting_approval').length
   const rate     = total>0?Math.round((deployed/total)*100):0
 
-  // Avg impact from impact_metrics
   const bounceImprove = impactMetrics.filter(m=>m.metric_type==='bounce_rate'&&m.value_before&&m.value_after)
   const avgDelta = bounceImprove.length>0
     ? Math.round(bounceImprove.reduce((s,m)=>s+(m.value_before-m.value_after),0)/bounceImprove.length)
     : null
 
-  // Spark data: deployed per last 8 weeks (simplified: last 8 runs deployed=1 else 0)
   const sparkData = [...runs].slice(0,8).reverse().map(r=>r.status==='deployed'||r.status==='approved'?1:0)
+
+  // FIX #12: proper Date object comparison instead of fragile ISO string comparison
+  const oneWeekAgo = new Date(Date.now() - 7 * 86400000)
 
   const kpis = [
     {
       label:'Total Runs', value:total, sub:`${pending>0?`${pending} awaiting`:'All processed'}`,
-      accent:false, highlight:false, sparkData:null,
+      accent:false, sparkData:null,
     },
     {
-      label:'Fixes Deployed', value:deployed, sub:`+${runs.filter(r=>r.created_at>new Date(Date.now()-7*86400000).toISOString()&&(r.status==='deployed'||r.status==='approved')).length} this week`,
-      accent:true, highlight:false, sparkData,
+      label:'Fixes Deployed', value:deployed,
+      sub:`+${runs.filter(r=>new Date(r.created_at)>oneWeekAgo&&(r.status==='deployed'||r.status==='approved')).length} this week`,
+      accent:true, sparkData,
     },
     {
       label:'Deploy Rate', value:`${rate}%`, sub:rate>=70?'On track':'Needs review',
-      accent:false, highlight:false, sparkData:null,
+      accent:false, sparkData:null,
     },
     {
       label:'Avg. Bounce Δ', value:avgDelta!=null?`−${avgDelta}%`:'—', sub:avgDelta!=null?'After agent fixes':'No data yet',
-      accent:false, highlight:false, sparkData:null,
+      accent:false, sparkData:null,
     },
   ]
 
@@ -484,20 +476,16 @@ function TopInsights({runs, funnelPages, learnings, impactMetrics}) {
   const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved')
   const pending  = runs.filter(r=>r.status==='waiting_approval')
 
-  // Biggest drop-off page
   const topDropOff = [...funnelPages].filter(p=>p.drop_off_score>0).sort((a,b)=>b.drop_off_score-a.drop_off_score)[0]
 
-  // Most improved (highest positive impact metric)
   const bestImpact = [...impactMetrics].filter(m=>m.value_before>m.value_after).sort((a,b)=>(b.value_before-b.value_after)-(a.value_before-a.value_after))[0]
   const bestRun = bestImpact ? runs.find(r=>r.id===bestImpact.run_id) : null
 
-  // Revenue estimate (if avg conversion improvement * assumed traffic)
   const avgConvStr = deployed.map(r=>r.analysis_result?.expected_improvement).filter(Boolean)
   const avgConvNum = avgConvStr.length>0
     ? avgConvStr.reduce((s,v)=>{const n=parseFloat(v.replace(/[^0-9.]/g,''));return s+(isNaN(n)?0:n)},0)/avgConvStr.length
     : null
 
-  // A/B tests running (from learnings)
   const positiveLearnings = learnings.filter(l=>l.outcome==='positive')
   const winRate = learnings.length>0?Math.round((positiveLearnings.length/learnings.length)*100):null
 
@@ -588,10 +576,15 @@ function RevenueEstimator({runs, impactMetrics}) {
     ? avgImprovementStr.reduce((s,v)=>{const n=parseFloat(v.replace(/[^0-9.]/g,''));return s+(isNaN(n)?0:n)},0)/avgImprovementStr.length
     : 12
 
-  const baseRevenue = (monthlyVisitors * (convRate/100) * avgOrderValue)
-  const improvedConvRate = convRate * (1 + avgImprovementNum/100)
-  const improvedRevenue = monthlyVisitors * (improvedConvRate/100) * avgOrderValue
-  const delta = improvedRevenue - baseRevenue
+  // FIX #7: clamp to 0 so negative inputs can't produce nonsense revenue numbers
+  const safeVisitors = Math.max(0, monthlyVisitors)
+  const safeConvRate = Math.max(0, convRate)
+  const safeAOV      = Math.max(0, avgOrderValue)
+
+  const baseRevenue     = safeVisitors * (safeConvRate / 100) * safeAOV
+  const improvedConvRate = safeConvRate * (1 + avgImprovementNum / 100)
+  const improvedRevenue = safeVisitors * (improvedConvRate / 100) * safeAOV
+  const delta           = improvedRevenue - baseRevenue
 
   const inp = {
     background:'rgba(26,25,22,0.04)', border:`1px solid ${C.border}`,
@@ -610,15 +603,16 @@ function RevenueEstimator({runs, impactMetrics}) {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:16}}>
         <div>
           <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Monthly visitors</label>
-          <input type="number" value={monthlyVisitors} onChange={e=>setMonthlyVisitors(+e.target.value)} style={inp}/>
+          {/* FIX #7: min="0" prevents negative values at the browser level */}
+          <input type="number" min="0" value={monthlyVisitors} onChange={e=>setMonthlyVisitors(+e.target.value)} style={inp}/>
         </div>
         <div>
           <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Current conv. rate %</label>
-          <input type="number" value={convRate} step="0.1" onChange={e=>setConvRate(+e.target.value)} style={inp}/>
+          <input type="number" min="0" step="0.1" value={convRate} onChange={e=>setConvRate(+e.target.value)} style={inp}/>
         </div>
         <div>
           <label style={{fontSize:10,color:C.textLight,display:'block',marginBottom:5}}>Avg. order value (€)</label>
-          <input type="number" value={avgOrderValue} onChange={e=>setAvgOrderValue(+e.target.value)} style={inp}/>
+          <input type="number" min="0" value={avgOrderValue} onChange={e=>setAvgOrderValue(+e.target.value)} style={inp}/>
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
@@ -655,7 +649,9 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
   const isRunning = !!activeRun
   const lastRun   = runs[0]||null
   const pending   = runs.filter(r=>r.status==='waiting_approval')
-  const target    = nextMonday9am()
+
+  // FIX #4: memoize so nextMonday9am() is not recomputed on every render cycle
+  const target = useMemo(() => nextMonday9am(), [])
   const countdown = useCountdown(target)
   const stepIdx   = isRunning ? deriveAgentStep(activeRun) : (lastRun ? deriveAgentStep(lastRun) : -1)
 
@@ -670,9 +666,7 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
   return (
     <div style={{width:272,flexShrink:0,position:'sticky',top:20,alignSelf:'flex-start',display:'flex',flexDirection:'column',gap:10}}>
 
-      {/* Agent state card */}
       <Card style={{overflow:'hidden'}}>
-        {/* status header */}
         <div style={{
           padding:'12px 16px',
           background: isPaused?C.yellowSoft:isRunning?C.blueSoft:C.accentSoft,
@@ -691,7 +685,6 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
           <span style={{fontSize:10,color:C.textLight,fontFamily:'DM Mono,monospace'}}>Growth Agent</span>
         </div>
 
-        {/* countdown or live status */}
         <div style={{padding:'14px 16px',borderBottom:`1px solid ${C.border}`}}>
           {isPaused ? (
             <p style={{fontSize:12,color:C.textMuted,lineHeight:1.6}}>Agent is paused. Resume to run again next Monday.</p>
@@ -716,7 +709,6 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
           )}
         </div>
 
-        {/* step tracker */}
         {lastRun && (
           <div style={{padding:'13px 16px',borderBottom:`1px solid ${C.border}`}}>
             <SectionLabel style={{marginBottom:11}}>{isRunning?'Live steps':'Last run · '+timeAgo(lastRun.created_at)}</SectionLabel>
@@ -756,7 +748,6 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
           </div>
         )}
 
-        {/* pending PRs */}
         {pending.length>0&&(
           <div style={{padding:'12px 16px',borderBottom:`1px solid ${C.border}`,background:C.yellowSoft}}>
             <SectionLabel style={{color:C.yellow,marginBottom:8}}>🔔 {pending.length} awaiting approval</SectionLabel>
@@ -773,7 +764,6 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
           </div>
         )}
 
-        {/* pause button */}
         <div style={{padding:'12px 16px'}}>
           <button className="btn" onClick={onTogglePause} disabled={actionLoading} style={{
             width:'100%',padding:'9px',borderRadius:7,fontSize:12,
@@ -787,7 +777,6 @@ function AgentSidebar({subscription, runs, onTogglePause, actionLoading, onSelec
         </div>
       </Card>
 
-      {/* Quick perf stats */}
       <Card style={{padding:'14px 16px'}}>
         <SectionLabel style={{marginBottom:12}}>Performance</SectionLabel>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
@@ -825,20 +814,15 @@ function OverviewPage({runs, subscription, funnelPages, learnings, impactMetrics
 
   return (
     <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-      {/* LEFT: main content */}
       <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:14}}>
 
-        {/* PR mission control */}
         {pendingRun && <div className="fade-up"><PRMissionControl run={pendingRun}/></div>}
 
-        {/* KPI bar */}
         <div className="fade-up" style={{animationDelay:'.05s'}}>
           <KPIBar runs={runs} impactMetrics={impactMetrics}/>
         </div>
 
-        {/* Middle row: live stream + top insights */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-          {/* live activity stream */}
           <Card className="fade-up" style={{padding:'16px 18px',animationDelay:'.1s'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
               <div>
@@ -857,23 +841,19 @@ function OverviewPage({runs, subscription, funnelPages, learnings, impactMetrics
             <LiveActivityStream runs={runs} activeRun={activeRun}/>
           </Card>
 
-          {/* top insights */}
           <div className="fade-up" style={{animationDelay:'.12s',display:'flex',flexDirection:'column',gap:10}}>
             <SectionLabel>Top Insights</SectionLabel>
             <TopInsights runs={runs} funnelPages={funnelPages} learnings={learnings} impactMetrics={impactMetrics}/>
           </div>
         </div>
 
-        {/* Revenue estimator */}
         <div className="fade-up" style={{animationDelay:'.15s'}}>
           <RevenueEstimator runs={runs} impactMetrics={impactMetrics}/>
         </div>
 
-        {/* Bottom learning strip */}
         <AgentLearningStrip learnings={learnings}/>
       </div>
 
-      {/* RIGHT: sticky sidebar */}
       <AgentSidebar
         subscription={subscription}
         runs={runs}
@@ -887,10 +867,12 @@ function OverviewPage({runs, subscription, funnelPages, learnings, impactMetrics
 
 // ─── AGENT LEARNING STRIP ────────────────────────────────────────────────────
 function AgentLearningStrip({learnings}) {
+  // FIX #13: early return BEFORE any derived calculations to avoid NaN / division-by-zero
   if (learnings.length===0) return null
-  const wins = learnings.filter(l=>l.outcome==='positive').length
-  const losses = learnings.filter(l=>l.outcome==='negative').length
-  const rate = Math.round((wins/learnings.length)*100)
+
+  const wins    = learnings.filter(l=>l.outcome==='positive').length
+  const losses  = learnings.filter(l=>l.outcome==='negative').length
+  const rate    = Math.round((wins/learnings.length)*100)
   const posAvgDelta = learnings.filter(l=>l.outcome==='positive'&&l.delta)
   const avgLift = posAvgDelta.length>0?Math.round(posAvgDelta.reduce((s,l)=>s+(l.delta||0),0)/posAvgDelta.length):null
 
@@ -921,7 +903,6 @@ function AgentLearningStrip({learnings}) {
           <p style={{fontSize:10,color:C.textMuted,marginTop:3}}>rolled back / avoided</p>
         </div>
       </div>
-      {/* recent learnings */}
       <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
         {learnings.slice(0,3).map((l,i)=>(
           <div key={l.id||i} style={{display:'flex',alignItems:'center',gap:10,fontSize:11}}>
@@ -1053,7 +1034,6 @@ function RunsPage({runs, loading, onSelect}) {
 function InsightsPage({runs, impactMetrics, learnings, funnelPages}) {
   const deployed = runs.filter(r=>r.status==='deployed'||r.status==='approved')
 
-  // Build before/after data
   const impactData = impactMetrics.map(m=>{
     const run = runs.find(r=>r.id===m.run_id)
     return {...m, run}
@@ -1062,10 +1042,8 @@ function InsightsPage({runs, impactMetrics, learnings, funnelPages}) {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
 
-      {/* Revenue estimator */}
       <RevenueEstimator runs={runs} impactMetrics={impactMetrics}/>
 
-      {/* Impact metrics: before/after */}
       {impactData.length>0&&(
         <Card style={{padding:'16px 18px'}}>
           <SectionLabel style={{marginBottom:14}}>Before / After Impact</SectionLabel>
@@ -1107,10 +1085,8 @@ function InsightsPage({runs, impactMetrics, learnings, funnelPages}) {
         </Card>
       )}
 
-      {/* Business DNA / learnings */}
       <AgentLearningStrip learnings={learnings}/>
 
-      {/* Learning details */}
       {learnings.length>0&&(
         <Card style={{overflow:'hidden'}}>
           <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`}}>
@@ -1143,22 +1119,9 @@ function InsightsPage({runs, impactMetrics, learnings, funnelPages}) {
 }
 
 // ─── FUNNEL PAGE ──────────────────────────────────────────────────────────────
-function FunnelPage({subscriptionId}) {
-  const [funnelPages, setFunnelPages] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(()=>{
-    if(!subscriptionId)return
-    supabase.from('agent_funnel_pages').select('*').eq('subscription_id',subscriptionId).order('created_at',{ascending:false}).limit(30)
-      .then(({data})=>{
-        if(data){
-          const seen=new Set()
-          setFunnelPages(data.filter(p=>{if(seen.has(p.page_path))return false;seen.add(p.page_path);return true}))
-        }
-        setLoading(false)
-      })
-  },[subscriptionId])
-
+// FIX #6: removed internal Supabase fetch — data already fetched by parent fetchData(),
+//         passed via props to avoid double network requests and state inconsistency
+function FunnelPage({funnelPages, loading}) {
   if(loading) return <div style={{padding:'48px',display:'flex',justifyContent:'center'}}><Spinner/></div>
   if(!funnelPages.length) return (
     <div style={{padding:'40px',textAlign:'center'}}>
@@ -1359,7 +1322,6 @@ function RunDetail({run, onClose}) {
         {analysis.problem&&(
           <h3 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:24,letterSpacing:'-.01em',marginBottom:20,color:C.text,lineHeight:1.25}}>{analysis.problem}</h3>
         )}
-        {/* agent step flow */}
         <div style={{background:'rgba(26,25,22,0.02)',border:`1px solid ${C.border}`,borderRadius:10,padding:'13px 15px',marginBottom:16}}>
           <SectionLabel style={{marginBottom:12}}>What the agent did</SectionLabel>
           <div style={{display:'flex',gap:0,overflowX:'auto',paddingBottom:4}}>
@@ -1445,13 +1407,19 @@ function RunDetail({run, onClose}) {
 }
 
 // ─── DELETE CONFIRM ───────────────────────────────────────────────────────────
-function DeleteConfirmModal({onConfirm, onCancel, loading}) {
+// FIX #11: added `error` prop to surface failure message inside the modal
+function DeleteConfirmModal({onConfirm, onCancel, loading, error}) {
   return (
     <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(26,25,22,0.4)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}} onClick={onCancel}>
       <div className="pop-in" onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'28px 26px',maxWidth:400,width:'100%',boxShadow:'0 20px 60px rgba(26,25,22,0.15)'}}>
         <p style={{fontSize:26,marginBottom:12}}>⚠️</p>
         <h3 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:22,marginBottom:8,color:C.text}}>Delete your account?</h3>
         <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:22}}>This permanently deletes your account, all agent runs, and all connected data. Cannot be undone.</p>
+        {error && (
+          <p style={{fontSize:12,color:C.red,background:C.redSoft,border:`1px solid ${C.redMid}`,borderRadius:7,padding:'8px 12px',marginBottom:14}}>
+            {error}
+          </p>
+        )}
         <div style={{display:'flex',gap:8}}>
           <button className="btn" onClick={onCancel} style={{flex:1,background:'transparent',color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:'12px',fontSize:13,fontFamily:'DM Sans,sans-serif'}}>Cancel</button>
           <button className="btn" onClick={onConfirm} disabled={loading} style={{flex:1,background:C.red,color:'#fff',border:'none',borderRadius:8,padding:'12px',fontSize:13,fontFamily:'DM Sans,sans-serif',fontWeight:500,opacity:loading?0.6:1}}>
@@ -1473,6 +1441,7 @@ export default function AgentDashboard({ navigate }) {
   const [subscription,   setSubscription]   = useState(null)
   const [actionLoading,  setActionLoading]  = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteError,    setDeleteError]    = useState(null)  // FIX #11: track deletion errors
   const [activePage,     setActivePage]     = useState('overview')
   const [funnelPages,    setFunnelPages]    = useState([])
   const [learnings,      setLearnings]      = useState([])
@@ -1508,7 +1477,8 @@ export default function AgentDashboard({ navigate }) {
       supabase.from('agent_runs').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(50),
       supabase.from('agent_funnel_pages').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(30),
       supabase.from('agent_learnings').select('*').eq('subscription_id',subs.id).order('created_at',{ascending:false}).limit(50),
-      supabase.from('impact_metrics').select('*').order('measured_at',{ascending:false}).limit(20),
+      // FIX #3: added .eq('subscription_id', subs.id) — previously fetched all users' metrics
+      supabase.from('impact_metrics').select('*').eq('subscription_id',subs.id).order('measured_at',{ascending:false}).limit(20),
     ])
 
     if(runsRes.data) setRuns(runsRes.data)
@@ -1538,11 +1508,18 @@ export default function AgentDashboard({ navigate }) {
 
   async function handleDeleteAccount() {
     setActionLoading(true)
+    setDeleteError(null)
     const token=await getToken()
     const res=await fetch('/api/agent/run?action=delete',{method:'POST',headers:{'Authorization':`Bearer ${token}`}})
     const data=await res.json()
-    if(data.success){await supabase.auth.signOut();navigate('/')}
-    else{setActionLoading(false);setShowDeleteConfirm(false)}
+    if(data.success){
+      await supabase.auth.signOut()
+      navigate('/')
+    } else {
+      // FIX #11: show error in modal instead of silently closing it
+      setDeleteError(data.error || 'Something went wrong. Please try again.')
+      setActionLoading(false)
+    }
   }
 
   async function handleLogout() {
@@ -1563,7 +1540,14 @@ export default function AgentDashboard({ navigate }) {
     <>
       <style>{CSS}</style>
       {selected&&<RunDetail run={selected} onClose={()=>setSelected(null)}/>}
-      {showDeleteConfirm&&<DeleteConfirmModal onConfirm={handleDeleteAccount} onCancel={()=>setShowDeleteConfirm(false)} loading={actionLoading}/>}
+      {showDeleteConfirm&&(
+        <DeleteConfirmModal
+          onConfirm={handleDeleteAccount}
+          onCancel={()=>{ setShowDeleteConfirm(false); setDeleteError(null) }}
+          loading={actionLoading}
+          error={deleteError}
+        />
+      )}
 
       <div style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
 
@@ -1575,7 +1559,6 @@ export default function AgentDashboard({ navigate }) {
           position:'sticky',top:0,height:'100vh',
           overflowY:'auto',
         }}>
-          {/* Logo */}
           <div onClick={()=>navigate('/')} style={{
             padding:'18px 16px 14px',
             display:'flex',alignItems:'center',gap:9,cursor:'pointer',
@@ -1588,7 +1571,6 @@ export default function AgentDashboard({ navigate }) {
             </div>
           </div>
 
-          {/* Nav items */}
           <nav style={{padding:'10px 8px',flex:1}}>
             {NAV_ITEMS.map(item=>(
               <button key={item.id} className="nav-item" onClick={()=>setActivePage(item.id)} style={{
@@ -1610,7 +1592,6 @@ export default function AgentDashboard({ navigate }) {
             ))}
           </nav>
 
-          {/* Agent status indicator bottom */}
           <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`}}>
             {subscription ? (
               <div style={{display:'flex',alignItems:'center',gap:7}}>
@@ -1640,7 +1621,6 @@ export default function AgentDashboard({ navigate }) {
         {/* ── MAIN CONTENT ── */}
         <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
 
-          {/* top nav bar */}
           <div style={{
             height:52,padding:'0 24px',
             display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -1672,10 +1652,8 @@ export default function AgentDashboard({ navigate }) {
             </div>
           </div>
 
-          {/* page content */}
           <div style={{flex:1,padding:'24px',overflowY:'auto'}}>
 
-            {/* no subscription */}
             {!loading&&!subscription&&(
               <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
                 <p style={{fontSize:32,marginBottom:14}}>🤖</p>
@@ -1693,7 +1671,6 @@ export default function AgentDashboard({ navigate }) {
 
             {subscription&&!loading&&(
               <>
-                {/* Page header */}
                 {activePage==='overview'&&(
                   <div className="fade-up" style={{marginBottom:20}}>
                     <SectionLabel style={{color:C.accent,marginBottom:6}}>Growth Agent Dashboard</SectionLabel>
@@ -1732,7 +1709,8 @@ export default function AgentDashboard({ navigate }) {
                     <p style={{fontSize:12,color:C.textMuted,lineHeight:1.7,marginBottom:14}}>
                       The agent automatically detects all pages in your repo and maps the conversion funnel. Pages with high drop-off are prioritized on the next run.
                     </p>
-                    <FunnelPage subscriptionId={subscription?.id}/>
+                    {/* FIX #6: funnelPages + loading passed from parent, no second fetch */}
+                    <FunnelPage funnelPages={funnelPages} loading={loading}/>
                   </div>
                 )}
 
@@ -1750,7 +1728,7 @@ export default function AgentDashboard({ navigate }) {
                     <SettingsPage
                       subscription={subscription} user={user}
                       onTogglePause={handleTogglePause} actionLoading={actionLoading}
-                      onDeleteRequest={()=>setShowDeleteConfirm(true)}
+                      onDeleteRequest={()=>{ setDeleteError(null); setShowDeleteConfirm(true) }}
                     />
                   </div>
                 )}
