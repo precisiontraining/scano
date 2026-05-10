@@ -7,18 +7,20 @@ const supabase = createClient(
 )
 
 export default async function handler(req, res) {
-  const { id } = req.query
+  const { id, type } = req.query
 
   if (!id) return res.status(400).json({ error: 'Report ID is required' })
 
-  // Basic UUID format validation
   const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
   if (!uuidRegex.test(id)) {
     return res.status(400).json({ error: 'Invalid report ID format' })
   }
 
+  const isPremium = type === 'premium'
+  const table     = isPremium ? 'premium_reports' : 'reports'
+
   const { data, error } = await supabase
-    .from('reports')
+    .from(table)
     .select('id, website_url, scan_data, report_data, created_at')
     .eq('id', id)
     .single()
@@ -27,7 +29,9 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Report not found' })
   }
 
-  posthog.capture({ distinctId: data.website_url, event: 'report_viewed', properties: { report_id: id } })
+  if (!isPremium) {
+    posthog.capture({ distinctId: data.website_url, event: 'report_viewed', properties: { report_id: id } })
+  }
 
   return res.status(200).json(data)
 }

@@ -109,6 +109,8 @@ const CSS = `
 
   @media (max-width: 900px) {
     .agent-bottom-grid { grid-template-columns: 1fr !important; }
+    .dash-preview-grid { grid-template-columns: 1fr !important; }
+    .dash-preview-grid > div:first-child { border-right: none !important; border-bottom: 1px solid rgba(28,25,23,0.09) !important; }
   }
 `
 
@@ -361,6 +363,18 @@ function Hero({ onScanStart, navigate }) {
 }
 
 // ─── What we check ─────────────────────────────────────────────────────────────
+function WhatCard({ item, index, total }) {
+  const [cardRef, cardVisible] = useReveal(index * 80)
+  const br = index === 0 ? '14px 0 0 14px' : index === total - 1 ? '0 14px 14px 0' : '0'
+  return (
+    <div ref={cardRef} className="what-card" style={{ padding:'38px 32px', background:'#fff', border:'1px solid rgba(28,25,23,0.07)', borderRadius:br, opacity:cardVisible?1:0, transform:cardVisible?'none':'translateY(16px)', transition:`all .55s ease ${index*.1}s` }}>
+      <div style={{ fontSize:26, marginBottom:18 }}>{item.icon}</div>
+      <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:22, letterSpacing:'-.015em', marginBottom:12, color:C.text }}>{item.title}</h3>
+      <p style={{ color:C.textMuted, lineHeight:1.75, fontSize:14.5, fontWeight:300 }}>{item.desc}</p>
+    </div>
+  )
+}
+
 function WhatWeCheck() {
   const [ref, visible] = useReveal()
   const items = [
@@ -383,17 +397,9 @@ function WhatWeCheck() {
           <span style={{ fontSize:12, background:'rgba(28,25,23,0.05)', border:'1px solid rgba(28,25,23,0.12)', borderRadius:20, padding:'5px 14px', color:C.textMuted, fontWeight:300 }}>★ Full report — all 5 issues + deep analysis</span>
         </div>
         <div className="what-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2 }}>
-          {items.map((item, i) => {
-            const [cardRef, cardVisible] = useReveal(i * 80)
-            const br = i===0 ? '14px 0 0 14px' : i===items.length-1 ? '0 14px 14px 0' : '0'
-            return (
-              <div key={i} ref={cardRef} className="what-card" style={{ padding:'38px 32px', background:'#fff', border:'1px solid rgba(28,25,23,0.07)', borderRadius:br, opacity:cardVisible?1:0, transform:cardVisible?'none':'translateY(16px)', transition:`all .55s ease ${i*.1}s` }}>
-                <div style={{ fontSize:26, marginBottom:18 }}>{item.icon}</div>
-                <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:22, letterSpacing:'-.015em', marginBottom:12, color:C.text }}>{item.title}</h3>
-                <p style={{ color:C.textMuted, lineHeight:1.75, fontSize:14.5, fontWeight:300 }}>{item.desc}</p>
-              </div>
-            )
-          })}
+          {items.map((item, i) => (
+            <WhatCard key={i} item={item} index={i} total={items.length} />
+          ))}
         </div>
       </div>
     </section>
@@ -406,15 +412,15 @@ function GrowthAgentSection({ navigate }) {
   const [featuresExpanded, setFeaturesExpanded] = useState(false)
 
   const featuresTop = [
-    { icon:'📊', title:'Data-driven fixes', desc:'The agent reads your real analytics — bounce rates, traffic sources, top pages — and uses that data to find the highest-impact improvement every week.' },
-    { icon:'🔀', title:'Writes the code for you', desc:"It doesn't just tell you what to fix. It writes the actual code change, opens a Pull Request on GitHub, and waits for your approval." },
-    { icon:'📱', title:'Approve from Telegram', desc:'You get a Telegram message every Monday with the problem, the solution, and the PR link. One reply to approve — done.' },
+    { icon:'📸', title:'Before/after screenshots', desc:'Every fix is captured visually. You see exactly what changed and how the page looked before and after — no guesswork.' },
+    { icon:'💶', title:'Revenue attribution', desc:'Connect your Stripe and the agent reads real revenue per visitor. The lowest-earning page gets fixed first — not just the highest-bounce one.' },
+    { icon:'📱', title:'YES or NO from Telegram', desc:'You get a Telegram message every Monday with the problem, the solution, and the PR link. Reply YES to deploy or NO to skip — done.' },
   ]
 
   const featuresExtra = [
-    { icon:'📈', title:'Tracks & learns', desc:'After each fix, the agent measures what changed. If bounce rate drops, it doubles down on that pattern. If a change hurts metrics, it auto-rolls back.' },
-    { icon:'🛡️', title:'Brand Guardrails', desc:'Set rules the agent must follow — tone of voice, things it can never change, protected elements. Your brand stays consistent, always.' },
-    { icon:'🗺️', title:'Full funnel awareness', desc:'The agent maps every page in your repo and their drop-off rates. It fixes the highest-leverage page, not just the homepage.' },
+    { icon:'🔍', title:'Competitor weekly scan', desc:"Track up to 5 competitors. Every Monday the agent checks for hero, CTA, and pricing changes — and tells you what they shipped that you didn't." },
+    { icon:'🔥', title:'Monthly roast report', desc:"Once a month, brutal honesty: what improved, what is still embarrassingly bad versus competitors, and what you keep ignoring that the agent can't fix for you." },
+    { icon:'🌐', title:'Public impact timeline', desc:'Optional public page at velyr.io/agent/your-slug showing every run, screenshots, and results. Use it as social proof or share with your team.' },
   ]
 
   const timelinePhases = [
@@ -426,7 +432,7 @@ function GrowthAgentSection({ navigate }) {
         { time:'9:00 am',  icon:'🔍', text:'Agent reads your PostHog analytics + scans every page in your GitHub repo.' },
         { time:'9:10 am',  icon:'🎯', text:'Identifies the #1 conversion problem across your full funnel.' },
         { time:'9:15 am',  icon:'✍️', text:'Writes the code fix and opens a Pull Request with a live preview link.' },
-        { time:'9:20 am',  icon:'📲', text:'Telegram message arrives — problem, data, solution, PR link. Reply "approve" to ship.' },
+        { time:'9:20 am',  icon:'📲', text:'Telegram message arrives — problem, data, solution, PR link. Reply YES to ship, NO to skip.' },
       ]
     },
     {
@@ -663,7 +669,7 @@ function AgentDashboardPreview({ navigate }) {
             <div>
               <p style={{ fontSize:13, fontWeight:500, color:C.text }}>1 PR is waiting for your approval</p>
               <p style={{ fontSize:11, color:C.textLight, fontWeight:300, marginTop:2 }}>
-                Reply <code style={{ background:'rgba(28,25,23,0.08)', borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>approve [id]</code> or <code style={{ background:'rgba(28,25,23,0.08)', borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>reject [id]</code> on Telegram
+                Reply <code style={{ background:'rgba(28,25,23,0.08)', borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>YES</code> or <code style={{ background:'rgba(28,25,23,0.08)', borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>NO</code> on Telegram
               </p>
             </div>
           </div>
@@ -690,7 +696,7 @@ function AgentDashboardPreview({ navigate }) {
       </div>
 
       {/* Main content: Activity log + sidebar */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:0, borderTop:`1px solid ${C.border}` }}>
+      <div className="dash-preview-grid" style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:0, borderTop:`1px solid ${C.border}` }}>
 
         {/* Left: Activity log */}
         <div style={{ padding:'20px 24px', borderRight:`1px solid ${C.border}` }}>
@@ -753,7 +759,7 @@ function AgentDashboardPreview({ navigate }) {
           {/* Last run steps */}
           <div>
             <p style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:10 }}>Last run · 9h ago</p>
-            {['Fetching repo','Pulling analytics','Mapping funnel','Finding biggest issue','Writing fix','Opening pull request','Sending notification'].map(step => (
+            {['Fetching repo','Pulling analytics','Scanning competitors','Checking seasonal context','Reading Business DNA','Mapping funnel','Finding biggest issue','Taking before screenshot','Writing fix (or A/B variants)','Opening pull request','Sending notification + email'].map(step => (
               <div key={step} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
                 <div style={{ width:18, height:18, borderRadius:'50%', background:C.accent, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <span style={{ color:'#fff', fontSize:10 }}>✓</span>
@@ -769,7 +775,7 @@ function AgentDashboardPreview({ navigate }) {
             <p style={{ fontSize:12, fontWeight:500, color:C.text, marginBottom:3 }}>Fix pending review</p>
             <p style={{ fontSize:11, color:C.textLight, fontWeight:300, marginBottom:8 }}>PR #4 · 9h ago</p>
             <p style={{ fontSize:11, color:C.textLight, fontWeight:300 }}>
-              Reply <code style={{ background:'rgba(214,137,16,0.12)', color:C.yellow, borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>approve [id]</code> on Telegram
+              Reply <code style={{ background:'rgba(214,137,16,0.12)', color:C.yellow, borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>YES</code> or <code style={{ background:'rgba(214,137,16,0.12)', color:C.yellow, borderRadius:4, padding:'1px 5px', fontSize:10, fontFamily:'DM Mono, monospace' }}>NO</code> on Telegram
             </p>
           </div>
 
@@ -809,7 +815,7 @@ function AgentDashboardPreview({ navigate }) {
             { n:2, text:'It detects all pages and maps your conversion funnel automatically' },
             { n:3, text:'Claude finds the biggest drop-off — respecting your Brand Guardrails' },
             { n:4, text:'It writes the fix and opens a Pull Request on GitHub' },
-            { n:5, text:'You get a Telegram message — reply approve [id] to merge' },
+            { n:5, text:'You get a Telegram message — reply YES to deploy or NO to skip' },
             { n:6, text:'After 48h the agent checks metrics — auto-rolls back if no improvement' },
           ].map(s => (
             <div key={s.n} style={{ display:'flex', gap:9, alignItems:'flex-start' }}>
@@ -1086,7 +1092,7 @@ function Pricing({ navigate }) {
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:'#fff' }}>€29</span>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:26, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
-              {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Approve or reject via Telegram','Auto-rollback if metrics drop','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Weekly executive summary','Competitor awareness','Business DNA — learns over time','A/B testing automation'].map((f,j) => (
+              {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Before/after screenshots per fix','Revenue attribution (connect Stripe)','Competitor weekly scan','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','A/B testing automation','Public impact timeline (shareable)'].map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
                   <span style={{ color:'rgba(247,244,239,0.7)', flexShrink:0, marginTop:1 }}>✓</span>
                   <span style={{ color:'rgba(247,244,239,0.85)', fontWeight:300 }}>{f}</span>
@@ -1120,8 +1126,8 @@ function FAQ() {
   ]
 
   const agentItems = [
-    { q:'What is the Growth Agent?', a:'The Growth Agent is a semi-autonomous AI that runs every Monday. It reads your real PostHog analytics and your GitHub repo, finds the biggest conversion problem, writes the code fix, opens a Pull Request, and sends you a Telegram message to approve or reject — all automatically.' },
-    { q:'Do I have to approve every change before it goes live?', a:'Yes, always. Nothing ships without your explicit approval. You receive a Telegram message with the problem, the data behind it, the solution, and the PR link. Reply "approve [id]" to merge it, or "reject [id]" to discard it.' },
+    { q:'What is the Growth Agent?', a:'The Growth Agent is a semi-autonomous AI that runs every Monday. It reads your real PostHog analytics and your GitHub repo, finds the biggest conversion problem, writes the code fix, opens a Pull Request, and sends you a Telegram message — reply YES to deploy or NO to skip. All automatically.' },
+    { q:'Do I have to approve every change before it goes live?', a:'Yes, always. Nothing ships without your explicit approval. You receive a Telegram message with the problem, the data behind it, the solution, and the PR link. Reply YES to deploy it, or NO to skip it.' },
     { q:"What happens if the agent's change makes things worse?", a:'The agent checks your bounce rate 48 hours after every deployment. If it increased by 15+ percentage points, it automatically creates a rollback PR, merges it, and notifies you via Telegram. Your site reverts without any manual work.' },
     { q:'What are Brand Guardrails?', a:'Rules you set in your dashboard that the agent must follow on every run — tone of voice, things it can never do, elements it must never change. Any suggestion that violates your guardrails is automatically rejected.' },
     { q:'What is Full Funnel analysis?', a:'Instead of only looking at your homepage, the agent scans every page in your GitHub repo, cross-references them with your real analytics, and identifies where visitors are dropping off. It then prioritises the highest-leverage page to fix.' },
@@ -1201,6 +1207,7 @@ function Footer({ navigate }) {
           {[
             { label:'Privacy Policy', path:'/privacy' },
             { label:'Impressum', path:'/impressum' },
+            { label:'AGB', path:'/agb' },
             { label:'Agent Login →', path:'/agent/login' },
           ].map(l => (
             <button key={l.label} onClick={() => navigate(l.path)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textLight, fontFamily:'Jost,sans-serif', fontWeight:300, transition:'color .2s' }}

@@ -168,7 +168,7 @@ Return ONLY valid JSON. No markdown. No explanation. Structure:
       headers: {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://scano.io',
+        'HTTP-Referer': 'https://velyr.io',
       },
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4-5',

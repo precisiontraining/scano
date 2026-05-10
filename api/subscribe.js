@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: dbError.message })
   }
 
-  const BASE_URL   = process.env.NEXT_PUBLIC_BASE_URL || 'https://scano-snowy.vercel.app'
+  const BASE_URL   = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.velyr.io'
   const reportUrl  = `${BASE_URL}/report/${reportId}`
   const websiteUrl = report?.website_url || 'your website'
   const score      = report?.scan_data?.score ?? '—'
@@ -59,14 +59,14 @@ export default async function handler(req, res) {
           {
             From: {
               Email: 'info@velyr.io',
-              Name:  'Scano',
+              Name:  'Velyr',
             },
             ReplyTo: {
               Email: 'info@velyr.io',
-              Name:  'Scano',
+              Name:  'Velyr',
             },
             To: [{ Email: email }],
-            Subject: `Your Scano audit — ${websiteUrl} scored ${score}/100`,
+            Subject: `Your Velyr audit — ${websiteUrl} scored ${score}/100`,
             HTMLPart: `
 <!DOCTYPE html>
 <html>
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
   <div style="max-width:560px;margin:0 auto;padding:48px 24px;">
 
     <div style="margin-bottom:40px;">
-      <span style="font-size:22px;font-weight:500;letter-spacing:-.01em;color:#1c1917;">Scano</span>
+      <span style="font-size:22px;font-weight:500;letter-spacing:-.01em;color:#1c1917;">Velyr</span>
     </div>
 
     <div style="background:#ffffff;border:1px solid rgba(28,25,23,0.08);border-radius:16px;padding:36px;margin-bottom:24px;">
@@ -101,15 +101,15 @@ export default async function handler(req, res) {
 
     <div style="border-top:1px solid rgba(28,25,23,0.08);padding-top:24px;">
       <p style="font-size:12px;color:#a09890;margin:0;line-height:1.6;">
-        © 2026 Scano &nbsp;·&nbsp; You received this because you requested your audit on
-        <a href="${BASE_URL}" style="color:#a09890;">Scano</a>
+        © 2026 Velyr &nbsp;·&nbsp; You received this because you requested your audit on
+        <a href="${BASE_URL}" style="color:#a09890;">Velyr</a>
       </p>
     </div>
 
   </div>
 </body>
 </html>`,
-            TextPart: `Your Scano audit for ${websiteUrl}\n\nScore: ${score}/100 — ${scoreLabel}\n\nView your full report:\n${reportUrl}\n\n---\nScano · scano.io`,
+            TextPart: `Your Velyr audit for ${websiteUrl}\n\nScore: ${score}/100 — ${scoreLabel}\n\nView your full report:\n${reportUrl}\n\n---\nVelyr · velyr.io`,
           },
         ],
       }),

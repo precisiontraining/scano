@@ -91,7 +91,7 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
     if (!email.trim()) { setError('Enter your email address first.'); return }
     setLoading(true)
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://www.velyr.io/agent/reset-password',
+      redirectTo: `${window.location.origin}/agent/reset-password`,
     })
     setLoading(false)
     if (err) { setError(err.message); return }

@@ -430,7 +430,7 @@ function decodeHTMLEntities(str) {
 
 async function analyzeContent(url) {
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ScanoBot/1.0)' }, signal: AbortSignal.timeout(10000) })
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VelyrBot/1.0)' }, signal: AbortSignal.timeout(10000) })
     if (!res.ok) return null
     const html    = await res.text()
     const rawText = html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()

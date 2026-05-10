@@ -7,10 +7,70 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+// ─── SHARED HELPERS (used by rollback flow) ───────────────────────────────────
+async function captureScreenshot(url) {
+  const apiKey = process.env.SCREENSHOTONE_API_KEY
+  if (!apiKey || !url) return null
+  try {
+    const params = new URLSearchParams({
+      access_key: apiKey, url, viewport_width: '1280', viewport_height: '800',
+      device_scale_factor: '1', format: 'jpg', block_ads: 'true',
+      block_cookie_banners: 'true', cache: 'true', cache_ttl: '3600',
+      response_type: 'json',
+    })
+    const res = await fetch(`https://api.screenshotone.com/take?${params}`, { signal: AbortSignal.timeout(20000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.cache_url || data?.store?.url || data?.url || null
+  } catch { return null }
+}
+
+async function recordDNA(subscriptionId, runId, fixType, outcome, notes) {
+  await supabase.from('agent_business_dna').insert({
+    subscription_id: subscriptionId, run_id: runId, fix_type: fixType, outcome,
+    notes: (notes || '').slice(0, 500),
+  })
+}
+
+// Promote DNA entries with outcome='pending' to 'success' after 7 days
+// if their run is still in 'deployed' status (not rolled back).
+async function promotePendingDNAToSuccess() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: pending } = await supabase
+    .from('agent_business_dna').select('id, run_id, fix_type')
+    .eq('outcome', 'pending').lte('created_at', sevenDaysAgo)
+  if (!pending?.length) return
+  for (const p of pending) {
+    if (!p.run_id) continue
+    const { data: run } = await supabase.from('agent_runs').select('status').eq('id', p.run_id).single()
+    if (run?.status === 'deployed') {
+      await supabase.from('agent_business_dna').update({ outcome: 'success' }).eq('id', p.id)
+    }
+  }
+}
+
 export default async function handler(req, res) {
   const cronSecret = req.headers['x-cron-secret']
   const vercelCron  = req.headers['x-vercel-cron']
   const action      = req.query?.action
+
+  // ── PUBLIC TIMELINE (no auth) ─────────────────────────────────────────────
+  // GET /api/agent/run?action=public-timeline&slug=florian
+  if (action === 'public-timeline') {
+    return handlePublicTimeline(req, res)
+  }
+
+  // ── Authenticated user actions (Supabase JWT) ─────────────────────────────
+  if (action === 'update-settings' || action === 'export-dna') {
+    const authHeader = req.headers.authorization
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' })
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' })
+
+    if (action === 'update-settings') return handleUpdateSettings(req, res, user)
+    if (action === 'export-dna')      return handleExportDNA(req, res, user)
+  }
 
   // ── Account actions (quick — stay in Vercel) ──────────────────────────────
   if (action === 'pause' || action === 'resume' || action === 'delete') {
@@ -148,13 +208,63 @@ async function handleEvaluateAB(res) {
         metric_type: 'conversion_rate', delta, confidence: 'high',
       })
 
+      // 3d/3i: also write to agent_business_dna so the DNA tab and Claude prompt see this
+      await recordDNA(
+        test.subscription_id, test.run_id, test.change_type || 'other',
+        winner === 'treatment' ? 'success' : 'rollback',
+        winner === 'treatment'
+          ? `A/B winner (treatment): ${test.summary} (+${delta}% conversion)`
+          : `A/B loser (control won): ${test.summary} (${delta}% vs control)`
+      )
+
       await supabase.from('agent_ab_tests')
         .update({ status: 'completed', winner, delta_pct: delta })
         .eq('id', test.id)
 
+      // 3i: if control won, auto-revert the change via a follow-up PR
+      let revertedPrUrl = null
+      if (winner === 'control') {
+        try {
+          const { data: run } = await supabase.from('agent_runs').select('*').eq('id', test.run_id).single()
+          if (run?.analysis_result?.file_to_edit && conn?.github_installation_id) {
+            const octokit = await getOctokit(conn.github_installation_id)
+            const owner   = conn.github_repo_owner
+            const repo    = conn.github_repo_name
+            const { data: commits } = await octokit.rest.repos.listCommits({ owner, repo, per_page: 30 })
+            const agentCommit = commits.find(c =>
+              c.commit.message.startsWith('fix:') &&
+              c.commit.message.includes((run.analysis_result.problem || '').slice(0, 30))
+            )
+            const parentSha = agentCommit?.parents?.[0]?.sha
+            if (parentSha) {
+              const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: 'heads/main' })
+              const branchName    = `agent/ab-revert-${test.run_id.slice(0, 8)}`
+              await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: ref.object.sha })
+              const { data: originalFile } = await octokit.rest.repos.getContent({ owner, repo, path: run.analysis_result.file_to_edit, ref: parentSha })
+              const { data: currentFile  } = await octokit.rest.repos.getContent({ owner, repo, path: run.analysis_result.file_to_edit })
+              await octokit.rest.repos.createOrUpdateFileContents({
+                owner, repo, path: run.analysis_result.file_to_edit,
+                message: `revert: A/B test — control won (${delta}%)`,
+                content: originalFile.content, sha: currentFile.sha, branch: branchName,
+              })
+              const { data: revertPr } = await octokit.rest.pulls.create({
+                owner, repo,
+                title: `🔄 A/B Auto-Revert: ${run.analysis_result.problem}`,
+                body: `## A/B Test — Control Won\n\nAfter 7 days, the control variant outperformed the treatment by ${Math.abs(delta)}%.\n\nThis PR reverts the change to restore the original.`,
+                head: branchName, base: 'main',
+              })
+              await octokit.rest.pulls.merge({ owner, repo, pull_number: revertPr.number, merge_method: 'squash' })
+              revertedPrUrl = revertPr.html_url
+            }
+          }
+        } catch (revertErr) {
+          console.error('A/B auto-revert failed:', revertErr)
+        }
+      }
+
       const outcomeMsg = winner === 'treatment'
         ? `✅ *A/B Test Winner: Treatment*\n📈 +${delta}% conversion lift confirmed.\nSaved to your Business DNA.`
-        : `📊 *A/B Result: Control Won*\n📉 Change did not improve conversions (${delta}%).\nLearning saved — agent will avoid similar patterns.`
+        : `📊 *A/B Result: Control Won*\n📉 Change did not improve conversions (${delta}%).\nLearning saved — agent will avoid similar patterns.${revertedPrUrl ? `\n🔄 Auto-revert PR merged: ${revertedPrUrl}` : ''}`
 
       await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -174,6 +284,9 @@ async function handleEvaluateAB(res) {
 
 // ─── ROLLBACK CHECK ───────────────────────────────────────────────────────────
 async function handleRollbackCheck(res) {
+  // Promote DNA entries that have stayed deployed for 7+ days to 'success'.
+  await promotePendingDNAToSuccess().catch(e => console.error('DNA promote error:', e))
+
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
   const ninetyTwoHoursAgo  = new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString()
 
@@ -231,6 +344,18 @@ async function handleRollbackCheck(res) {
       const bounceDelta    = bounceAfter - bounceBefore
       const shouldRollback = bounceDelta >= 15
 
+      // 3a: capture after-screenshot at the same URL targeted by the original run
+      const targetUrl = (() => {
+        if (!conn?.website_url) return null
+        const editPath = run.analysis_result?.is_multi_page
+          ? run.analysis_result?.multi_file_changes?.[0]?.file_to_edit
+          : run.analysis_result?.file_to_edit
+        const route = (editPath || '').replace(/^(src\/pages|pages|src\/views|src\/screens)\//, '/').replace(/\.(jsx|tsx|js|ts)$/, '').replace(/\/index$/, '/').toLowerCase()
+        const base  = conn.website_url.replace(/\/$/, '')
+        return route && route !== '/' ? `${base}${route}` : base
+      })()
+      const screenshotAfter = await captureScreenshot(targetUrl)
+
       await supabase.from('impact_metrics').insert({
         run_id: run.id, metric_type: 'bounce_rate',
         value_before: bounceBefore, value_after: bounceAfter,
@@ -244,6 +369,23 @@ async function handleRollbackCheck(res) {
         outcome: shouldRollback ? 'negative' : 'positive',
         metric_type: 'bounce_rate', delta: -bounceDelta, confidence: 'high',
       })
+
+      // Persist new agent_runs columns (Part 1) for the public timeline + dashboard
+      await supabase.from('agent_runs').update({
+        bounce_rate_after: bounceAfter,
+        screenshot_after:  screenshotAfter,
+        ...(shouldRollback ? { rollback_reason: 'metrics_dropped' } : {}),
+      }).eq('id', run.id)
+
+      // 3d: Business DNA — record outcome
+      const fixType = run.analysis_result?.change_type || 'other'
+      const noteSuffix = `${run.analysis_result?.problem || ''} (bounce ${bounceBefore}% → ${bounceAfter}%, Δ${bounceDelta >= 0 ? '+' : ''}${bounceDelta}%)`
+      if (shouldRollback) {
+        await recordDNA(run.subscription_id, run.id, fixType, 'rollback', `Auto-rolled back: ${noteSuffix}`)
+      } else {
+        // Pending — gets promoted to 'success' after 7 days if still deployed
+        await recordDNA(run.subscription_id, run.id, fixType, 'pending', `48h check positive: ${noteSuffix}`)
+      }
 
       if (shouldRollback) {
         const octokit = await getOctokit(conn.github_installation_id)
@@ -567,5 +709,181 @@ async function getPostHogAnalytics(posthogApiKey, posthogProjectId, posthogHost 
   } catch (error) {
     console.error('PostHog analytics error:', error)
     return null
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PUBLIC TIMELINE / SETTINGS / DNA EXPORT — handlers consolidated here to stay
+// within the Vercel Hobby 12-function limit. All routed via ?action=… branches
+// at the top of the default handler.
+// ════════════════════════════════════════════════════════════════════════════
+
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/
+
+// ─── Public Timeline (no auth) ────────────────────────────────────────────────
+async function handlePublicTimeline(req, res) {
+  const slug = (req.query?.slug || '').toLowerCase().trim()
+  if (!slug || !SLUG_REGEX.test(slug)) return res.status(404).json({ error: 'Not found' })
+
+  const { data: sub } = await supabase
+    .from('agent_subscriptions')
+    .select('id, website_url, created_at, public_slug, is_public')
+    .eq('public_slug', slug).eq('is_public', true).maybeSingle()
+  if (!sub) return res.status(404).json({ error: 'Not found' })
+
+  const [runsRes, dnaRes] = await Promise.all([
+    supabase.from('agent_runs')
+      .select('id, status, created_at, completed_at, problem_description, screenshot_before, screenshot_after, bounce_rate_before, bounce_rate_after, score_before, score_after, pr_url, competitor_changes, ab_test_variants, analysis_result, pages_fixed')
+      .eq('subscription_id', sub.id)
+      .order('created_at', { ascending: false }).limit(50),
+    supabase.from('agent_business_dna')
+      .select('fix_type, outcome, notes, created_at')
+      .eq('subscription_id', sub.id)
+      .order('created_at', { ascending: false }).limit(100),
+  ])
+
+  // Derive problem_description from analysis_result if column is null (legacy rows).
+  // Strip A/B variants details to "winner only if resolved".
+  const runs = (runsRes.data || []).map(r => {
+    const ab = r.ab_test_variants
+    const abPublic = ab && ab.winner ? { winner: ab.winner, change_type: ab.change_type } : null
+    return {
+      id: r.id, status: r.status,
+      date: r.completed_at || r.created_at,
+      problem: r.problem_description || r.analysis_result?.problem || null,
+      screenshot_before: r.screenshot_before, screenshot_after: r.screenshot_after,
+      bounce_rate_before: r.bounce_rate_before, bounce_rate_after: r.bounce_rate_after,
+      score_before: r.score_before, score_after: r.score_after,
+      pr_url: r.pr_url,
+      competitor_changes: r.competitor_changes,
+      ab_test: abPublic,
+      pages_fixed: r.pages_fixed,
+    }
+  })
+
+  // Group DNA by fix_type with success/rollback counts
+  const dnaByType = {}
+  for (const d of (dnaRes.data || [])) {
+    if (!dnaByType[d.fix_type]) dnaByType[d.fix_type] = { fix_type: d.fix_type, success: 0, rollback: 0, pending: 0, latest_note: null }
+    dnaByType[d.fix_type][d.outcome]++
+    if (!dnaByType[d.fix_type].latest_note) dnaByType[d.fix_type].latest_note = d.notes
+  }
+
+  return res.status(200).json({
+    website_url: sub.website_url,
+    created_at:  sub.created_at,
+    runs,
+    business_dna: Object.values(dnaByType),
+  })
+}
+
+// ─── Update Agent Settings (Supabase JWT) ─────────────────────────────────────
+async function handleUpdateSettings(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const body = req.body || {}
+  const updates = {}
+
+  if (typeof body.is_public === 'boolean') updates.is_public = body.is_public
+
+  if (body.public_slug !== undefined) {
+    const slug = body.public_slug == null ? null : String(body.public_slug).toLowerCase().trim()
+    if (slug !== null) {
+      if (!SLUG_REGEX.test(slug)) return res.status(400).json({ error: 'Slug must be 3-30 lowercase letters, numbers, or hyphens' })
+      // Uniqueness check (excluding rows owned by this user)
+      const { data: existing } = await supabase
+        .from('agent_subscriptions').select('id, auth_user_id')
+        .eq('public_slug', slug).maybeSingle()
+      if (existing && existing.auth_user_id !== user.id) {
+        return res.status(409).json({ error: 'Slug already taken' })
+      }
+    }
+    updates.public_slug = slug
+  }
+
+  if (Array.isArray(body.competitors)) {
+    const cleaned = body.competitors
+      .map(u => String(u || '').trim())
+      .filter(Boolean)
+      .filter(u => { try { new URL(u); return true } catch { return false } })
+      .slice(0, 5)
+    updates.competitors = cleaned
+  }
+
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields provided' })
+
+  const { data, error } = await supabase
+    .from('agent_subscriptions').update(updates)
+    .eq('auth_user_id', user.id).select().single()
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json({ success: true, subscription: data })
+}
+
+// ─── Export DNA Playbook (Supabase JWT) ───────────────────────────────────────
+async function handleExportDNA(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const { data: sub } = await supabase
+    .from('agent_subscriptions').select('id, website_url').eq('auth_user_id', user.id).single()
+  if (!sub) return res.status(404).json({ error: 'No subscription found' })
+
+  const [dnaRes, snapsRes] = await Promise.all([
+    supabase.from('agent_business_dna')
+      .select('fix_type, outcome, notes, created_at')
+      .eq('subscription_id', sub.id).order('created_at', { ascending: false }).limit(100),
+    supabase.from('agent_competitor_snapshots')
+      .select('competitor_url, snapshot_data, captured_at')
+      .eq('subscription_id', sub.id).order('captured_at', { ascending: false }).limit(20),
+  ])
+  const dna   = dnaRes.data   || []
+  const snaps = snapsRes.data || []
+
+  // Keep only most recent snapshot per competitor (max 4)
+  const latestByCompetitor = {}
+  for (const s of snaps) if (!latestByCompetitor[s.competitor_url]) latestByCompetitor[s.competitor_url] = s
+  const competitorBlock = Object.values(latestByCompetitor).slice(0, 4)
+    .map(s => `${s.competitor_url}: ${JSON.stringify(s.snapshot_data)}`).join('\n') || 'no competitors tracked'
+
+  const wins     = dna.filter(d => d.outcome === 'success')
+  const losses   = dna.filter(d => d.outcome === 'rollback')
+  const pending  = dna.filter(d => d.outcome === 'pending')
+
+  const prompt = `You are a senior conversion strategist. Based on this website's 90-day agent history, write a Website Playbook.
+
+WEBSITE: ${sub.website_url}
+
+WHAT HAS WORKED (${wins.length} successes):
+${wins.map(d => `- ${d.fix_type}: ${d.notes || ''}`).join('\n') || 'none yet'}
+
+WHAT WAS ROLLED BACK (${losses.length} failures):
+${losses.map(d => `- ${d.fix_type}: ${d.notes || ''}`).join('\n') || 'none yet'}
+
+CURRENTLY PENDING (${pending.length}):
+${pending.map(d => `- ${d.fix_type}: ${d.notes || ''}`).join('\n') || 'none'}
+
+COMPETITOR CONTEXT:
+${competitorBlock}
+
+Write the Playbook in 4 sections, no fluff:
+1. What has worked — proven fix patterns for THIS specific site (be concrete with the data above).
+2. What to avoid — patterns that were rolled back and why.
+3. Top 3 recommendations for the next 90 days based on what hasn't been tried yet.
+4. Competitor context — what the tracked competitors are doing differently.
+Max 600 words. Clear, direct language. Use short headers for each section.`
+
+  try {
+    const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4-5',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    const data = await aiRes.json()
+    const playbook = data.choices?.[0]?.message?.content?.trim()
+    if (!playbook) return res.status(502).json({ error: 'Empty response from AI' })
+    return res.status(200).json({ playbook })
+  } catch (err) {
+    console.error('export-dna AI error:', err)
+    return res.status(500).json({ error: 'AI request failed' })
   }
 }

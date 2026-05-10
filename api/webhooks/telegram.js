@@ -91,6 +91,30 @@ async function handleStart(message) {
   )
 }
 
+// ─── FIND LATEST PENDING RUN FOR CHAT ────────────────────────────────────────
+// Used by the simple YES/NO flow — locates the most recent waiting_approval run
+// belonging to the subscription that owns this Telegram chat.
+async function findPendingRunForChat(chatId) {
+  const { data: conn } = await supabase
+    .from('agent_connections')
+    .select('subscription_id')
+    .eq('telegram_chat_id', chatId)
+    .single()
+
+  if (!conn?.subscription_id) return null
+
+  const { data: run } = await supabase
+    .from('agent_runs')
+    .select('id')
+    .eq('subscription_id', conn.subscription_id)
+    .eq('status', 'waiting_approval')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  return run?.id || null
+}
+
 // ─── APPROVE ────────────────────────────────────────────────────────────────
 async function handleApprove(runId, chatId) {
   const { data: run } = await supabase
@@ -120,6 +144,14 @@ async function handleApprove(runId, chatId) {
 
   await supabase.from('agent_runs').update({ status: 'deployed', completed_at: new Date().toISOString() }).eq('id', runId)
 
+  // 3d: Business DNA — record as 'pending'; the 48h rollback check will promote to 'success' after 7 days deployed
+  await supabase.from('agent_business_dna').insert({
+    subscription_id: run.subscription_id, run_id: runId,
+    fix_type: run.analysis_result?.change_type || 'other',
+    outcome: 'pending',
+    notes: `Approved (YES): ${(run.analysis_result?.problem || '').slice(0, 400)}`,
+  })
+
   await sendMessage(
     chatId,
     `✅ *PR merged!* Vercel is deploying the change now.\n\n_The agent will check impact after 48h and auto-rollback if metrics drop._`
@@ -138,11 +170,22 @@ async function handleReject(runId, chatId) {
   if (run.status !== 'waiting_approval')
     return sendMessage(chatId, '⚠️ This run is no longer waiting for approval.')
 
-  await supabase.from('agent_runs').update({ status: 'rejected' }).eq('id', runId)
+  await supabase.from('agent_runs').update({
+    status: 'rejected',
+    rollback_reason: 'user_rejected',
+  }).eq('id', runId)
+
+  // 3d: Business DNA — record rollback so future runs avoid the pattern
+  await supabase.from('agent_business_dna').insert({
+    subscription_id: run.subscription_id, run_id: runId,
+    fix_type: run.analysis_result?.change_type || 'other',
+    outcome: 'rollback',
+    notes: `User rejected (NO): ${(run.analysis_result?.problem || '').slice(0, 400)}`,
+  })
 
   await sendMessage(
     chatId,
-    `❌ *PR rejected.* The agent will analyze again on the next scheduled run.\n\n_Optionally add context: *note ${runId} <reason>*_`
+    `❌ *PR skipped.* The agent will analyze again on the next scheduled run.\n\n_Optionally add context: *note ${runId} <reason>*_`
   )
 }
 
@@ -365,6 +408,16 @@ export default async function handler(req, res) {
     if (cmd === '/start' || cmd === 'start') {
       await handleStart(message)
 
+    } else if ((cmd === 'yes' || cmd === 'y' || cmd === '✅') && parts.length === 1) {
+      const runId = await findPendingRunForChat(chatId)
+      if (!runId) await sendMessage(chatId, '⚠️ No pending approval found. The agent will message you when the next run is ready.')
+      else        await handleApprove(runId, chatId)
+
+    } else if ((cmd === 'no' || cmd === 'n' || cmd === '❌') && parts.length === 1) {
+      const runId = await findPendingRunForChat(chatId)
+      if (!runId) await sendMessage(chatId, '⚠️ No pending approval found.')
+      else        await handleReject(runId, chatId)
+
     } else if (cmd === 'approve' && parts.length === 2) {
       await handleApprove(parts[1], chatId)
 
@@ -396,8 +449,10 @@ export default async function handler(req, res) {
         chatId,
         `🤖 *Velyr Growth Agent*\n\n` +
         `*Commands:*\n` +
-        `*approve <run-id>* — merge & deploy the PR\n` +
-        `*reject <run-id>* — skip this change\n` +
+        `*YES* — deploy the pending PR\n` +
+        `*NO* — skip the pending PR\n` +
+        `*approve <run-id>* — deploy a specific run (power users)\n` +
+        `*reject <run-id>* — skip a specific run (power users)\n` +
         `*note <run-id> <reason>* — add a manual learning\n` +
         `*dna* — view your Business DNA\n` +
         `*status* — last runs, A/B tests & competitors\n` +

@@ -190,7 +190,7 @@ function LockedActionCard({ issue }) {
 }
 
 // ─── PUNKT 3: UnlockBlock — konvertierender CTA + vollständige Feature-Liste ──
-function UnlockBlock({ lockedCount }) {
+function UnlockBlock({ lockedCount, navigate }) {
   const totalIssues = (lockedCount || 0) + 2
   return (
     <div style={{ marginTop: 16, background: C.white, border: '1px solid rgba(42,92,69,0.2)', borderRadius: 18, padding: '36px 32px', boxShadow: '0 8px 40px rgba(42,92,69,0.09)', textAlign: 'center' }} className="unlock-card">
@@ -230,6 +230,7 @@ function UnlockBlock({ lockedCount }) {
         ))}
       </div>
       <button
+        onClick={() => navigate('/premium')}
         style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 10, padding: '15px 36px', fontSize: 15, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer', letterSpacing: '.02em', width: '100%', maxWidth: 320, display: 'block', margin: '0 auto 12px', transition: 'background .2s' }}
         onMouseEnter={e => e.currentTarget.style.background = C.accent}
         onMouseLeave={e => e.currentTarget.style.background = C.text}
@@ -352,7 +353,7 @@ function ErrorScreen({ navigate, error, onRetry }) {
         <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={24} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Velyr</span>
           </button>
         </nav>
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
@@ -435,7 +436,7 @@ function ShareButton({ reportId }) {
         style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied ? C.accent : C.white, color: copied ? C.white : C.text, border: `1px solid ${copied ? C.accent : C.border}`, borderRadius: 9, padding: '9px 18px', fontSize: 13, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', transition: 'all .2s' }}>
         {copied ? '✓ Link copied!' : '↗ Share this report'}
       </button>
-      {reportId && <span style={{ fontSize: 12, color: C.light, fontWeight: 300, wordBreak: 'break-all' }}>scano.io/report/{reportId.slice(0, 8)}…</span>}
+      {reportId && <span style={{ fontSize: 12, color: C.light, fontWeight: 300, wordBreak: 'break-all' }}>velyr.io/report/{reportId.slice(0, 8)}…</span>}
     </div>
   )
 }
@@ -477,7 +478,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
         <nav className="report-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={24} />
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text, letterSpacing: '-.01em' }}>Velyr</span>
           </button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>← New scan</button>
         </nav>
@@ -657,7 +658,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {lockedActions.map((issue, i) => <LockedActionCard key={i} issue={issue} />)}
                 </div>
-                <UnlockBlock lockedCount={lockedActions.length} />
+                <UnlockBlock lockedCount={lockedActions.length} navigate={navigate} />
               </div>
             )}
           </div>
@@ -672,10 +673,11 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
         </div>
 
         <div className="report-footer" style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Scano</span>
+          <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Velyr</span>
           <div style={{ display: 'flex', gap: 20 }}>
             <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+            <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
           </div>
         </div>
 

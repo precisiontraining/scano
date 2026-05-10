@@ -190,7 +190,6 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
   const hasSocial = tiktok || instagram || youtube || twitter || facebook || linkedin
 
   const PLATFORM_ICONS = { tiktok: '🎵', instagram: '📸', youtube: '▶️', twitter: '𝕏', facebook: '📘', linkedin: '💼' }
-  const PLATFORM_LABELS = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', twitter: 'X/Twitter', facebook: 'Facebook' }
 
   return (
     <>
@@ -201,7 +200,7 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
         <nav className="pr-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={22}/>
-            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Scano</span>
+            <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, background: 'rgba(42,92,69,0.08)', padding: '4px 10px', borderRadius: 6 }}>Full Report</span>
@@ -452,7 +451,7 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
                 {hookAnalysis.map((h, i) => (
                   <div key={i} style={{ background: h.verdict === 'works' ? 'rgba(42,92,69,0.04)' : 'rgba(28,25,23,0.03)', border: `1px solid ${h.verdict === 'works' ? 'rgba(42,92,69,0.15)' : 'rgba(28,25,23,0.08)'}`, borderRadius: 12, padding: '16px 18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                      <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: h.verdict === 'works' ? C.accent : C.muted, fontWeight: 500 }}>{h.platform === 'tiktok' ? '🎵 TikTok' : '📸 Instagram'} · {h.verdict === 'works' ? '✓ Working' : 'Needs work'}</span>
+                      <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: h.verdict === 'works' ? C.accent : C.muted, fontWeight: 500 }}>{PLATFORM_ICONS[h.platform] || '📊'} {h.platform === 'twitter' ? 'X/Twitter' : h.platform ? h.platform.charAt(0).toUpperCase() + h.platform.slice(1) : 'Post'} · {h.verdict === 'works' ? '✓ Working' : 'Needs work'}</span>
                       <span style={{ fontSize: 11, color: C.light, fontFamily: 'DM Mono, monospace' }}>{(h.views || h.likes || 0).toLocaleString()} {h.views ? 'views' : 'likes'}</span>
                     </div>
                     {h.caption && <p style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', marginBottom: 10, fontWeight: 300 }}>"{h.caption}"</p>}
@@ -519,10 +518,11 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
 
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Scano</span>
+          <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Velyr</span>
           <div style={{ display: 'flex', gap: 20 }}>
             <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+            <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
           </div>
         </div>
       </div>

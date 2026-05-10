@@ -52,13 +52,17 @@ const PAGE_TYPE_EMOJI = {
 }
 
 const AGENT_STEPS = [
-  { id:'fetch_repo',  label:'Fetching repo',        desc:'Reading GitHub repository structure' },
-  { id:'fetch_ph',    label:'Pulling analytics',    desc:'Loading PostHog pageview & session data' },
-  { id:'map_funnel',  label:'Mapping funnel',       desc:'Detecting pages and conversion flow' },
-  { id:'analyze',     label:'Finding biggest issue',desc:'Claude analyzing drop-off & opportunities' },
-  { id:'write_fix',   label:'Writing fix',          desc:'Editing file and generating patch' },
-  { id:'open_pr',     label:'Opening pull request', desc:'Pushing branch and creating PR on GitHub' },
-  { id:'notify',      label:'Sending notification', desc:'Telegram message with approve/reject' },
+  { id:'fetch_repo',  label:'Fetching repo',           desc:'Reading GitHub repository structure' },
+  { id:'fetch_ph',    label:'Pulling analytics',       desc:'Loading PostHog pageview & session data' },
+  { id:'scan_comp',   label:'Scanning competitors',    desc:'Checking tracked competitor sites for changes' },
+  { id:'seasonal',    label:'Checking seasonal',       desc:'Picking the right priority for this month' },
+  { id:'read_dna',    label:'Reading Business DNA',    desc:'Loading what works and what to avoid' },
+  { id:'map_funnel',  label:'Mapping funnel',          desc:'Detecting pages and conversion flow' },
+  { id:'analyze',     label:'Finding biggest issue',   desc:'Claude analyzing drop-off & opportunities' },
+  { id:'screenshot',  label:'Taking before screenshot',desc:'Capturing the page before any changes' },
+  { id:'write_fix',   label:'Writing fix',             desc:'Editing file and generating patch (or A/B variants)' },
+  { id:'open_pr',     label:'Opening pull request',    desc:'Pushing branch and creating PR on GitHub' },
+  { id:'notify',      label:'Sending notification',    desc:'Telegram message + email — reply YES or NO' },
 ]
 
 const NAV_ITEMS = [
@@ -66,6 +70,7 @@ const NAV_ITEMS = [
   { id:'runs',        label:'Runs',        icon:'↻' },
   { id:'insights',    label:'Insights',    icon:'◈' },
   { id:'funnel',      label:'Funnel',      icon:'⬦' },
+  { id:'dna',         label:'DNA',         icon:'🧬' },
   { id:'guardrails',  label:'Guardrails',  icon:'◻' },
   { id:'settings',    label:'Settings',    icon:'⚙' },
 ]
@@ -107,6 +112,31 @@ const CSS = `
   input, textarea { font-family:'DM Sans',sans-serif; outline:none; }
   input:focus, textarea:focus { border-color: rgba(42,92,69,0.4) !important; box-shadow: 0 0 0 3px rgba(42,92,69,0.08); }
   a { color: ${C.accent}; }
+
+  /* ── Mobile responsiveness ── */
+  @media (max-width: 900px) {
+    .dash-shell { flex-direction: column !important; }
+    .dash-sidebar {
+      width: 100% !important;
+      height: auto !important;
+      position: sticky !important; top: 0 !important;
+      flex-direction: row !important; overflow-x: auto; overflow-y: hidden !important;
+      border-right: none !important;
+      border-bottom: 1px solid rgba(26,25,22,0.08) !important;
+      z-index: 60;
+    }
+    .dash-sidebar > div:first-child { border-bottom: none !important; padding: 12px 14px !important; flex-shrink: 0; }
+    .dash-sidebar > nav { display: flex !important; gap: 4px; padding: 10px 12px !important; flex: 1; }
+    .dash-sidebar > nav .nav-item { white-space: nowrap; flex-shrink: 0; margin-bottom: 0 !important; padding: 8px 12px !important; }
+    .dash-sidebar > div:last-child { display: none !important; }
+    .dash-main > div:first-child { padding: 0 16px !important; }
+    .dash-content { padding: 16px !important; }
+    .dash-content [style*="grid-template-columns"] { grid-template-columns: 1fr 1fr !important; }
+    .dash-content [style*="grid-template-columns: 1fr auto auto"] { grid-template-columns: 1fr !important; gap: 6px !important; }
+  }
+  @media (max-width: 600px) {
+    .dash-content [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  }
 `
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -142,15 +172,44 @@ function useCountdown(target) {
   return r
 }
 
+// Maps edge-function current_step values + legacy ids to AGENT_STEPS ids.
+const CURRENT_STEP_TO_ID = {
+  fetching_repo:         'fetch_repo',
+  pulling_analytics:     'fetch_ph',
+  scanning_competitors:  'scan_comp',
+  checking_seasonal:     'seasonal',
+  reading_dna:           'read_dna',
+  mapping_funnel:        'map_funnel',
+  finding_biggest_issue: 'analyze',
+  taking_screenshot:     'screenshot',
+  writing_fix:           'write_fix',
+  opening_pr:            'open_pr',
+  sending_notification:  'notify',
+  // Legacy short ids kept for backwards-compat with older runs in the DB
+  fetch_repo:'fetch_repo', fetch_ph:'fetch_ph', map_funnel:'map_funnel',
+  write_fix:'write_fix',   open_pr:'open_pr',   notify:'notify',
+}
+
 function deriveAgentStep(run) {
   if (!run) return -1
-  switch(run.status){
-    case 'running': return run.current_step==='fetch_repo'?0:run.current_step==='fetch_ph'?1:run.current_step==='map_funnel'?2:run.current_step==='write_fix'?4:run.current_step==='open_pr'?5:run.current_step==='notify'?6:3
-    case 'waiting_approval': return 6
-    case 'deployed': case 'approved': return 6
-    case 'failed': return 3
-    case 'rejected': case 'rolled_back': return 6
-    default: return -1
+  const stepIndexById = Object.fromEntries(AGENT_STEPS.map((s, i) => [s.id, i]))
+  const lastIdx = AGENT_STEPS.length - 1
+  const midIdx  = Math.floor(lastIdx / 2)
+  switch (run.status) {
+    case 'running': {
+      const id = CURRENT_STEP_TO_ID[run.current_step]
+      return id != null && stepIndexById[id] != null ? stepIndexById[id] : midIdx
+    }
+    case 'waiting_approval':
+    case 'deployed':
+    case 'approved':
+    case 'rejected':
+    case 'rolled_back':
+      return lastIdx
+    case 'failed':
+      return midIdx
+    default:
+      return -1
   }
 }
 
@@ -356,7 +415,7 @@ function PRMissionControl({run}) {
             textDecoration:'none',fontWeight:500,
           }}>View on GitHub ↗</a>
           <span style={{fontSize:11,color:C.yellow,background:C.yellowSoft,border:`1px solid ${C.yellowMid}`,borderRadius:6,padding:'4px 10px'}}>
-            Reply <code style={{fontFamily:'DM Mono,monospace',fontSize:10}}>approve {run.id?.slice(0,6)}</code> on Telegram
+            Reply <code style={{fontFamily:'DM Mono,monospace',fontSize:10}}>YES</code> or <code style={{fontFamily:'DM Mono,monospace',fontSize:10}}>NO</code> on Telegram
           </span>
         </div>
       </div>
@@ -509,7 +568,7 @@ function TopInsights({runs, funnelPages, learnings, impactMetrics}) {
       label:'Awaiting Review',
       value:`${pending.length} PR${pending.length>1?'s':''}`,
       sub: pending[0]?.analysis_result?.problem?.slice(0,55)||'Fix ready to deploy',
-      detail: 'Reply approve [id] on Telegram',
+      detail: 'Reply YES or NO on Telegram',
     },
     avgConvNum!=null && {
       icon:'💡', color:C.accent, bg:C.accentSoft, border:C.accentMid,
@@ -974,6 +1033,10 @@ function RunsPage({runs, loading, onSelect}) {
           {group.runs.map((run,i)=>{
             const analysis=run.analysis_result||{}
             const s=STATUS[run.status]||STATUS.pending
+            const bounceDelta = (run.bounce_rate_before != null && run.bounce_rate_after != null)
+              ? run.bounce_rate_after - run.bounce_rate_before : null
+            const hasAB        = !!run.ab_test_variants
+            const hasCompetitor= Array.isArray(run.competitor_changes) && run.competitor_changes.length > 0
             return (
               <div key={run.id} className="run-row fade-up" onClick={()=>onSelect(run)}
                 style={{
@@ -992,12 +1055,33 @@ function RunsPage({runs, loading, onSelect}) {
                     animation:run.status==='running'?'pulse 2s ease infinite':'none',
                   }}/>
                 </div>
+                {run.screenshot_before && (
+                  <img src={run.screenshot_before} alt="Before"
+                    style={{ width:80, height:50, objectFit:'cover', borderRadius:6, border:`1px solid ${C.border}`, marginTop:14, marginRight:12, flexShrink:0 }} />
+                )}
                 <div style={{flex:1,padding:'14px 18px 14px 0',minWidth:0}}>
                   <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:5}}>
                     <p style={{fontSize:13,fontWeight:400,color:C.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {analysis.problem||'Analysis pending…'}
                     </p>
                     <StatusBadge status={run.status} small/>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:5}}>
+                    {hasAB && (
+                      <span style={{fontSize:10,color:C.accent,background:C.accentSoft,border:`1px solid ${C.accentMid}`,padding:'1px 7px',borderRadius:4,fontWeight:500,letterSpacing:'.04em',textTransform:'uppercase'}}>
+                        🧪 A/B
+                      </span>
+                    )}
+                    {hasCompetitor && (
+                      <span style={{fontSize:10,color:C.yellow,background:C.yellowSoft,border:`1px solid ${C.yellowMid}`,padding:'1px 7px',borderRadius:4,fontWeight:500,letterSpacing:'.04em',textTransform:'uppercase'}}>
+                        ⚠ Competitor change
+                      </span>
+                    )}
+                    {bounceDelta != null && (
+                      <span style={{fontSize:10, color: bounceDelta < 0 ? C.green : bounceDelta > 0 ? C.red : C.textLight, fontWeight:500}}>
+                        Bounce {run.bounce_rate_before}% → {run.bounce_rate_after}% {bounceDelta < 0 ? '↓' : bounceDelta > 0 ? '↑' : '→'}
+                      </span>
+                    )}
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                     {analysis.file_to_edit&&(
@@ -1251,7 +1335,215 @@ function GuardrailsPage({subscriptionId}) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({subscription, user, onTogglePause, actionLoading, onDeleteRequest}) {
+// ─── BUSINESS DNA PAGE (Part 5) ──────────────────────────────────────────────
+function DNAPage({ subscriptionId }) {
+  const [dna, setDna]               = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [showPlaybook, setShowPlaybook] = useState(false)
+  const [playbook, setPlaybook]     = useState(null)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError]     = useState(null)
+  const [copied, setCopied]         = useState(false)
+
+  useEffect(() => {
+    if (!subscriptionId) return
+    setLoading(true)
+    supabase.from('agent_business_dna')
+      .select('id, fix_type, outcome, notes, created_at, run_id')
+      .eq('subscription_id', subscriptionId)
+      .order('created_at', { ascending: false }).limit(100)
+      .then(({ data }) => { setDna(data || []); setLoading(false) })
+  }, [subscriptionId])
+
+  const grouped = useMemo(() => {
+    const out = { success: {}, rollback: {}, pending: {} }
+    for (const d of dna) {
+      if (!out[d.outcome]) continue
+      if (!out[d.outcome][d.fix_type]) out[d.outcome][d.fix_type] = []
+      out[d.outcome][d.fix_type].push(d)
+    }
+    return out
+  }, [dna])
+
+  async function generatePlaybook() {
+    setGenerating(true); setGenError(null); setShowPlaybook(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/agent/run?action=export-dna', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (data.playbook) setPlaybook(data.playbook)
+      else               setGenError(data.error || 'Failed to generate playbook')
+    } catch (e) { setGenError(e.message || 'Network error') }
+    finally       { setGenerating(false) }
+  }
+
+  function copyPlaybook() {
+    if (!playbook) return
+    navigator.clipboard.writeText(playbook).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  if (loading) return <p style={{ fontSize: 12, color: C.textMuted, fontWeight: 300 }}>Loading DNA…</p>
+
+  const renderGroup = (title, color, bg, fixTypes, isPending = false) => {
+    const types = Object.keys(fixTypes)
+    if (types.length === 0) return null
+    return (
+      <div style={{ background: bg, border: `1px solid ${color}33`, borderRadius: 12, padding: '16px 18px', marginBottom: 14 }}>
+        <p style={{ fontSize: 12, fontWeight: 500, color, marginBottom: 12, letterSpacing: '.02em' }}>{title}</p>
+        {types.map(type => {
+          const entries = fixTypes[type]
+          return (
+            <div key={type} style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 13, color: C.text, fontWeight: 500, marginBottom: 4 }}>
+                {type.replace(/_/g, ' ')} <span style={{ color: C.textLight, fontWeight: 300 }}>· {entries.length} {isPending ? 'pending' : title.toLowerCase().includes('works') ? `success${entries.length > 1 ? 'es' : ''}` : `rollback${entries.length > 1 ? 's' : ''}`}</span>
+              </p>
+              {entries.slice(0, 2).map(e => (
+                <p key={e.id} style={{ fontSize: 11, color: C.textMuted, fontWeight: 300, marginLeft: 10, lineHeight: 1.5 }}>
+                  · {e.notes || 'no note'}
+                </p>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
+        Your site's accumulated learnings. Successes are doubled down on; rollbacks are avoided. The agent reads this on every run.
+      </p>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button onClick={generatePlaybook} disabled={dna.length === 0} style={{
+          background: C.accent, color: '#fff', border: 'none', borderRadius: 7,
+          padding: '8px 16px', fontSize: 12, fontFamily: 'DM Sans,sans-serif', fontWeight: 400,
+          cursor: dna.length === 0 ? 'not-allowed' : 'pointer', opacity: dna.length === 0 ? 0.5 : 1,
+        }}>
+          📖 Generate Website Playbook
+        </button>
+      </div>
+
+      {dna.length === 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '32px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>
+            No DNA recorded yet. Entries appear after the agent's fixes are deployed, evaluated, or rolled back.
+          </p>
+        </div>
+      )}
+
+      {renderGroup('What works for this site', C.green, C.greenSoft, grouped.success)}
+      {renderGroup('Never do again',           C.red,   C.redSoft,   grouped.rollback)}
+      {renderGroup('Pending',                  C.yellow,C.yellowSoft,grouped.pending, true)}
+
+      {dna.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', marginTop: 18 }}>
+          <p style={{ fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 12 }}>Timeline</p>
+          {dna.slice(0, 30).map(d => {
+            const badgeColor = d.outcome === 'success' ? C.green : d.outcome === 'rollback' ? C.red : C.yellow
+            const badgeBg    = d.outcome === 'success' ? C.greenSoft : d.outcome === 'rollback' ? C.redSoft : C.yellowSoft
+            return (
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 10, color: C.textLight, fontFamily: 'DM Mono,monospace', minWidth: 70 }}>
+                  {new Date(d.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                </span>
+                <span style={{ fontSize: 12, color: C.text, flex: 1 }}>{d.fix_type.replace(/_/g, ' ')}</span>
+                <span style={{ fontSize: 10, color: badgeColor, background: badgeBg, border: `1px solid ${badgeColor}33`, borderRadius: 5, padding: '2px 8px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  {d.outcome}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Playbook modal */}
+      {showPlaybook && (
+        <div onClick={() => setShowPlaybook(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(26,25,22,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div onClick={e => e.stopPropagation()} className="pop-in" style={{
+            background: '#fff', borderRadius: 16, padding: '28px 30px', maxWidth: 640, width: '100%',
+            maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(26,25,22,0.15)', position: 'relative',
+          }}>
+            <button onClick={() => setShowPlaybook(false)} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.textLight }}>×</button>
+            <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 8 }}>Website Playbook</p>
+            <p style={{ fontFamily: 'Instrument Serif,serif', fontSize: 26, fontWeight: 400, color: C.text, marginBottom: 18, letterSpacing: '-.01em' }}>
+              90-day strategic recommendations
+            </p>
+            {generating && <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300 }}>Generating playbook…</p>}
+            {genError   && <p style={{ fontSize: 13, color: C.red }}>{genError}</p>}
+            {playbook && (
+              <>
+                <div style={{ background: 'rgba(26,25,22,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '20px 22px', fontSize: 13, color: C.text, lineHeight: 1.75, whiteSpace: 'pre-wrap', marginBottom: 14 }}>
+                  {playbook}
+                </div>
+                <button onClick={copyPlaybook} style={{
+                  background: copied ? C.green : C.text, color: '#fff', border: 'none', borderRadius: 7,
+                  padding: '8px 16px', fontSize: 12, fontFamily: 'DM Sans,sans-serif', fontWeight: 400, cursor: 'pointer',
+                }}>
+                  {copied ? '✓ Copied' : 'Copy to clipboard'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function SettingsPage({subscription, user, onTogglePause, actionLoading, onDeleteRequest, onSaveSettings}) {
+  const [isPublic, setIsPublic]   = useState(subscription?.is_public || false)
+  const [slug, setSlug]           = useState(subscription?.public_slug || '')
+  const [competitors, setCompetitors] = useState(() => {
+    const initial = subscription?.competitors || []
+    while (initial.length < 5) initial.push('')
+    return initial.slice(0, 5)
+  })
+  const [savingPublic, setSavingPublic] = useState(false)
+  const [savingComp,   setSavingComp]   = useState(false)
+  const [publicError,  setPublicError]  = useState(null)
+  const [compError,    setCompError]    = useState(null)
+  const [publicSaved,  setPublicSaved]  = useState(false)
+  const [compSaved,    setCompSaved]    = useState(false)
+
+  const slugValid    = !slug || /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug)
+  const previewUrl   = slug ? `velyr.io/agent/${slug}` : 'velyr.io/agent/your-slug'
+  const publicUrl    = (subscription?.is_public && subscription?.public_slug) ? `/agent/${subscription.public_slug}` : null
+
+  async function savePublic() {
+    setPublicError(null); setPublicSaved(false)
+    if (slug && !slugValid) { setPublicError('Slug must be 3-30 chars: lowercase letters, numbers, hyphens only'); return }
+    setSavingPublic(true)
+    try {
+      const result = await onSaveSettings({ is_public: isPublic, public_slug: slug || null })
+      if (result?.error) setPublicError(result.error)
+      else               setPublicSaved(true)
+    } catch (e) { setPublicError(e.message || 'Failed to save') }
+    finally       { setSavingPublic(false) }
+  }
+
+  async function saveCompetitors() {
+    setCompError(null); setCompSaved(false)
+    setSavingComp(true)
+    try {
+      const cleaned = competitors.map(u => u.trim()).filter(Boolean)
+      for (const u of cleaned) { try { new URL(u) } catch { setCompError(`Invalid URL: ${u}`); setSavingComp(false); return } }
+      const result = await onSaveSettings({ competitors: cleaned })
+      if (result?.error) setCompError(result.error)
+      else               setCompSaved(true)
+    } catch (e) { setCompError(e.message || 'Failed to save') }
+    finally       { setSavingComp(false) }
+  }
+
   return (
     <Card style={{overflow:'hidden'}}>
       <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
@@ -1273,6 +1565,60 @@ function SettingsPage({subscription, user, onTogglePause, actionLoading, onDelet
           {actionLoading?'…':subscription?.status==='paused'?'Resume Agent':'Pause Agent'}
         </button>
       </div>
+
+      {/* Public Profile (Part 4d) */}
+      <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`}}>
+        <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:4}}>Public Profile</p>
+        <p style={{fontSize:11,color:C.textMuted,fontWeight:300,marginBottom:14}}>Share a public timeline of your agent's work — runs, screenshots, results.</p>
+
+        <label style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,cursor:'pointer'}}>
+          <input type="checkbox" checked={isPublic} onChange={e=>setIsPublic(e.target.checked)} style={{width:14,height:14}} />
+          <span style={{fontSize:12,color:C.text}}>Make my agent timeline public</span>
+        </label>
+
+        <div style={{marginBottom:8}}>
+          <label style={{fontSize:11,color:C.textMuted,fontWeight:300,marginBottom:4,display:'block'}}>Your public URL slug</label>
+          <input type="text" value={slug} onChange={e=>setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="florian"
+            style={{width:'100%',maxWidth:280,padding:'8px 12px',fontSize:13,fontFamily:'DM Mono,monospace',
+              border:`1px solid ${slugValid?C.border:C.red}`,borderRadius:6,background:'#fff',outline:'none'}} />
+          <p style={{fontSize:11,color:C.textMuted,marginTop:6,fontFamily:'DM Mono,monospace'}}>{previewUrl}</p>
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:12,marginTop:12,flexWrap:'wrap'}}>
+          <button className="btn" onClick={savePublic} disabled={savingPublic} style={{
+            background:C.accent,color:'#fff',border:'none',borderRadius:7,padding:'8px 16px',
+            fontSize:12,fontFamily:'DM Sans,sans-serif',fontWeight:400,opacity:savingPublic?0.6:1,
+          }}>{savingPublic?'Saving…':'Save'}</button>
+          {publicUrl && (
+            <a href={publicUrl} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.accent,textDecoration:'none',fontWeight:500}}>
+              View public timeline →
+            </a>
+          )}
+          {publicSaved && <span style={{fontSize:11,color:C.green}}>✓ Saved</span>}
+          {publicError && <span style={{fontSize:11,color:C.red}}>{publicError}</span>}
+        </div>
+      </div>
+
+      {/* Competitors (Part 6d) */}
+      <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`}}>
+        <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:4}}>Competitors</p>
+        <p style={{fontSize:11,color:C.textMuted,fontWeight:300,marginBottom:14}}>We'll scan these every Monday and alert you if anything changes.</p>
+        {competitors.map((url, i) => (
+          <input key={i} type="url" value={url} onChange={e=>{ const next=[...competitors]; next[i]=e.target.value; setCompetitors(next) }}
+            placeholder={`https://competitor-${i+1}.com`}
+            style={{width:'100%',maxWidth:420,padding:'8px 12px',fontSize:13,fontFamily:'DM Mono,monospace',
+              border:`1px solid ${C.border}`,borderRadius:6,background:'#fff',outline:'none',marginBottom:8,display:'block'}} />
+        ))}
+        <div style={{display:'flex',alignItems:'center',gap:12,marginTop:8,flexWrap:'wrap'}}>
+          <button className="btn" onClick={saveCompetitors} disabled={savingComp} style={{
+            background:C.accent,color:'#fff',border:'none',borderRadius:7,padding:'8px 16px',
+            fontSize:12,fontFamily:'DM Sans,sans-serif',fontWeight:400,opacity:savingComp?0.6:1,
+          }}>{savingComp?'Saving…':'Save competitors'}</button>
+          {compSaved && <span style={{fontSize:11,color:C.green}}>✓ Saved</span>}
+          {compError && <span style={{fontSize:11,color:C.red}}>{compError}</span>}
+        </div>
+      </div>
+
       <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`}}>
         <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:8}}>Account</p>
         <p style={{fontSize:12,color:C.textMuted,marginBottom:2}}>Email: {user?.email}</p>
@@ -1506,6 +1852,21 @@ export default function AgentDashboard({ navigate }) {
     setActionLoading(false)
   }
 
+  async function handleSaveSettings(payload) {
+    const token = await getToken()
+    const res = await fetch('/api/agent/run?action=update-settings', {
+      method:'POST',
+      headers:{ 'Authorization':`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (data?.success && data.subscription) {
+      setSubscription(prev => ({ ...prev, ...data.subscription }))
+      return { success: true }
+    }
+    return { error: data?.error || 'Save failed' }
+  }
+
   async function handleDeleteAccount() {
     setActionLoading(true)
     setDeleteError(null)
@@ -1549,10 +1910,10 @@ export default function AgentDashboard({ navigate }) {
         />
       )}
 
-      <div style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
+      <div className="dash-shell" style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
 
         {/* ── LEFT SIDEBAR NAV ── */}
-        <div style={{
+        <div className="dash-sidebar" style={{
           width:200,flexShrink:0,background:C.bgCard,
           borderRight:`1px solid ${C.border}`,
           display:'flex',flexDirection:'column',
@@ -1619,7 +1980,7 @@ export default function AgentDashboard({ navigate }) {
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
+        <div className="dash-main" style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
 
           <div style={{
             height:52,padding:'0 24px',
@@ -1652,7 +2013,7 @@ export default function AgentDashboard({ navigate }) {
             </div>
           </div>
 
-          <div style={{flex:1,padding:'24px',overflowY:'auto'}}>
+          <div className="dash-content" style={{flex:1,padding:'24px',overflowY:'auto'}}>
 
             {!loading&&!subscription&&(
               <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
@@ -1714,6 +2075,12 @@ export default function AgentDashboard({ navigate }) {
                   </div>
                 )}
 
+                {activePage==='dna'&&(
+                  <div className="fade-up">
+                    <DNAPage subscriptionId={subscription?.id}/>
+                  </div>
+                )}
+
                 {activePage==='guardrails'&&(
                   <div className="fade-up">
                     <p style={{fontSize:12,color:C.textMuted,lineHeight:1.7,marginBottom:14}}>
@@ -1729,6 +2096,7 @@ export default function AgentDashboard({ navigate }) {
                       subscription={subscription} user={user}
                       onTogglePause={handleTogglePause} actionLoading={actionLoading}
                       onDeleteRequest={()=>{ setDeleteError(null); setShowDeleteConfirm(true) }}
+                      onSaveSettings={handleSaveSettings}
                     />
                   </div>
                 )}

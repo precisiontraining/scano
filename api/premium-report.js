@@ -271,7 +271,7 @@ Return ONLY valid JSON (no markdown, no explanation, no backticks):
       headers: {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://scano.io'
+        'HTTP-Referer': 'https://velyr.io'
       },
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4-5',

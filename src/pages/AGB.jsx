@@ -58,7 +58,7 @@ export default function AGB({ navigate }) {
             <ul>
               <li><strong style={{ fontWeight: 500 }}>Free Scan</strong> — a free, automated analysis of your website and public social media profiles, providing an overall score and 2 priority issues. No account or payment required.</li>
               <li><strong style={{ fontWeight: 500 }}>Full Report (€9, one-time)</strong> — a comprehensive audit including all 5 priority actions, deep social media analysis, hook analysis, caption rewrites, brand clarity scoring, and an effort plan.</li>
-              <li><strong style={{ fontWeight: 500 }}>Growth Agent (€29/month)</strong> — a semi-autonomous AI agent that analyses your GitHub repository and PostHog analytics weekly, identifies the highest-impact conversion issue, writes a code fix, opens a Pull Request, and notifies you via Telegram for approval. Nothing is deployed without your explicit approval.</li>
+              <li><strong style={{ fontWeight: 500 }}>Growth Agent (€29/month)</strong> — a semi-autonomous AI agent that analyses your GitHub repository and PostHog analytics weekly, identifies the highest-impact conversion issue, writes a code fix, opens a Pull Request, and notifies you via Telegram (reply YES to deploy or NO to skip). Nothing is deployed without your explicit approval. Additional features include: before/after screenshots of every fix; competitor weekly scanning of up to 5 sites you choose; A/B testing of copy-based fixes with auto-resolution after 7 days; an optional public timeline page; and a brutally honest monthly roast report summarising progress and gaps.</li>
             </ul>
             <p style={{ marginTop: 12 }}>All services are provided as-is based on publicly available data and automated AI analysis. Results are informational only and do not constitute legal, financial, or professional business advice.</p>
           </div>
@@ -124,8 +124,8 @@ export default function AGB({ navigate }) {
             <p style={{ marginBottom: 12 }}>By using the Growth Agent, you agree to the following:</p>
             <ul>
               <li>You are the owner of, or have full authorisation to grant access to, the GitHub repository and PostHog project you connect to Velyr.</li>
-              <li>You understand that the Growth Agent will open Pull Requests on your GitHub repository. No changes are merged or deployed without your explicit approval via Telegram.</li>
-              <li>You are solely responsible for reviewing and approving any Pull Request before merging. Velyr is not liable for the outcome of code changes you approve and deploy.</li>
+              <li>You understand that the Growth Agent will open Pull Requests on your GitHub repository. No changes are merged or deployed without your explicit approval via Telegram (reply YES to deploy or NO to skip).</li>
+              <li>You are solely responsible for reviewing and approving any Pull Request before merging. Velyr is not liable for the outcome of code changes you approve (YES) and deploy.</li>
               <li>You are responsible for ensuring that your Brand Guardrails are accurate and up to date. The agent follows them as written.</li>
               <li>The auto-rollback feature is a safety measure, not a guarantee. Velyr is not liable for any business impact resulting from a deployed change, whether or not a rollback occurs.</li>
               <li>You must not use the Growth Agent to violate any third-party terms of service, including GitHub's and PostHog's.</li>

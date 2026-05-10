@@ -9,9 +9,13 @@ import AgentDashboard from './pages/AgentDashboard.jsx'
 import AgentAuth from './pages/AgentAuth.jsx'
 import AgentOnboarding from './pages/AgentOnboarding.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
+import AGB from './pages/AGB.jsx'
+import AgentPublic from './pages/AgentPublic.jsx'
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
+const RESERVED_AGENT_PATHS = new Set(['login', 'register', 'dashboard', 'onboarding', 'reset-password'])
+const PUBLIC_AGENT_REGEX   = /^\/agent\/([a-z0-9][a-z0-9-]{1,28}[a-z0-9])$/
 
 const CSS_SCANNER = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&family=Jost:wght@300;400;500&display=swap');
@@ -222,7 +226,7 @@ export default function App() {
     const id = match[1]
     if (premiumReportId === id) return
     setLoading(true)
-    fetch(`/api/get-premium-report?id=${id}`)
+    fetch(`/api/get-report?id=${id}&type=premium`)
       .then(r => r.json())
       .then(data => {
         if (data.error) { navigate('/premium'); return }
@@ -410,6 +414,7 @@ export default function App() {
   }
 
   // ── Routes ───────────────────────────────────────────────────────────────────
+  if (path === '/agb')                     return <AGB navigate={navigate} />
   if (path === '/impressum')              return <Impressum navigate={navigate} />
   if (path === '/privacy')                return <PrivacyPolicy navigate={navigate} />
   if (path === '/agent/login')            return <AgentAuth navigate={navigate} mode="login" />
@@ -417,6 +422,14 @@ export default function App() {
   if (path === '/agent/reset-password')   return <ResetPassword navigate={navigate} />
   if (path === '/agent/onboarding')       return <AgentOnboarding navigate={navigate} />
   if (path === '/agent' || path === '/agent/dashboard') return <AgentDashboard navigate={navigate} />
+
+  // Public agent timeline: /agent/{slug} where slug is not a reserved path
+  {
+    const m = path.match(PUBLIC_AGENT_REGEX)
+    if (m && !RESERVED_AGENT_PATHS.has(m[1])) {
+      return <AgentPublic navigate={navigate} slug={m[1]} />
+    }
+  }
 
   if (scanning) return <ScanningScreen url={scanningUrl} liveData={liveData} />
 
