@@ -117,7 +117,7 @@ const CSS = `
     .dash-preview-shell .dp-overview-grid { flex-direction: column !important; }
     .dash-preview-shell .dp-rightsb { width: 100% !important; min-width: 0 !important; max-width: none !important; }
     .dash-preview-shell .dp-kpis { grid-template-columns: repeat(2, 1fr) !important; }
-    .dash-preview-shell .dp-2col { grid-template-columns: 1fr !important; }
+    .dash-preview-shell .dp-2col { flex-direction: column !important; }
     .dash-preview-shell code { display: none !important; }
   }
   @media (max-width: 480px) {
@@ -880,10 +880,10 @@ function AgentDashboardPreview({ navigate }) {
             </div>
 
             {/* Activity Stream + Top Insights */}
-            <div className="dp-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div className="dp-2col" style={{ display:'flex', flexDirection:'row', alignItems:'flex-start', gap:16 }}>
 
               {/* Activity Stream */}
-              <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
+              <div style={{ flex:'1.2', minWidth:0, background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
                 <div style={{ marginBottom:8 }}>
                   <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:2 }}>Activity Stream</p>
                   <p style={{ fontSize:11, color:DC.textLight }}>Last actions taken</p>
@@ -919,9 +919,9 @@ function AgentDashboardPreview({ navigate }) {
               </div>
 
               {/* Top Insights (2x2) */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:0 }}>
+              <div style={{ flex:'1', minWidth:0, display:'flex', flexDirection:'column', gap:8 }}>
                 <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight }}>Top Insights</p>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, width:'100%', overflow:'visible' }}>
                   {insights.map((ins,i) => (
                     <div key={i} style={{
                       background:ins.bg, border:`1px solid ${ins.border}`,
