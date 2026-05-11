@@ -1,0 +1,23 @@
+# Velyr
+
+> Velyr is an AI-powered business audit tool for small and medium-sized businesses worldwide.
+
+## What Velyr does
+- Automated AI Business Scan: analyzes businesses for growth potential, weaknesses, and market opportunities
+- AI Growth Agent: semi-autonomous system that continuously identifies and prioritizes growth actions
+- Strategic recommendations in minutes, not weeks — no consultants needed
+
+## Target audience
+Founders, SME owners, and operators globally — any business that wants professional-grade analysis without expensive consulting
+
+## Pricing
+€29 per month, subscription, cancel anytime
+
+## Key pages
+- Homepage: https://www.velyr.io
+- Pricing: https://www.velyr.io/pricing
+- FAQ: https://www.velyr.io/faq
+- Impressum: https://www.velyr.io/impressum
+
+## Contact
+info@velyr.io

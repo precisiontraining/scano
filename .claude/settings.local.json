@@ -3,7 +3,13 @@
     "allow": [
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\flori\\\\Desktop\\\\scano\" -Force)",
       "Bash(Select-Object Name, FullName)",
-      "Bash(Format-Table -AutoSize)"
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npm run *)",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const { createCanvas } = require\\('canvas'\\); console.log\\('canvas ok'\\);\")",
+      "Bash(node scripts/generate-og-image.js)",
+      "Bash(node -e ' *)"
     ]
   }
 }

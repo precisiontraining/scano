@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400;500&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,6 +29,25 @@ function Logo({ size = 24, color = '#2a5c45' }) {
 }
 
 export default function Impressum({ navigate }) {
+  useEffect(() => {
+    const prevTitle = document.title
+    document.title = 'Impressum — Velyr'
+    let robots = document.querySelector('meta[name="robots"]')
+    const created = !robots
+    const prevContent = robots?.getAttribute('content')
+    if (!robots) {
+      robots = document.createElement('meta')
+      robots.setAttribute('name', 'robots')
+      document.head.appendChild(robots)
+    }
+    robots.setAttribute('content', 'index, follow')
+    return () => {
+      document.title = prevTitle
+      if (created) robots.remove()
+      else if (prevContent != null) robots.setAttribute('content', prevContent)
+    }
+  }, [])
+
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -122,6 +143,7 @@ export default function Impressum({ navigate }) {
         <div style={{ borderTop: '1px solid rgba(28,25,23,0.08)', padding: '24px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 13, color: '#a09890', fontWeight: 300 }}>© 2026 Velyr</span>
           <div style={{ display: 'flex', gap: 20 }}>
+            <button onClick={() => navigate('/faq')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>FAQ</button>
             <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
             <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#a09890', fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>

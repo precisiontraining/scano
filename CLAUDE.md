@@ -28,9 +28,12 @@ Routes (regex-matched in `App.jsx`):
 - `/premium` → `PremiumScanForm.jsx`
 - `/premium/report` and `/premium/{uuid}` → `PremiumReport.jsx`
 - `/agent`, `/agent/dashboard`, `/agent/login`, `/agent/register`, `/agent/reset-password`, `/agent/onboarding`
+- `/agent/{slug}` (public timeline, slug not in reserved set) → `pages/AgentPublic.jsx`
 - `/agb`, `/impressum`, `/privacy`
 
 **Auth hash interception**: `App.jsx` reads `window.location.hash` on mount and redirects Supabase magic-link / recovery flows: `type=recovery` → `/agent/reset-password`, `access_token`/`type=signup` → `/agent/dashboard`. Don't strip this `useEffect` — it's how Supabase email links land.
+
+**No shared component library**: `src/components/` is empty. Each page/screen is self-contained with inline styles.
 
 ### Scan Pipeline (free tier)
 
@@ -59,15 +62,46 @@ Subscribers authenticate via Supabase Auth, connect GitHub via OAuth, and config
 - Wed 10:00 UTC — `mode=rollback_check`
 - Mon 08:00 UTC — `mode=weekly_summary`
 
-**Important**: the full Monday run is too heavy for Vercel's 60s budget. `/api/agent/run` (no mode) **fires a request to a Supabase Edge Function `agent-run` and returns immediately without awaiting** (2s `AbortController` timeout, errors ignored). The actual analysis → GitHub PR → Telegram message happens inside the Edge Function. Quick modes (`evaluate_ab`, `midweek`, `rollback_check`, `weekly_summary`) run inline in Vercel.
+**Important**: the full Monday run is too heavy for Vercel's 60s budget. `/api/agent/run` (no mode) **fires a request to a Supabase Edge Function `agent-run` and returns immediately without awaiting** (2s `AbortController` timeout, errors ignored). The actual analysis → GitHub PR → Telegram message happens inside the Edge Function (not in this repo — it lives in Supabase). Quick modes (`evaluate_ab`, `midweek`, `rollback_check`, `weekly_summary`) run inline in Vercel.
 
-Auth: cron requests must carry either Vercel's `x-vercel-cron` header or `x-cron-secret: $AGENT_CRON_SECRET`. The same endpoint handles user `?action=pause|resume|delete` calls authenticated via Bearer token (Supabase user JWT).
+Auth: cron requests must carry either Vercel's `x-vercel-cron` header or `x-cron-secret: $AGENT_CRON_SECRET`. The same endpoint handles user `?action=pause|resume|delete|update-settings|export-dna` calls authenticated via Bearer token (Supabase user JWT).
 
-**Approval flow**: agent posts to Telegram via `@octokit/rest` + bot token; user replies `YES` or `NO` to the bot (or `approve <id>` / `reject <id>` as a power-user fallback). The simple `YES`/`NO` flow finds the most recent `waiting_approval` run for the chat's subscription via `findPendingRunForChat()`. `/api/webhooks/telegram` ingests these and merges or closes the PR. **Rollback safety**: 48h after deploy, agent checks bounce rate; if it rose ≥15pp, it auto-opens a rollback PR.
+**Vercel 12-function limit**: `api/agent/run.js` bundles `public-timeline`, `update-settings`, and `export-dna` actions alongside the cron modes deliberately to stay within Vercel Hobby's 12 serverless function limit. Don't split these into separate files.
+
+**Approval flow**: agent posts to Telegram via `@octokit/rest` + bot token; user replies `YES` or `NO` to the bot. The simple `YES`/`NO` flow finds the most recent `waiting_approval` run for the chat's subscription via `findPendingRunForChat()`. `/api/webhooks/telegram` ingests these and merges or closes the PR.
+
+Telegram bot commands (handled in `api/webhooks/telegram.js`):
+- `YES` / `NO` — approve or reject the latest pending PR
+- `approve <run-id>` / `reject <run-id>` — power-user override by run ID
+- `status` — last 5 runs, active A/B tests, tracked competitors
+- `dna` — view Business DNA learnings
+- `note <run-id> <reason>` — add a manual learning
+- `competitor add <url>` / `competitor remove <url>` — manage tracked competitor sites (max 2)
+- `/start` — onboarding; generates a `VELYR-XXXXXX` verification code (30-min TTL)
+
+**Rollback safety**: 48h after deploy, `rollback_check` mode checks bounce rate via PostHog; if it rose ≥15pp, it auto-opens a rollback PR. DNA entries land as `pending` on approval; `rollback_check` promotes them to `success` after 7 days still-deployed.
+
+### Supabase Tables
+
+Key tables used by the backend (all accessed via service-role key):
+- `agent_subscriptions` — one row per subscriber; holds `status`, `telegram_chat_id`, `public_slug`, `is_public`, `competitors[]`
+- `agent_connections` — GitHub + PostHog credentials per subscription
+- `agent_runs` — one row per weekly agent run; tracks status lifecycle (`pending` → `waiting_approval` → `deployed` / `rejected` / `rolled_back`)
+- `agent_ab_tests` — A/B test state; evaluated by `mode=evaluate_ab`
+- `agent_learnings` — per-run outcome records used to guide future analysis
+- `agent_business_dna` — persistent outcome log (`pending` → `success` after 7d, or `rollback`)
+- `agent_competitor_urls` / `agent_competitor_snapshots` — competitor tracking
+- `impact_metrics` — bounce rate before/after per run
+- `telegram_verification_codes` — short-lived codes for bot onboarding
+- `premium_reports` — stores premium scan+report data (read by `get-report?type=premium`)
 
 ### API Layer (`api/`)
 
 ES modules (`"type": "module"`). Browser automation uses `playwright-core` + `@sparticuz/chromium` (serverless Chromium). Database access is `@supabase/supabase-js` with the service-role key for backend ops.
+
+Additional endpoints not covered above:
+- `api/subscribe.js` — Stripe subscription creation
+- `api/github/validate-repo.js` — validates GitHub repo access during onboarding
 
 `vercel.json` includes a SPA rewrite (`/(.*)` → `/index.html`) and security headers (HSTS, X-Frame-Options DENY, etc.). Don't add a route to `vercel.json` — frontend routes are handled by `App.jsx`.
 
@@ -82,9 +116,11 @@ See `.env.example`. Note the **inconsistent prefixes** — Supabase uses `NEXT_P
 Required:
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — frontend Supabase client
 - `SUPABASE_SERVICE_ROLE_KEY` — backend API operations (never expose)
-- `OPENROUTER_API_KEY` — Claude AI report generation
+- `OPENROUTER_API_KEY` — Claude AI report generation (model: `anthropic/claude-sonnet-4-5`)
 - `PAGESPEED_API_KEY` (a.k.a. `GOOGLE_PAGESPEED_API_KEY`)
 - `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY_BASE64` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — agent
-- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` / `TELEGRAM_CHAT_ID` — default chat for notifications
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_SCALE`
 - `AGENT_TOKEN_ENCRYPTION_KEY` (AES-256, 64 hex), `AGENT_APPROVAL_TOKEN_SECRET` (HMAC, 32 hex), `AGENT_CRON_SECRET` (32 hex)
+- `SCREENSHOTONE_API_KEY` — screenshot capture for rollback comparison (optional; rollback skips screenshots if absent)
+- `POSTHOG_API_KEY` / `POSTHOG_PROJECT_ID` / `POSTHOG_HOST` — server-side analytics used by agent's midweek/weekly modes (falls back to these if not set per-subscription in `agent_connections`)

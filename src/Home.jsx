@@ -1205,6 +1205,7 @@ function Footer({ navigate }) {
         <p style={{ fontSize:13, color:C.textLight, fontWeight:300 }}>© 2026 Velyr · <a href="mailto:info@velyr.io" style={{ color:C.textLight, textDecoration:'none' }}>info@velyr.io</a></p>
         <div style={{ display:'flex', gap:20 }}>
           {[
+            { label:'FAQ', path:'/faq' },
             { label:'Privacy Policy', path:'/privacy' },
             { label:'Impressum', path:'/impressum' },
             { label:'AGB', path:'/agb' },
