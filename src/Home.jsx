@@ -110,13 +110,18 @@ const CSS = `
 
   @media (max-width: 900px) {
     .agent-bottom-grid { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 768px) {
+    .dash-preview-shell .dp-leftnav { display: none !important; }
     .dash-preview-shell { flex-direction: column !important; }
-    .dash-preview-shell .dp-leftnav { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid rgba(28,25,23,0.09) !important; }
-    .dash-preview-shell .dp-rightsb { width: 100% !important; }
     .dash-preview-shell .dp-overview-grid { flex-direction: column !important; }
-    .dash-preview-shell .dp-overview-grid .dp-rightsb { width: 100% !important; }
+    .dash-preview-shell .dp-rightsb { width: 100% !important; min-width: 0 !important; max-width: none !important; }
     .dash-preview-shell .dp-kpis { grid-template-columns: repeat(2, 1fr) !important; }
     .dash-preview-shell .dp-2col { grid-template-columns: 1fr !important; }
+    .dash-preview-shell code { display: none !important; }
+  }
+  @media (max-width: 480px) {
+    .dash-preview-shell .dp-kpis { grid-template-columns: 1fr !important; }
   }
 `
 
@@ -766,6 +771,7 @@ function AgentDashboardPreview({ navigate }) {
   return (
     <div className="dash-preview-shell" style={{
       display:'flex',
+      width:'100%',
       background:DC.bg,
       border:`1px solid ${DC.border}`,
       borderRadius:16,
@@ -913,7 +919,7 @@ function AgentDashboardPreview({ navigate }) {
               </div>
 
               {/* Top Insights (2x2) */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:0 }}>
                 <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight }}>Top Insights</p>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                   {insights.map((ins,i) => (
@@ -967,7 +973,7 @@ function AgentDashboardPreview({ navigate }) {
           </div>
 
           {/* ── RIGHT SIDEBAR ─────────────────────────────────────────── */}
-          <div className="dp-rightsb" style={{ width:240, flexShrink:0, display:'flex', flexDirection:'column', gap:10 }}>
+          <div className="dp-rightsb" style={{ minWidth:180, maxWidth:200, flexShrink:0, display:'flex', flexDirection:'column', gap:10 }}>
 
             {/* Status / Next run / Steps / Pause */}
             <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, overflow:'hidden' }}>
