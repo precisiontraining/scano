@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { demoData } from '../data/demoData'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -1793,8 +1794,20 @@ export default function AgentDashboard({ navigate }) {
   const [learnings,      setLearnings]      = useState([])
   const [impactMetrics,  setImpactMetrics]  = useState([])
 
+  // Demo mode: /agent?demo=true loads hardcoded data, bypasses Supabase.
+  const isDemo = useMemo(
+    () => typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('demo') === 'true',
+    []
+  )
+
   // auth
   useEffect(()=>{
+    if (isDemo) {
+      setUser({ id: 'demo-user', email: 'demo@acme-store.com' })
+      setAuthLoading(false)
+      return
+    }
     supabase.auth.getSession().then(({data:{session}})=>{
       if(!session){navigate('/agent/login');return}
       setUser(session.user);setAuthLoading(false)
@@ -1804,15 +1817,24 @@ export default function AgentDashboard({ navigate }) {
       setUser(session.user);setAuthLoading(false)
     })
     return()=>authSub.unsubscribe()
-  },[])
+  },[isDemo])
 
   // data
   useEffect(()=>{
     if(!user)return
+    if (isDemo) {
+      setSubscription(demoData.subscription)
+      setRuns(demoData.runs)
+      setFunnelPages(demoData.funnelPages)
+      setLearnings(demoData.learnings)
+      setImpactMetrics(demoData.impactMetrics)
+      setLoading(false)
+      return
+    }
     fetchData()
     const interval=setInterval(fetchData,30000)
     return()=>clearInterval(interval)
-  },[user])
+  },[user, isDemo])
 
   async function fetchData() {
     const {data:subs}=await supabase.from('agent_subscriptions').select('*').eq('auth_user_id',user.id).single()
