@@ -71,7 +71,7 @@ const NAV_ITEMS = [
   { id:'runs',        label:'Runs',        icon:'↻' },
   { id:'insights',    label:'Insights',    icon:'◈' },
   { id:'funnel',      label:'Funnel',      icon:'⬦' },
-  { id:'dna',         label:'DNA',         icon:'🧬' },
+  { id:'dna',         label:'DNA',         icon:'◉' },
   { id:'guardrails',  label:'Guardrails',  icon:'◻' },
   { id:'settings',    label:'Settings',    icon:'⚙' },
 ]
