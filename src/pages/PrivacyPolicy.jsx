@@ -40,11 +40,29 @@ export default function PrivacyPolicy({ navigate }) {
       robots.setAttribute('name', 'robots')
       document.head.appendChild(robots)
     }
-    robots.setAttribute('content', 'noindex, follow')
+    robots.setAttribute('content', 'noindex, nofollow')
+
+    const pageUrl = 'https://www.velyr.io' + window.location.pathname
+
+    let canonical = document.querySelector('link[rel="canonical"]')
+    if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
+    canonical.setAttribute('href', pageUrl)
+
+    let hreflangEn = document.querySelector('link[rel="alternate"][hreflang="en"]')
+    if (!hreflangEn) { hreflangEn = document.createElement('link'); hreflangEn.setAttribute('rel', 'alternate'); hreflangEn.setAttribute('hreflang', 'en'); document.head.appendChild(hreflangEn) }
+    hreflangEn.setAttribute('href', pageUrl)
+
+    let hreflangDefault = document.querySelector('link[rel="alternate"][hreflang="x-default"]')
+    if (!hreflangDefault) { hreflangDefault = document.createElement('link'); hreflangDefault.setAttribute('rel', 'alternate'); hreflangDefault.setAttribute('hreflang', 'x-default'); document.head.appendChild(hreflangDefault) }
+    hreflangDefault.setAttribute('href', pageUrl)
+
     return () => {
       document.title = prevTitle
       if (created) robots.remove()
       else if (prevContent != null) robots.setAttribute('content', prevContent)
+      canonical.setAttribute('href', 'https://www.velyr.io/')
+      hreflangEn.setAttribute('href', 'https://www.velyr.io/')
+      hreflangDefault.setAttribute('href', 'https://www.velyr.io/')
     }
   }, [])
 
