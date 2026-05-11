@@ -775,7 +775,7 @@ function AgentDashboardPreview({ navigate }) {
       background:DC.bg,
       border:`1px solid ${DC.border}`,
       borderRadius:16,
-      overflow:'hidden',
+      overflow:'visible',
       fontFamily:'Jost,sans-serif',
       color:DC.text,
     }}>
@@ -883,7 +883,7 @@ function AgentDashboardPreview({ navigate }) {
             <div className="dp-2col" style={{ display:'flex', flexDirection:'row', alignItems:'flex-start', gap:16 }}>
 
               {/* Activity Stream */}
-              <div style={{ flex:'1.2', minWidth:0, background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
+              <div style={{ flex:'0 0 42%', minWidth:0, overflow:'hidden', background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
                 <div style={{ marginBottom:8 }}>
                   <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:2 }}>Activity Stream</p>
                   <p style={{ fontSize:11, color:DC.textLight }}>Last actions taken</p>
@@ -919,11 +919,12 @@ function AgentDashboardPreview({ navigate }) {
               </div>
 
               {/* Top Insights (2x2) */}
-              <div style={{ flex:'1', minWidth:0, display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ flex:'0 0 55%', minWidth:0, display:'flex', flexDirection:'column', gap:8 }}>
                 <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight }}>Top Insights</p>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, width:'100%', overflow:'visible' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, width:'100%', overflow:'visible' }}>
                   {insights.map((ins,i) => (
                     <div key={i} style={{
+                      minWidth:0, overflow:'hidden', wordBreak:'break-word',
                       background:ins.bg, border:`1px solid ${ins.border}`,
                       borderRadius:10, padding:'11px 12px',
                     }}>
