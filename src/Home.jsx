@@ -110,8 +110,13 @@ const CSS = `
 
   @media (max-width: 900px) {
     .agent-bottom-grid { grid-template-columns: 1fr !important; }
-    .dash-preview-grid { grid-template-columns: 1fr !important; }
-    .dash-preview-grid > div:first-child { border-right: none !important; border-bottom: 1px solid rgba(28,25,23,0.09) !important; }
+    .dash-preview-shell { flex-direction: column !important; }
+    .dash-preview-shell .dp-leftnav { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid rgba(28,25,23,0.09) !important; }
+    .dash-preview-shell .dp-rightsb { width: 100% !important; }
+    .dash-preview-shell .dp-overview-grid { flex-direction: column !important; }
+    .dash-preview-shell .dp-overview-grid .dp-rightsb { width: 100% !important; }
+    .dash-preview-shell .dp-kpis { grid-template-columns: repeat(2, 1fr) !important; }
+    .dash-preview-shell .dp-2col { grid-template-columns: 1fr !important; }
   }
 `
 
@@ -619,156 +624,461 @@ function SampleBmRow({ platform, metric, yours, benchmark, diff, up, note }) {
 
 // ─── Agent Dashboard Preview ───────────────────────────────────────────────────
 function AgentDashboardPreview({ navigate }) {
-  const runs = demoData.runs
-  const total = runs.length
-  const deployed = runs.filter(r => r.status === 'deployed').length
-  const deployRate = Math.round((deployed / total) * 100)
-  const awaiting = runs.filter(r => r.status === 'waiting_approval').length
-  const recent = runs.slice(0, 3)
+  const runs          = demoData.runs
+  const funnelPages   = demoData.funnelPages
+  const learnings     = demoData.learnings
+  const impactMetrics = demoData.impactMetrics
 
-  const formatDate = (iso) => new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+  const total          = runs.length
+  const deployed       = runs.filter(r => r.status === 'deployed').length
+  const deployRate     = Math.round((deployed / total) * 100)
+  const pendingCount   = runs.filter(r => r.status === 'waiting_approval').length
+  const failedRejected = runs.filter(r => r.status === 'failed' || r.status === 'rejected').length
 
-  const STATUS_BADGE = {
-    deployed:         { label:'Deployed',          color:'#1e7a3c', bg:'rgba(30,122,60,0.07)',   border:'rgba(30,122,60,0.22)'  },
-    waiting_approval: { label:'Awaiting Approval', color:'#c47d0e', bg:'rgba(196,125,14,0.07)',  border:'rgba(196,125,14,0.22)' },
-    rejected:         { label:'Skipped',           color:'#6b6460', bg:'rgba(107,100,96,0.07)',  border:'rgba(107,100,96,0.22)' },
-    rolled_back:      { label:'Rolled Back',       color:'#6b6460', bg:'rgba(107,100,96,0.07)',  border:'rgba(107,100,96,0.22)' },
+  const bounceImprove = impactMetrics.filter(m => m.value_before && m.value_after)
+  const avgDelta = bounceImprove.length > 0
+    ? Math.round(bounceImprove.reduce((s,m) => s + (m.value_before - m.value_after), 0) / bounceImprove.length)
+    : null
+
+  const topDropOff = [...funnelPages].filter(p => p.drop_off_score > 0).sort((a,b) => b.drop_off_score - a.drop_off_score)[0]
+  const bestImpact = [...impactMetrics].filter(m => m.value_before > m.value_after).sort((a,b) => (b.value_before-b.value_after) - (a.value_before-a.value_after))[0]
+  const bestRun    = bestImpact ? runs.find(r => r.id === bestImpact.run_id) : null
+
+  const positiveLearnings = learnings.filter(l => l.outcome === 'positive')
+  const winRate = learnings.length > 0 ? Math.round((positiveLearnings.length / learnings.length) * 100) : null
+
+  const deployedRuns = runs.filter(r => r.status === 'deployed')
+  const avgConvNum = deployedRuns.length > 0
+    ? deployedRuns
+        .map(r => parseFloat((r.analysis_result?.expected_improvement || '').replace(/[^0-9.]/g, '')) || 0)
+        .reduce((s,v) => s+v, 0) / deployedRuns.length
+    : null
+
+  // Mirror the real dashboard's design tokens (Home.jsx fonts, AgentDashboard colors)
+  const DC = {
+    bg:          '#f7f4ef',
+    bgCard:      '#ffffff',
+    bgPanel:     '#faf8f4',
+    text:        '#1a1916',
+    textMuted:   '#6b6460',
+    textLight:   '#a09890',
+    border:      'rgba(26,25,22,0.08)',
+    accent:      '#2a5c45',
+    accentSoft:  'rgba(42,92,69,0.07)',
+    accentMid:   'rgba(42,92,69,0.15)',
+    green:       '#1e7a3c',
+    greenSoft:   'rgba(30,122,60,0.07)',
+    greenMid:    'rgba(30,122,60,0.2)',
+    yellow:      '#c47d0e',
+    yellowSoft:  'rgba(196,125,14,0.07)',
+    yellowMid:   'rgba(196,125,14,0.18)',
+    blue:        '#1d5fa8',
+    blueSoft:    'rgba(29,95,168,0.07)',
+    blueMid:     'rgba(29,95,168,0.15)',
+    red:         '#b83232',
+    redSoft:     'rgba(184,50,50,0.07)',
+    redMid:      'rgba(184,50,50,0.18)',
+    mutedSoft:   'rgba(107,100,96,0.07)',
+    mutedMid:    'rgba(107,100,96,0.18)',
   }
 
-  const kpis = [
-    { label:'Total Runs',      value: total,            sub: 'All processed',         accent: false },
-    { label:'Fixes Deployed',  value: deployed,         sub: '+1 this week',          accent: true  },
-    { label:'Deploy Rate',     value: `${deployRate}%`, sub: 'On track',              accent: false },
-    { label:'Awaiting Review', value: awaiting,         sub: 'Nothing pending',       accent: false },
+  const STATUS_MAP = {
+    deployed:         { label:'Deployed',          color:DC.green,     bg:DC.greenSoft,  border:DC.greenMid,  dot:DC.green     },
+    waiting_approval: { label:'Awaiting Approval', color:DC.yellow,    bg:DC.yellowSoft, border:DC.yellowMid, dot:DC.yellow    },
+    rejected:         { label:'Rejected',          color:DC.red,       bg:DC.redSoft,    border:DC.redMid,    dot:DC.red       },
+    rolled_back:      { label:'Rolled Back',       color:DC.textMuted, bg:DC.mutedSoft,  border:DC.mutedMid,  dot:DC.textMuted },
+  }
+
+  const NAV_ITEMS = [
+    { id:'overview',   label:'Overview',   icon:'⊙' },
+    { id:'runs',       label:'Runs',       icon:'↻' },
+    { id:'insights',   label:'Insights',   icon:'◈' },
+    { id:'funnel',     label:'Funnel',     icon:'⬦' },
+    { id:'dna',        label:'DNA',        icon:'◉' },
+    { id:'guardrails', label:'Guardrails', icon:'◻' },
+    { id:'settings',   label:'Settings',   icon:'⚙' },
   ]
 
+  const AGENT_STEPS = [
+    'Fetching repo',
+    'Pulling analytics',
+    'Scanning competitors',
+    'Checking seasonal',
+    'Reading Business DNA',
+    'Mapping funnel',
+    'Finding biggest issue',
+    'Taking before screenshot',
+    'Writing fix',
+    'Opening pull request',
+    'Sending notification',
+  ]
+  const inProgressIdx = AGENT_STEPS.length - 1 // last step (Sending notification) is blue / in-progress
+
+  const kpis = [
+    { label:'Total Runs',      value: total,            sub: 'All processed',     accent: false },
+    { label:'Fixes Deployed',  value: deployed,         sub: '+1 this week',      accent: true  },
+    { label:'Deploy Rate',     value: `${deployRate}%`, sub: 'On track',          accent: false },
+    { label:'Avg. Bounce Δ',   value: avgDelta != null ? `−${avgDelta}%` : '—', sub:'After agent fixes', accent: false },
+  ]
+
+  const insights = [
+    topDropOff && {
+      icon:'⚠️', color:DC.yellow, bg:DC.yellowSoft, border:DC.yellowMid,
+      label:'Biggest Drop-Off',
+      value: topDropOff.page_path,
+      sub: `${topDropOff.drop_off_score}% exit rate · ${topDropOff.views_7d} views/wk`,
+      detail: 'Agent will prioritize this page next run',
+    },
+    bestRun && {
+      icon:'📈', color:DC.green, bg:DC.greenSoft, border:DC.greenMid,
+      label:'Most Improved',
+      value: bestRun.analysis_result?.file_to_edit?.split('/').pop() || 'Last fix',
+      sub: `Bounce −${Math.round(bestImpact.value_before-bestImpact.value_after)}% after deployment`,
+      detail: '3 weeks ago',
+    },
+    avgConvNum != null && {
+      icon:'💡', color:DC.accent, bg:DC.accentSoft, border:DC.accentMid,
+      label:'Top Recommendation',
+      value: runs[0]?.analysis_result?.problem?.slice(0,32) + '…',
+      sub: `Est. impact: +${(Math.round(avgConvNum*10)/10)}% avg conversion`,
+      detail: 'Based on last fix',
+    },
+    winRate != null && {
+      icon:'🧠', color:DC.blue, bg:DC.blueSoft, border:DC.blueMid,
+      label:'Agent Win Rate',
+      value: `${winRate}%`,
+      sub: `${positiveLearnings.length} of ${learnings.length} changes improved metrics`,
+      detail: 'Business DNA learning',
+    },
+  ].filter(Boolean)
+
+  const timeAgo = (iso) => {
+    const diff = Date.now() - new Date(iso).getTime()
+    const h = Math.floor(diff/3600000), d = Math.floor(h/24)
+    if (d > 0) return `${d}d ago`
+    if (h > 0) return `${h}h ago`
+    return 'just now'
+  }
+
+  // Run history bar (oldest to latest)
+  const last12 = [...runs].slice(0,12).reverse()
+
   return (
-    <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden', fontFamily:'Jost,sans-serif' }}>
+    <div className="dash-preview-shell" style={{
+      display:'flex',
+      background:DC.bg,
+      border:`1px solid ${DC.border}`,
+      borderRadius:16,
+      overflow:'hidden',
+      fontFamily:'Jost,sans-serif',
+      color:DC.text,
+    }}>
 
-      {/* Header */}
-      <div style={{ padding:'22px 28px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
-        <div>
-          <p style={{ fontSize:10, letterSpacing:'.12em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:6 }}>Growth Agent · Overview</p>
-          <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(20px,2.6vw,28px)', color:C.text, letterSpacing:'-.02em', lineHeight:1.1 }}>
-            acme-store.com
-          </h3>
+      {/* ── LEFT SIDEBAR ─────────────────────────────────────────────── */}
+      <div className="dp-leftnav" style={{
+        width:160, flexShrink:0, background:DC.bgCard,
+        borderRight:`1px solid ${DC.border}`,
+        display:'flex', flexDirection:'column',
+      }}>
+        <div style={{
+          padding:'18px 14px 14px',
+          display:'flex', alignItems:'center', gap:9,
+          borderBottom:`1px solid ${DC.border}`,
+        }}>
+          <svg width={22} height={22} viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="13" stroke={DC.accent} strokeWidth="1" opacity="0.3"/>
+            <circle cx="16" cy="16" r="8"  stroke={DC.accent} strokeWidth="1" opacity="0.55"/>
+            <circle cx="16" cy="16" r="3"  fill={DC.accent}/>
+            <line x1="16" y1="3"  x2="16" y2="8"  stroke={DC.accent} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+            <line x1="16" y1="24" x2="16" y2="29" stroke={DC.accent} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+            <line x1="3"  y1="16" x2="8"  y2="16" stroke={DC.accent} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+            <line x1="24" y1="16" x2="29" y2="16" stroke={DC.accent} strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+          </svg>
+          <div>
+            <p style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:17, color:DC.text, lineHeight:1 }}>Velyr</p>
+            <p style={{ fontSize:9, color:DC.textLight, letterSpacing:'.06em', textTransform:'uppercase', marginTop:2 }}>Growth Agent</p>
+          </div>
         </div>
-        <span style={{ fontSize:11, color:C.textLight, fontWeight:300 }}>Auto-refreshes every 30s</span>
-      </div>
 
-      {/* KPI cards */}
-      <div style={{ padding:'18px 24px', borderBottom:`1px solid ${C.border}`, background:'#fff' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
-          {kpis.map((k, i) => (
-            <div key={i} style={{
-              background: k.accent ? 'rgba(42,92,69,0.07)' : '#fff',
-              border: `1px solid ${k.accent ? 'rgba(42,92,69,0.18)' : C.border}`,
-              borderRadius:12, padding:'14px 16px',
-            }}>
-              <p style={{ fontSize:10, letterSpacing:'.08em', textTransform:'uppercase', color: k.accent ? C.accent : C.textLight, fontWeight:500, marginBottom:8 }}>{k.label}</p>
-              <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:36, fontWeight:300, color: k.accent ? C.accent : C.text, lineHeight:1, marginBottom:4 }}>{k.value}</p>
-              <p style={{ fontSize:10, color:C.textLight, fontWeight:300 }}>{k.sub}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+        <nav style={{ padding:'10px 8px', flex:1 }}>
+          {NAV_ITEMS.map(item => {
+            const active = item.id === 'overview'
+            return (
+              <div key={item.id} style={{
+                display:'flex', alignItems:'center', gap:9,
+                padding:'8px 10px', borderRadius:7, marginBottom:2,
+                background: active ? DC.accentSoft : 'transparent',
+                color:      active ? DC.accent     : DC.textMuted,
+                cursor:'default',
+              }}>
+                <span style={{ fontSize:13, flexShrink:0, opacity: active ? 1 : 0.6 }}>{item.icon}</span>
+                <span style={{ fontSize:12, fontWeight: active ? 500 : 400 }}>{item.label}</span>
+              </div>
+            )
+          })}
+        </nav>
 
-      {/* Main: activity log + sidebar */}
-      <div className="dash-preview-grid" style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:0 }}>
-
-        {/* Activity log */}
-        <div style={{ padding:'20px 24px', borderRight:`1px solid ${C.border}` }}>
-          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:14, gap:12, flexWrap:'wrap' }}>
+        <div style={{ padding:'12px 14px', borderTop:`1px solid ${DC.border}` }}>
+          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:DC.accent, flexShrink:0 }}/>
             <div>
-              <p style={{ fontSize:13, fontWeight:500, color:C.text }}>Activity Log</p>
-              <p style={{ fontSize:11, color:C.textLight, fontWeight:300, marginTop:1 }}>Click any run for full details</p>
+              <p style={{ fontSize:11, color:DC.text, fontWeight:400 }}>Agent active</p>
+              <p style={{ fontSize:9, color:DC.textLight }}>Autonomous mode</p>
             </div>
-            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-              {['All','Deployed','Skipped'].map((f,i) => (
-                <span key={f} style={{
-                  fontSize:10, padding:'3px 9px', borderRadius:5,
-                  background: i===0 ? C.text : 'transparent',
-                  color: i===0 ? C.bg : C.textMuted,
-                  border: `1px solid ${i===0 ? C.text : C.border}`,
-                  fontWeight: i===0 ? 500 : 400,
-                }}>{f}</span>
+          </div>
+          <div style={{
+            width:'100%', marginTop:8, padding:'6px',
+            borderRadius:6, fontSize:10,
+            background:'transparent', color:DC.textMuted,
+            border:`1px solid ${DC.border}`,
+            textAlign:'center', cursor:'default',
+          }}>‖ Pause</div>
+        </div>
+      </div>
+
+      {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
+      <div style={{ flex:1, minWidth:0, padding:'22px 22px 24px' }}>
+
+        {/* Page header */}
+        <div style={{ marginBottom:18 }}>
+          <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.accent, marginBottom:6 }}>Growth Agent Dashboard</p>
+          <h1 style={{
+            fontFamily:'Cormorant Garant, serif', fontWeight:400,
+            fontSize:'clamp(22px,2.6vw,32px)', letterSpacing:'-.02em', lineHeight:1.1,
+            color:DC.text, marginBottom:5,
+          }}>
+            Autonomous growth <em style={{ fontStyle:'italic', color:DC.accent }}>optimization.</em>
+          </h1>
+          <p style={{ fontSize:12, color:DC.textLight }}>Your agent analyzes, fixes and improves your website — continuously. · Auto-refreshes every 30s</p>
+        </div>
+
+        {/* Two-column: main column + right sidebar */}
+        <div className="dp-overview-grid" style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
+
+          {/* Main column */}
+          <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:12 }}>
+
+            {/* KPI bar */}
+            <div className="dp-kpis" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+              {kpis.map((k,i) => (
+                <div key={i} style={{
+                  background: k.accent ? DC.accentSoft : DC.bgCard,
+                  border: `1px solid ${k.accent ? DC.accentMid : DC.border}`,
+                  borderRadius:12, padding:'13px 14px',
+                }}>
+                  <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color: k.accent ? DC.accent : DC.textLight, marginBottom:7 }}>{k.label}</p>
+                  <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:28, fontWeight:400, color: k.accent ? DC.accent : DC.text, lineHeight:1, marginBottom:3 }}>{k.value}</p>
+                  <p style={{ fontSize:10, color:DC.textLight, fontWeight:300 }}>{k.sub}</p>
+                </div>
               ))}
             </div>
-          </div>
 
-          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 0 10px' }}>
-            <span style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500 }}>Recent runs</span>
-            <div style={{ flex:1, height:1, background:C.border }} />
-            <span style={{ fontSize:10, color:C.textLight }}>3 of {total}</span>
-          </div>
+            {/* Activity Stream + Top Insights */}
+            <div className="dp-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
-          <div style={{ background:'#fff', border:`1px solid ${C.border}`, borderRadius:10, overflow:'hidden' }}>
-            {recent.map((run, i) => {
-              const b = STATUS_BADGE[run.status] || STATUS_BADGE.deployed
-              return (
-                <div key={run.id} style={{
-                  padding:'14px 16px',
-                  borderBottom: i < recent.length-1 ? `1px solid ${C.border}` : 'none',
-                  display:'flex', gap:12, alignItems:'flex-start',
-                }}>
-                  <div style={{
-                    width:9, height:9, borderRadius:'50%',
-                    background:b.color, border:'2px solid #fff',
-                    boxShadow:`0 0 0 1.5px ${b.color}44`,
-                    marginTop:5, flexShrink:0,
-                  }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontSize:13, color:C.text, fontWeight:400, marginBottom:4, lineHeight:1.35 }}>{run.analysis_result.problem}</p>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, color:C.textLight, fontWeight:300 }}>
-                      <span style={{ color:C.accent, fontWeight:400 }}>PR #{run.pr_number} ↗</span>
-                      <span>·</span>
-                      <span>{formatDate(run.created_at)}</span>
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize:10, padding:'3px 9px', borderRadius:5,
-                    background:b.bg, color:b.color, border:`1px solid ${b.border}`,
-                    fontWeight:500, whiteSpace:'nowrap', flexShrink:0,
-                    letterSpacing:'.02em',
-                  }}>{b.label}</span>
+              {/* Activity Stream */}
+              <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
+                <div style={{ marginBottom:8 }}>
+                  <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:2 }}>Activity Stream</p>
+                  <p style={{ fontSize:11, color:DC.textLight }}>Last actions taken</p>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:18 }}>
-          {/* Status */}
-          <div style={{ background:'rgba(30,122,60,0.06)', border:'1px solid rgba(30,122,60,0.2)', borderRadius:10, padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', background:'#1e7a3c' }} />
-              <span style={{ fontSize:12, fontWeight:500, color:'#1e7a3c', letterSpacing:'.05em' }}>ACTIVE</span>
-            </div>
-            <span style={{ fontSize:10, color:C.textLight, fontWeight:300 }}>Growth Plan</span>
-          </div>
-
-          {/* Next run */}
-          <div>
-            <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:8 }}>Next run in</p>
-            <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:28, fontWeight:300, color:C.text, letterSpacing:'-.02em', lineHeight:1 }}>6d 18h 50m</p>
-            <div style={{ height:3, background:C.border, borderRadius:2, margin:'10px 0 8px' }}>
-              <div style={{ width:'12%', height:'100%', background:C.accent, borderRadius:2 }} />
-            </div>
-            <p style={{ fontSize:11, color:C.textLight, fontWeight:300 }}>Every Monday · 9:00 am</p>
-          </div>
-
-          {/* Last run steps */}
-          <div>
-            <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:C.textLight, fontWeight:500, marginBottom:10 }}>Last run · 9h ago</p>
-            {['Fetching repo','Pulling analytics','Scanning competitors'].map(step => (
-              <div key={step} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ width:16, height:16, borderRadius:'50%', background:C.accent, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <span style={{ color:'#fff', fontSize:9 }}>✓</span>
+                <div>
+                  {runs.map((run,i) => {
+                    const s = STATUS_MAP[run.status] || STATUS_MAP.deployed
+                    const a = run.analysis_result || {}
+                    const file = a.file_to_edit?.split('/').pop()
+                    return (
+                      <div key={run.id} style={{
+                        display:'flex', gap:10, alignItems:'flex-start',
+                        padding:'9px 0',
+                        borderBottom: i < runs.length-1 ? `1px solid ${DC.border}` : 'none',
+                      }}>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:s.dot, marginTop:5, flexShrink:0 }}/>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
+                            <p style={{ fontSize:11.5, color:DC.text, lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{a.problem}</p>
+                            <span style={{ fontSize:10, color:DC.textLight, flexShrink:0 }}>{timeAgo(run.created_at)}</span>
+                          </div>
+                          {a.expected_improvement && (
+                            <p style={{ fontSize:10, color:DC.green, marginTop:2 }}>Expected: {a.expected_improvement}</p>
+                          )}
+                          {file && (
+                            <code style={{ fontSize:9.5, color:DC.accent, background:DC.accentSoft, padding:'1px 5px', borderRadius:3, marginTop:3, display:'inline-block', fontFamily:'DM Mono, monospace' }}>{file}</code>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <span style={{ fontSize:12, color:C.text, fontWeight:300 }}>{step}</span>
               </div>
-            ))}
+
+              {/* Top Insights (2x2) */}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight }}>Top Insights</p>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {insights.map((ins,i) => (
+                    <div key={i} style={{
+                      background:ins.bg, border:`1px solid ${ins.border}`,
+                      borderRadius:10, padding:'11px 12px',
+                    }}>
+                      <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                        <span style={{ fontSize:14, flexShrink:0 }}>{ins.icon}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <p style={{ fontSize:9, letterSpacing:'.08em', textTransform:'uppercase', fontWeight:500, color:ins.color, marginBottom:3 }}>{ins.label}</p>
+                          <p style={{ fontSize:11.5, fontWeight:500, color:DC.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2 }}>{ins.value}</p>
+                          <p style={{ fontSize:10, color:DC.textMuted, lineHeight:1.4, marginBottom:3 }}>{ins.sub}</p>
+                          <p style={{ fontSize:9, color:DC.textLight }}>{ins.detail}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Pages Analyzed */}
+            <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'14px 16px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                <div>
+                  <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:2 }}>Pages Analyzed</p>
+                  <p style={{ fontSize:11, color:DC.textLight }}>{funnelPages.length} pages · {funnelPages.filter(p => p.drop_off_score > 50).length} high-priority</p>
+                </div>
+                <span style={{ fontSize:11, color:DC.accent }}>Funnel ↗</span>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {funnelPages.map(p => {
+                  const isHigh = p.drop_off_score > 50
+                  const isMed  = !isHigh && p.drop_off_score > 30
+                  return (
+                    <div key={p.id} style={{
+                      background: isHigh ? DC.redSoft  : isMed ? DC.yellowSoft : DC.accentSoft,
+                      border: `1px solid ${isHigh ? DC.redMid : isMed ? DC.yellowMid : DC.accentMid}`,
+                      borderRadius:6, padding:'5px 9px',
+                      fontSize:10, color:DC.text, fontFamily:'DM Mono, monospace',
+                      display:'flex', gap:6, alignItems:'center',
+                    }}>
+                      <span>{p.page_path}</span>
+                      <span style={{ color: isHigh ? DC.red : isMed ? DC.yellow : DC.green, fontWeight:500 }}>{p.drop_off_score}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── RIGHT SIDEBAR ─────────────────────────────────────────── */}
+          <div className="dp-rightsb" style={{ width:240, flexShrink:0, display:'flex', flexDirection:'column', gap:10 }}>
+
+            {/* Status / Next run / Steps / Pause */}
+            <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, overflow:'hidden' }}>
+              <div style={{
+                padding:'10px 14px', background:DC.accentSoft,
+                borderBottom:`1px solid ${DC.accentMid}`,
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:DC.accent }}/>
+                  <span style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.accent }}>Idle</span>
+                </div>
+                <span style={{ fontSize:10, color:DC.textLight, fontFamily:'DM Mono, monospace' }}>Growth Agent</span>
+              </div>
+
+              <div style={{ padding:'12px 14px', borderBottom:`1px solid ${DC.border}` }}>
+                <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:8 }}>Next run in</p>
+                <p style={{ fontFamily:'DM Mono, monospace', fontSize:20, color:DC.text, letterSpacing:'.02em', marginBottom:10 }}>6d 18h 40m</p>
+                <div style={{ height:2, background:'rgba(42,92,69,0.1)', borderRadius:2, marginBottom:5 }}>
+                  <div style={{ height:'100%', width:'12%', background:DC.accent, borderRadius:2 }}/>
+                </div>
+                <p style={{ fontSize:10, color:DC.textLight }}>Every Monday · 9:00 am</p>
+              </div>
+
+              <div style={{ padding:'12px 14px', borderBottom:`1px solid ${DC.border}` }}>
+                <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:10 }}>Last run · 18h ago</p>
+                <div>
+                  {AGENT_STEPS.map((step,i) => {
+                    const current = i === inProgressIdx
+                    const done    = !current
+                    return (
+                      <div key={step} style={{
+                        display:'flex', gap:9, alignItems:'flex-start',
+                        paddingBottom: i < AGENT_STEPS.length-1 ? 6 : 0,
+                        position:'relative',
+                      }}>
+                        {i < AGENT_STEPS.length-1 && (
+                          <div style={{
+                            position:'absolute', left:7, top:15,
+                            width:1, height:'calc(100% - 4px)',
+                            background: done ? DC.accent : DC.border, opacity:0.3, zIndex:0,
+                          }}/>
+                        )}
+                        <div style={{
+                          width:15, height:15, borderRadius:'50%', flexShrink:0, zIndex:1,
+                          background: current ? DC.blue : done ? DC.accent : 'rgba(26,25,22,0.07)',
+                          border: `1px solid ${current ? DC.blue : done ? DC.accent : DC.border}`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:8, color:'#fff',
+                        }}>
+                          {done && !current ? '✓' : ''}
+                        </div>
+                        <p style={{
+                          fontSize:10.5, paddingTop:1,
+                          color: current ? DC.blue : done ? DC.text : DC.textLight,
+                          fontWeight: current ? 500 : 300,
+                        }}>{step}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ padding:'10px 14px' }}>
+                <div style={{
+                  width:'100%', padding:'8px', borderRadius:7, fontSize:11,
+                  background:'transparent', color:DC.textMuted,
+                  border:`1px solid ${DC.border}`,
+                  textAlign:'center', cursor:'default',
+                }}>‖ Pause Agent</div>
+              </div>
+            </div>
+
+            {/* Performance */}
+            <div style={{ background:DC.bgCard, border:`1px solid ${DC.border}`, borderRadius:12, padding:'12px 14px' }}>
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:10 }}>Performance</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                {[
+                  { label:'Deploy rate',     value:`${deployRate}%`, color:DC.green },
+                  { label:'Fixes merged',    value:deployed,         color:DC.accent },
+                  { label:'Awaiting',        value:pendingCount,     color: pendingCount>0 ? DC.yellow : DC.textLight },
+                  { label:'Failed/rejected', value:failedRejected,   color:DC.textLight },
+                ].map((s,i) => (
+                  <div key={i}>
+                    <p style={{ fontFamily:'Cormorant Garant, serif', fontSize:22, fontWeight:400, color:s.color, lineHeight:1 }}>{s.value}</p>
+                    <p style={{ fontSize:9, color:DC.textLight, marginTop:3 }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight, marginBottom:6 }}>Run history</p>
+              <div style={{ display:'flex', gap:3, alignItems:'flex-end', height:24 }}>
+                {last12.map((run,i) => {
+                  const s = STATUS_MAP[run.status] || STATUS_MAP.deployed
+                  const h = run.status === 'deployed' ? 24
+                          : run.status === 'waiting_approval' ? 16
+                          : (run.status === 'failed' || run.status === 'rejected') ? 8
+                          : 14
+                  return (
+                    <div key={run.id} style={{
+                      flex:1, height:h, background:s.dot, borderRadius:2,
+                      opacity: 0.4 + (i / last12.length) * 0.6,
+                    }}/>
+                  )
+                })}
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', marginTop:3 }}>
+                <span style={{ fontSize:9, color:DC.textLight }}>oldest</span>
+                <span style={{ fontSize:9, color:DC.textLight }}>latest</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
