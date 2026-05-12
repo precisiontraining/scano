@@ -22,7 +22,7 @@ export default function SubscribeButton({ type, style = {}, className = '' }) {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session?.user?.id || null
 
-      const res = await fetch('/api/create-checkout-session', {
+      const res = await fetch('/api/stripe?action=checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, userId }),

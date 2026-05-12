@@ -340,7 +340,7 @@ export default function App() {
     let scan = null, report = null
 
     try {
-      const res = await fetch('/api/premium-scan', {
+      const res = await fetch('/api/scan?type=premium', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ websiteUrl: fullUrl, handles, focusPlatform }),
@@ -365,7 +365,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('/api/premium-report', {
+      const res = await fetch('/api/report?type=premium', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scanData: scan, websiteUrl: fullUrl }),
@@ -390,7 +390,7 @@ export default function App() {
     setPremiumScanning(false)
 
     try {
-      const res = await fetch('/api/save-premium-report', {
+      const res = await fetch('/api/save-report?type=premium', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scanData: scan, reportData: report, websiteUrl: fullUrl, handles }),

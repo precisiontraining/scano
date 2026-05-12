@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import posthog from './posthog.js'
+import posthog from './_posthog.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL,

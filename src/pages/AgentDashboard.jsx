@@ -1529,7 +1529,7 @@ function StripeSubscriptionPanel({ navigate }) {
     setPortalLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/create-portal-session', {
+      const res = await fetch('/api/stripe?action=portal', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.access_token}` },
       })

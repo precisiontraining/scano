@@ -19,7 +19,15 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "Bash(grep -E \"\\\\.\\(env|json\\)$\")",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "PowerShell(Remove-Item *)",
+      "Bash(cp scan.js _scan-free.js)",
+      "Bash(cp premium-scan.js _scan-premium.js)",
+      "Bash(cp report.js _report-free.js)",
+      "Bash(cp premium-report.js _report-premium.js)",
+      "Bash(cp save-report.js _save-free.js)",
+      "Bash(cp save-premium-report.js _save-premium.js)",
+      "Read(//c/c/Users/flori/Desktop/scano/**)"
     ]
   }
 }
