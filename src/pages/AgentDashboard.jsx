@@ -1501,7 +1501,104 @@ function DNAPage({ subscriptionId }) {
   )
 }
 
-function SettingsPage({subscription, user, onTogglePause, actionLoading, onDeleteRequest, onSaveSettings}) {
+function StripeSubscriptionPanel({ navigate }) {
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [subStatus, setSubStatus]         = useState(null)
+  const [hasFullScan, setHasFullScan]     = useState(false)
+  const [subLoading, setSubLoading]       = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setSubLoading(false); return }
+      const { data } = await supabase
+        .from('agent_subscriptions')
+        .select('subscription_status, full_scan_purchased')
+        .eq('user_id', session.user.id)
+        .single()
+      if (data) {
+        setSubStatus(data.subscription_status)
+        setHasFullScan(data.full_scan_purchased === true)
+      }
+      setSubLoading(false)
+    }
+    load()
+  }, [])
+
+  async function openPortal() {
+    setPortalLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch (e) {
+      console.error('Portal error:', e)
+    }
+    setPortalLoading(false)
+  }
+
+  if (subLoading) return null
+
+  const isActive = subStatus === 'active'
+  const isPastDue = subStatus === 'past_due'
+
+  return (
+    <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}` }}>
+      <p style={{ fontSize:13, fontWeight:500, color:C.text, marginBottom:4 }}>Subscription</p>
+      <p style={{ fontSize:11, color:C.textMuted, fontWeight:300, marginBottom:14 }}>Manage your Velyr plan and billing.</p>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {isActive && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:C.accentSoft, border:`1px solid ${C.accentMid}`, borderRadius:9, padding:'10px 14px', flexWrap:'wrap', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ width:7, height:7, borderRadius:'50%', background:C.accent, display:'inline-block' }} />
+              <span style={{ fontSize:13, color:C.accent, fontWeight:500 }}>Growth Agent — Active</span>
+            </div>
+            <button onClick={openPortal} disabled={portalLoading} className="btn" style={{ background:'transparent', border:`1px solid ${C.accent}`, color:C.accent, borderRadius:7, padding:'6px 13px', fontSize:12, fontFamily:'DM Sans,sans-serif', fontWeight:400 }}>
+              {portalLoading ? '…' : 'Manage subscription →'}
+            </button>
+          </div>
+        )}
+
+        {isPastDue && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:C.yellowSoft, border:`1px solid ${C.yellowMid}`, borderRadius:9, padding:'10px 14px', flexWrap:'wrap', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ width:7, height:7, borderRadius:'50%', background:C.yellow, display:'inline-block' }} />
+              <span style={{ fontSize:13, color:C.yellow, fontWeight:500 }}>Payment past due — action required</span>
+            </div>
+            <button onClick={openPortal} disabled={portalLoading} className="btn" style={{ background:'transparent', border:`1px solid ${C.yellow}`, color:C.yellow, borderRadius:7, padding:'6px 13px', fontSize:12, fontFamily:'DM Sans,sans-serif', fontWeight:400 }}>
+              {portalLoading ? '…' : 'Update payment →'}
+            </button>
+          </div>
+        )}
+
+        {hasFullScan && (
+          <div style={{ display:'flex', alignItems:'center', gap:8, background:C.accentSoft, border:`1px solid ${C.accentMid}`, borderRadius:9, padding:'10px 14px' }}>
+            <span style={{ fontSize:14 }}>★</span>
+            <span style={{ fontSize:13, color:C.accent, fontWeight:500 }}>Full Scan unlocked</span>
+          </div>
+        )}
+
+        {!isActive && !isPastDue && (
+          <div style={{ background:'rgba(26,25,22,0.03)', border:`1px solid ${C.border}`, borderRadius:9, padding:'14px', textAlign:'center' }}>
+            <p style={{ fontSize:13, color:C.textMuted, fontWeight:300, marginBottom:12 }}>No active subscription. Unlock the Growth Agent to start getting weekly improvements.</p>
+            <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
+              <button onClick={() => navigate('/pricing')} className="btn" style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontFamily:'DM Sans,sans-serif', fontWeight:500 }}>
+                View plans →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SettingsPage({subscription, user, onTogglePause, actionLoading, onDeleteRequest, onSaveSettings, navigate}) {
   const [isPublic, setIsPublic]   = useState(subscription?.is_public || false)
   const [slug, setSlug]           = useState(subscription?.public_slug || '')
   const [competitors, setCompetitors] = useState(() => {
@@ -1547,6 +1644,7 @@ function SettingsPage({subscription, user, onTogglePause, actionLoading, onDelet
 
   return (
     <Card style={{overflow:'hidden'}}>
+      <StripeSubscriptionPanel navigate={navigate} />
       <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
         <div>
           <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:2}}>
@@ -2119,6 +2217,7 @@ export default function AgentDashboard({ navigate }) {
                       onTogglePause={handleTogglePause} actionLoading={actionLoading}
                       onDeleteRequest={()=>{ setDeleteError(null); setShowDeleteConfirm(true) }}
                       onSaveSettings={handleSaveSettings}
+                      navigate={navigate}
                     />
                   </div>
                 )}

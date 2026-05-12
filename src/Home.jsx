@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { demoData } from './data/demoData'
+import SubscribeButton from './components/SubscribeButton.jsx'
 
 const C = {
   bg:          '#f7f4ef',
@@ -1219,10 +1220,7 @@ function SampleReport({ navigate, onScanStart }) {
             <p style={{ fontSize:32, marginBottom:16 }}>📋</p>
             <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:32, letterSpacing:'-.02em', marginBottom:12, color:C.text }}>Full report includes everything.</h3>
             <p style={{ fontSize:15, color:C.textMuted, fontWeight:300, maxWidth:480, margin:'0 auto 32px', lineHeight:1.7 }}>All 5 priority actions with exact copy-paste fixes, deep social dive, hook analysis on every post, caption rewrites, brand clarity score, and an action plan by time required.</p>
-            <button onClick={() => navigate('/premium')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'14px 28px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#1e4433'}
-              onMouseLeave={e=>e.currentTarget.style.background=C.accent}
-            >Get the full report — €9 →</button>
+            <SubscribeButton type="full_scan" style={{ background:C.accent, width:'auto', display:'inline-flex', padding:'14px 28px', fontSize:14 }} />
             <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>No account · Results in ~60 seconds</p>
           </div>
         )}
@@ -1235,10 +1233,7 @@ function SampleReport({ navigate, onScanStart }) {
                   This is your Growth Agent dashboard after connecting your website, PostHog analytics, and GitHub. Example data shown.
                 </p>
               </div>
-              <button onClick={() => navigate('/agent/register')} style={{ background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'12px 22px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', letterSpacing:'.02em', transition:'background .2s', flexShrink:0 }}
-                onMouseEnter={e=>e.currentTarget.style.background='#1e4433'}
-                onMouseLeave={e=>e.currentTarget.style.background=C.accent}
-              >Start Growth Agent — €29/mo →</button>
+              <SubscribeButton type="subscription" style={{ width:'auto', display:'inline-flex', padding:'12px 22px', fontSize:13, flexShrink:0 }} />
             </div>
             <AgentDashboardPreview navigate={navigate} />
             <p style={{ fontSize:12, color:C.textLight, marginTop:14, textAlign:'center', fontWeight:300 }}>Set up in 5 minutes · Cancel anytime · Nothing ships without your OK</p>
@@ -1323,7 +1318,6 @@ function Pricing({ navigate }) {
               })}
             </div>
 
-            {/* CTA — goes to /premium (PremiumScanForm with handle input + auto-pull) */}
             <div style={{ background:'rgba(42,92,69,0.04)', border:'1px solid rgba(42,92,69,0.15)', borderRadius:12, padding:'16px', marginBottom:0 }}>
               <p style={{ fontSize:12, color:C.accent, fontWeight:400, marginBottom:4 }}>
                 Website + social handles — all pulled automatically.
@@ -1331,14 +1325,7 @@ function Pricing({ navigate }) {
               <p style={{ fontSize:11, color:C.textLight, fontWeight:300, marginBottom:12 }}>
                 No manual numbers needed. We scrape your real data.
               </p>
-              <button onClick={() => navigate('/premium')} style={{
-                background:C.text, color:'#f7f4ef', border:'none', borderRadius:9,
-                padding:'13px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500,
-                cursor:'pointer', width:'100%', letterSpacing:'.02em', transition:'background .2s',
-              }}
-                onMouseEnter={e=>e.currentTarget.style.background=C.accent}
-                onMouseLeave={e=>e.currentTarget.style.background=C.text}
-              >Get full report — €9 →</button>
+              <SubscribeButton type="full_scan" style={{ borderRadius:9, padding:'13px', fontSize:14 }} />
               <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:8, fontWeight:300 }}>No account · Results in ~60 seconds</p>
             </div>
           </div>
@@ -1365,10 +1352,7 @@ function Pricing({ navigate }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => navigate('/agent/register')} style={{ background:'#f7f4ef', color:C.text, border:'none', borderRadius:10, padding:'14px 28px', fontSize:15, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', width:'100%', letterSpacing:'.03em', transition:'all .2s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.background='#fff'; e.currentTarget.style.transform='translateY(-1px)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='#f7f4ef'; e.currentTarget.style.transform='none' }}
-            >Start Growth Agent</button>
+            <SubscribeButton type="subscription" style={{ background:'#f7f4ef', color:C.text, fontSize:15 }} />
           </div>
 
         </div>
@@ -1488,7 +1472,15 @@ function Footer({ navigate }) {
   )
 }
 
-export default function Home({ navigate, onScanStart }) {
+export default function Home({ navigate, onScanStart, scrollToPricing }) {
+  useEffect(() => {
+    if (scrollToPricing) {
+      setTimeout(() => {
+        document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+  }, [scrollToPricing])
+
   return (
     <>
       <style>{CSS}</style>

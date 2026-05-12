@@ -468,6 +468,17 @@ export default function App() {
     )
   }
 
+  // /pricing — redirects home and scrolls to pricing section
+  if (path === '/pricing') {
+    return (
+      <Home
+        navigate={navigate}
+        onScanStart={handleScanStart}
+        scrollToPricing
+      />
+    )
+  }
+
   // ── FIX: /premium now renders PremiumScanForm instead of redirecting to / ───
   if (path === '/premium') {
     return (
