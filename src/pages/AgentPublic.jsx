@@ -207,33 +207,39 @@ export default function AgentPublic({ navigate, slug }) {
     <div className="ap-page-root" style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Jost, sans-serif', color: C.text }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&family=Jost:wght@300;400;500&display=swap');
+        html, body { overflow-x: hidden; max-width: 100vw; }
+        img, svg, video { max-width: 100%; }
+        .ap-page-root { overflow-x: hidden; }
         @media (max-width: 600px) {
-          .ap-page-root { overflow-x: hidden; }
-          .ap-hero-h1 { font-size: 30px !important; }
+          .ap-hero-h1 { font-size: 30px !important; word-break: break-word; }
           .ap-dna-grid { grid-template-columns: 1fr !important; }
           .ap-footer-cta { padding: 28px 20px !important; flex-direction: column !important; align-items: flex-start !important; }
           .ap-screenshot-grid { grid-template-columns: 1fr !important; }
+          .ap-nav { padding: 12px 16px !important; }
+          .ap-nav-cta { font-size: 11px !important; padding: 7px 12px !important; }
+          .ap-main { padding: 40px 16px 64px !important; }
         }
       `}</style>
 
       {/* Sticky nav */}
-      <nav style={{
+      <nav className="ap-nav" style={{
         position: 'sticky', top: 0, zIndex: 10, background: `${C.bg}f0`, backdropFilter: 'blur(10px)',
         borderBottom: `1px solid ${C.border}`, padding: '14px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>
         <a href="/" onClick={(e) => { e.preventDefault(); navigate('/') }} style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 18, fontWeight: 400, color: C.text, textDecoration: 'none', letterSpacing: '-.01em' }}>
           Velyr
         </a>
-        <button onClick={() => navigate('/agent/register')} style={{
+        <button className="ap-nav-cta" onClick={() => navigate('/agent/register')} style={{
           background: C.accent, color: '#fff', border: 'none', borderRadius: 8,
           padding: '8px 16px', fontSize: 12, fontFamily: 'Jost, sans-serif', fontWeight: 500, cursor: 'pointer',
+          whiteSpace: 'nowrap',
         }}>
           Get your own Growth Agent →
         </button>
       </nav>
 
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '60px 24px 80px' }}>
+      <main className="ap-main" style={{ maxWidth: 720, margin: '0 auto', padding: '60px 24px 80px' }}>
         {/* Hero */}
         <div style={{ marginBottom: 48 }}>
           <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 10 }}>

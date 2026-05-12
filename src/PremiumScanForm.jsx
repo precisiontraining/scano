@@ -8,7 +8,9 @@ const C = {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,500;1,300&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
   body { background: #f7f4ef; color: #1c1917; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  img, svg, video { max-width: 100%; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
   @keyframes spin { to { transform: rotate(360deg); } }
   .pinp {
@@ -20,9 +22,10 @@ const CSS = `
   .pinp::placeholder { color:#b0a89e; }
   @media (max-width:600px) {
     .premium-grid { grid-template-columns: 1fr !important; }
-    .pform-pad { padding: 24px 16px !important; }
+    .pform-pad { padding: 40px 16px 72px !important; }
     .psf-nav { padding: 0 16px !important; }
     .psf-form-card { padding: 20px 16px !important; }
+    .psf-included-card { padding: 18px !important; }
   }
 `
 
@@ -106,7 +109,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
       <style>{CSS}</style>
       <div style={{ minHeight: '100vh', background: C.bg }}>
         {/* Nav */}
-        <nav className="psf-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <nav className="psf-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={22}/>
             <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
@@ -127,7 +130,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
           </div>
 
           {/* What's included */}
-          <div style={{ background: 'rgba(42,92,69,0.04)', border: '1px solid rgba(42,92,69,0.15)', borderRadius: 14, padding: '20px 24px', marginBottom: 36, animation: 'fadeUp .5s .08s ease both' }}>
+          <div className="psf-included-card" style={{ background: 'rgba(42,92,69,0.04)', border: '1px solid rgba(42,92,69,0.15)', borderRadius: 14, padding: '20px 24px', marginBottom: 36, animation: 'fadeUp .5s .08s ease both' }}>
             <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 14 }}>What's included</p>
             <div className="premium-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
               {[

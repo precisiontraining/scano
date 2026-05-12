@@ -9,21 +9,25 @@ const C = {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400;500&family=Jost:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
   body { background: #f7f4ef; color: #1c1917; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  img, svg, video { max-width: 100%; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media (max-width:600px) {
     .pr-pad { padding: 24px 16px 72px !important; }
-    .pr-nav { padding: 0 16px !important; }
+    .pr-nav { padding: 0 16px !important; gap: 8px; }
     .pr-chips { flex-wrap: wrap !important; }
     .pr-chip { flex: 1 1 calc(50% - 4px) !important; min-width: 0 !important; }
     .effort-grid { grid-template-columns: 1fr !important; }
     .rewrite-grid { grid-template-columns: 1fr !important; }
     .hook-grid { grid-template-columns: 1fr !important; }
     .pr-score-hero { flex-direction: column !important; align-items: center !important; gap: 16px !important; text-align: center !important; }
+    .pr-score-hero > div:last-child { min-width: 0 !important; width: 100% !important; }
     .pr-bm-row { grid-template-columns: 1fr auto !important; gap: 6px !important; }
     .pr-bm-col-hide { display: none !important; }
     .pr-nav-badge { display: none !important; }
+    .pr-card-inner { padding: 18px 18px !important; }
   }
 `
 
@@ -87,7 +91,7 @@ function Chip({ label, value, sub, accent }) {
 
 function Card({ children, delay = 0, visible, accent = false, style = {} }) {
   return (
-    <div style={{
+    <div className="pr-card-inner" style={{
       background: C.white, border: `1px solid ${accent ? 'rgba(42,92,69,0.2)' : C.border}`,
       borderRadius: 16, padding: '24px 28px', marginBottom: 16,
       opacity: 0, animation: visible ? `fadeUp 0.6s ease ${delay}s forwards` : 'none',
@@ -207,7 +211,7 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
             <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, background: 'rgba(42,92,69,0.08)', padding: '4px 10px', borderRadius: 6 }}>Full Report</span>
+            <span className="pr-nav-badge" style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, background: 'rgba(42,92,69,0.08)', padding: '4px 10px', borderRadius: 6 }}>Full Report</span>
             <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>← New scan</button>
           </div>
         </nav>

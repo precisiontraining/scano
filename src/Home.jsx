@@ -88,29 +88,42 @@ const CSS = `
   ::-webkit-scrollbar-track { background:#f7f4ef; }
   ::-webkit-scrollbar-thumb { background:rgba(28,25,23,0.12); border-radius:3px; }
 
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  img, svg, video { max-width: 100%; height: auto; }
+
+  .nav-burger { display: none; }
+  .nav-mobile-panel { display: none; }
+
   @media (max-width: 640px) {
+    nav { padding: 0 16px !important; }
     .nav-ctas { gap: 6px !important; }
     .nav-cta-ghost { display: none !important; }
     .nav-agent-link { display: none !important; }
-    .hero-pad { padding-top: 96px !important; padding-bottom: 64px !important; }
-    .scan-form { padding: 20px !important; }
-    .section-pad { padding: 64px 20px !important; }
+    .nav-burger { display: flex !important; }
+    .hero-pad { padding: 96px 16px 64px !important; }
+    .scan-form { padding: 20px 16px !important; }
+    .section-pad { padding: 64px 16px !important; }
     .sample-grid { grid-template-columns: 1fr !important; }
     .pricing-grid { grid-template-columns: 1fr !important; }
     .what-grid { grid-template-columns: 1fr !important; gap: 2px !important; }
     .what-card:first-child { border-radius: 14px 14px 0 0 !important; }
     .what-card:last-child  { border-radius: 0 0 14px 14px !important; }
-    .what-card { border-radius: 0 !important; }
+    .what-card { border-radius: 0 !important; padding: 28px 22px !important; }
     .footer-inner { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
     .chips-row { flex-wrap: wrap !important; }
-    .tab-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab-row { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
     .agent-flow { flex-direction: column !important; }
     .agent-flow-arrow { transform: rotate(90deg) !important; }
     .agent-bottom-grid { grid-template-columns: 1fr !important; }
     .agent-features-grid { grid-template-columns: 1fr !important; }
+    .footer { padding: 24px 16px !important; }
     .footer-links { flex-wrap: wrap !important; gap: 10px !important; }
     .sample-bm-col-hide { display: none !important; }
     .sample-bm-row { grid-template-columns: 1fr auto !important; gap: 6px !important; }
+    .agent-cta-card { padding: 22px 20px !important; }
+    .pricing-card { padding: 26px 22px !important; }
+    .growth-section { padding: 64px 16px !important; }
+    .nav-logo-text { font-size: 18px !important; }
   }
 
   @media (max-width: 900px) {
@@ -119,10 +132,12 @@ const CSS = `
   @media (max-width: 768px) {
     .dash-preview-shell .dp-leftnav { display: none !important; }
     .dash-preview-shell { flex-direction: column !important; }
+    .dash-preview-shell .dp-main { padding: 18px 16px !important; }
     .dash-preview-shell .dp-overview-grid { flex-direction: column !important; }
-    .dash-preview-shell .dp-rightsb { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+    .dash-preview-shell .dp-rightsb { width: 100% !important; min-width: 0 !important; max-width: none !important; flex-basis: auto !important; }
     .dash-preview-shell .dp-kpis { grid-template-columns: repeat(2, 1fr) !important; }
     .dash-preview-shell .dp-2col { flex-direction: column !important; }
+    .dash-preview-shell .dp-2col > div { flex: 1 1 100% !important; width: 100% !important; max-width: 100% !important; }
     .dash-preview-shell code { display: none !important; }
   }
   @media (max-width: 480px) {
@@ -158,51 +173,125 @@ function Logo({ size = 32, color = '#2a5c45' }) {
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav({ navigate }) {
   const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   useEffect(() => { const fn = () => setScrolled(window.scrollY > 32); window.addEventListener('scroll', fn); return () => window.removeEventListener('scroll', fn) }, [])
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', onKey) }
+  }, [menuOpen])
+
+  const goAndClose = (fn) => () => { setMenuOpen(false); fn() }
+
   return (
-    <nav style={{
-      position:'fixed', top:0, left:0, right:0, zIndex:100, height:60,
-      padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between',
-      background: scrolled ? 'rgba(247,244,239,0.93)' : 'transparent',
-      backdropFilter: scrolled ? 'blur(16px)' : 'none',
-      borderBottom: scrolled ? '1px solid rgba(28,25,23,0.08)' : '1px solid transparent',
-      transition:'all .35s ease',
-    }}>
-      <div onClick={() => navigate('/')} style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer' }}>
-        <Logo size={24} />
-        <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Velyr</span>
-      </div>
-      <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-        <button className="nav-agent-link" onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' })}
-          style={{ background:'transparent', border:'1px solid rgba(42,92,69,0.35)', borderRadius:8, cursor:'pointer', fontSize:13, color:C.accent, fontFamily:'Jost,sans-serif', fontWeight:400, letterSpacing:'.01em', padding:'7px 14px', transition:'all .2s', display:'flex', alignItems:'center', gap:6 }}
-          onMouseEnter={e => { e.currentTarget.style.background='rgba(42,92,69,0.08)'; e.currentTarget.style.borderColor='rgba(42,92,69,0.6)' }}
-          onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(42,92,69,0.35)' }}
+    <>
+      <nav style={{
+        position:'fixed', top:0, left:0, right:0, zIndex:100, height:60,
+        padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between',
+        background: scrolled || menuOpen ? 'rgba(247,244,239,0.93)' : 'transparent',
+        backdropFilter: scrolled || menuOpen ? 'blur(16px)' : 'none',
+        borderBottom: scrolled || menuOpen ? '1px solid rgba(28,25,23,0.08)' : '1px solid transparent',
+        transition:'all .35s ease',
+      }}>
+        <div onClick={() => navigate('/')} style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer', minWidth:0, flexShrink:1 }}>
+          <Logo size={24} />
+          <span className="nav-logo-text" style={{ fontFamily:'Cormorant Garant, serif', fontWeight:500, fontSize:20, color:C.text, letterSpacing:'-.01em' }}>Velyr</span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:20 }}>
+          <button className="nav-agent-link" onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' })}
+            style={{ background:'transparent', border:'1px solid rgba(42,92,69,0.35)', borderRadius:8, cursor:'pointer', fontSize:13, color:C.accent, fontFamily:'Jost,sans-serif', fontWeight:400, letterSpacing:'.01em', padding:'7px 14px', transition:'all .2s', display:'flex', alignItems:'center', gap:6 }}
+            onMouseEnter={e => { e.currentTarget.style.background='rgba(42,92,69,0.08)'; e.currentTarget.style.borderColor='rgba(42,92,69,0.6)' }}
+            onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(42,92,69,0.35)' }}
+          >
+            <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
+            Growth Agent
+          </button>
+          <button className="nav-agent-link" onClick={() => navigate('/agent/login')}
+            style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textLight, fontFamily:'Jost,sans-serif', fontWeight:300, letterSpacing:'.01em', transition:'color .2s' }}
+            onMouseEnter={e => e.currentTarget.style.color=C.textMuted}
+            onMouseLeave={e => e.currentTarget.style.color=C.textLight}
+          >Log in</button>
+          <div className="nav-ctas" style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <button className="nav-cta-ghost" onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
+              background:'transparent', color:C.text, border:'1px solid rgba(28,25,23,0.15)', borderRadius:8,
+              padding:'7px 16px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:13,
+              cursor:'pointer', transition:'all .2s',
+            }}
+              onMouseEnter={e => { e.target.style.borderColor='rgba(28,25,23,0.3)'; e.target.style.background='rgba(28,25,23,0.04)' }}
+              onMouseLeave={e => { e.target.style.borderColor='rgba(28,25,23,0.15)'; e.target.style.background='transparent' }}
+            >Free scan</button>
+            <button onClick={() => navigate('/premium')}
+              style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor:'pointer', transition:'background .2s', letterSpacing:'.01em', whiteSpace:'nowrap' }}
+              onMouseEnter={e => e.target.style.background='#1e4433'}
+              onMouseLeave={e => e.target.style.background=C.accent}
+            >Full report</button>
+          </div>
+          <button
+            className="nav-burger"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(o => !o)}
+            style={{
+              background:'transparent', border:'1px solid rgba(28,25,23,0.15)',
+              borderRadius:8, width:38, height:38, padding:0,
+              alignItems:'center', justifyContent:'center', cursor:'pointer',
+              transition:'all .2s', flexShrink:0,
+            }}
+          >
+            <span style={{ position:'relative', display:'block', width:16, height:12 }}>
+              <span style={{ position:'absolute', left:0, right:0, height:1.5, background:C.text, borderRadius:1, top: menuOpen ? 5 : 0, transform: menuOpen ? 'rotate(45deg)' : 'none', transition:'all .25s ease' }} />
+              <span style={{ position:'absolute', left:0, right:0, height:1.5, background:C.text, borderRadius:1, top:5, opacity: menuOpen ? 0 : 1, transition:'opacity .15s ease' }} />
+              <span style={{ position:'absolute', left:0, right:0, height:1.5, background:C.text, borderRadius:1, top: menuOpen ? 5 : 10, transform: menuOpen ? 'rotate(-45deg)' : 'none', transition:'all .25s ease' }} />
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile menu overlay */}
+      <div
+        onClick={() => setMenuOpen(false)}
+        style={{
+          position:'fixed', inset:0, zIndex:90,
+          background:'rgba(28,25,23,0.35)',
+          opacity: menuOpen ? 1 : 0,
+          pointerEvents: menuOpen ? 'auto' : 'none',
+          transition:'opacity .25s ease',
+        }}
+      />
+      <div
+        className="nav-mobile-panel-root"
+        style={{
+          position:'fixed', top:60, left:0, right:0, zIndex:95,
+          background:'rgba(247,244,239,0.98)', backdropFilter:'blur(16px)',
+          borderBottom:'1px solid rgba(28,25,23,0.08)',
+          boxShadow:'0 8px 24px rgba(28,25,23,0.08)',
+          padding:'16px 20px 22px',
+          transform: menuOpen ? 'translateY(0)' : 'translateY(-12px)',
+          opacity: menuOpen ? 1 : 0,
+          pointerEvents: menuOpen ? 'auto' : 'none',
+          transition:'opacity .25s ease, transform .25s ease',
+          display:'flex', flexDirection:'column', gap:8,
+        }}
+      >
+        <button onClick={goAndClose(() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' }))}
+          style={{ width:'100%', background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:400, cursor:'pointer', textAlign:'left', letterSpacing:'.01em' }}
+        >Free scan</button>
+        <button onClick={goAndClose(() => navigate('/premium'))}
+          style={{ width:'100%', background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', textAlign:'left', letterSpacing:'.01em' }}
+        >Full report — €9</button>
+        <button onClick={goAndClose(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' }))}
+          style={{ width:'100%', background:'transparent', color:C.accent, border:`1px solid rgba(42,92,69,0.35)`, borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:400, cursor:'pointer', textAlign:'left', letterSpacing:'.01em', display:'flex', alignItems:'center', gap:8 }}
         >
           <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
-          Growth Agent
+          Growth Agent — €29/mo
         </button>
-        <button className="nav-agent-link" onClick={() => navigate('/agent/login')}
-          style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:C.textLight, fontFamily:'Jost,sans-serif', fontWeight:300, letterSpacing:'.01em', transition:'color .2s' }}
-          onMouseEnter={e => e.currentTarget.style.color=C.textMuted}
-          onMouseLeave={e => e.currentTarget.style.color=C.textLight}
-        >Log in</button>
-        <div className="nav-ctas" style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button className="nav-cta-ghost" onClick={() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' })} style={{
-            background:'transparent', color:C.text, border:'1px solid rgba(28,25,23,0.15)', borderRadius:8,
-            padding:'7px 16px', fontFamily:'Jost,sans-serif', fontWeight:400, fontSize:13,
-            cursor:'pointer', transition:'all .2s',
-          }}
-            onMouseEnter={e => { e.target.style.borderColor='rgba(28,25,23,0.3)'; e.target.style.background='rgba(28,25,23,0.04)' }}
-            onMouseLeave={e => { e.target.style.borderColor='rgba(28,25,23,0.15)'; e.target.style.background='transparent' }}
-          >Free scan</button>
-          <button onClick={() => navigate('/premium')}
-            style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 18px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor:'pointer', transition:'background .2s', letterSpacing:'.01em' }}
-            onMouseEnter={e => e.target.style.background='#1e4433'}
-            onMouseLeave={e => e.target.style.background=C.accent}
-          >Full report</button>
-        </div>
+        <button onClick={goAndClose(() => navigate('/agent/login'))}
+          style={{ width:'100%', background:'transparent', color:C.textMuted, border:'none', borderRadius:10, padding:'12px 16px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:300, cursor:'pointer', textAlign:'left' }}
+        >Log in →</button>
       </div>
-    </nav>
+    </>
   )
 }
 
@@ -439,7 +528,7 @@ function GrowthAgentSection({ navigate }) {
   ]
 
   return (
-    <section id="growth-agent" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, padding:'96px 24px' }}>
+    <section id="growth-agent" className="growth-section" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, padding:'96px 24px' }}>
       <div style={{ maxWidth:1060, margin:'0 auto' }}>
 
         <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:64 }}>
@@ -562,7 +651,7 @@ function GrowthAgentSection({ navigate }) {
               </div>
             ))}
 
-            <div style={{
+            <div className="agent-cta-card" style={{
               background:C.accent, borderRadius:14, padding:'28px 26px',
               opacity: visible ? 1 : 0,
               transform: visible ? 'none' : 'translateY(12px)',
@@ -580,13 +669,13 @@ function GrowthAgentSection({ navigate }) {
                   onMouseLeave={e => { e.currentTarget.style.background='#f7f4ef' }}
                 >Start Growth Agent →</button>
                 <button onClick={() => navigate('/agent/login')} style={{
-                  background:'transparent', color:'rgba(247,244,239,0.6)',
-                  border:'1px solid rgba(247,244,239,0.2)', borderRadius:10,
-                  padding:'12px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:300,
+                  background:'transparent', color:'rgba(247,244,239,0.9)',
+                  border:'1px solid rgba(247,244,239,0.35)', borderRadius:10,
+                  padding:'12px', fontSize:13, fontFamily:'Jost,sans-serif', fontWeight:400,
                   cursor:'pointer', letterSpacing:'.02em', transition:'all .2s',
                 }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(247,244,239,0.4)'; e.currentTarget.style.color='#f7f4ef' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(247,244,239,0.2)'; e.currentTarget.style.color='rgba(247,244,239,0.6)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(247,244,239,0.6)'; e.currentTarget.style.color='#f7f4ef' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(247,244,239,0.35)'; e.currentTarget.style.color='rgba(247,244,239,0.9)' }}
                 >Log in</button>
               </div>
             </div>
@@ -848,7 +937,7 @@ function AgentDashboardPreview({ navigate }) {
       </div>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
-      <div style={{ flex:1, minWidth:0, padding:'22px 22px 24px' }}>
+      <div className="dp-main" style={{ flex:1, minWidth:0, padding:'22px 22px 24px' }}>
 
         {/* Page header */}
         <div style={{ marginBottom:18 }}>
@@ -1120,7 +1209,7 @@ function SampleReport({ navigate, onScanStart }) {
           <p style={{ color:C.textMuted, marginTop:12, fontSize:15, fontWeight:300 }}>Real data. Benchmark comparisons. Specific fixes — and a live dashboard when you're on the Growth Agent.</p>
         </div>
 
-        <div className="tab-row" style={{ display:'flex', gap:0, marginBottom:32, background:'rgba(28,25,23,0.05)', borderRadius:12, padding:4, width:'fit-content' }}>
+        <div className="tab-row" style={{ display:'flex', gap:0, marginBottom:32, background:'rgba(28,25,23,0.05)', borderRadius:12, padding:4, width:'fit-content', maxWidth:'100%' }}>
           {[
             { key:'free',   label:'Free scan' },
             { key:'full',   label:'★ Full report — €9' },
@@ -1262,7 +1351,7 @@ function Pricing({ navigate }) {
         <div className="pricing-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, alignItems:'start' }}>
 
           {/* Free scan card */}
-          <div style={{
+          <div className="pricing-card" style={{
             background:'#fff', border:'1px solid rgba(28,25,23,0.08)', borderRadius:18, padding:32,
             opacity:visible?1:0, transform:visible?'none':'translateY(20px)', transition:'all .55s ease 0s',
           }}>
@@ -1285,7 +1374,7 @@ function Pricing({ navigate }) {
           </div>
 
           {/* Full report card — navigates to /premium */}
-          <div style={{
+          <div className="pricing-card" style={{
             background:'#fff', border:'1px solid rgba(42,92,69,0.28)', borderRadius:18, padding:32, position:'relative',
             opacity:visible?1:0, transform:visible?'none':'translateY(20px)', transition:'all .55s ease .12s',
             boxShadow:'0 8px 40px rgba(42,92,69,0.1)',
@@ -1331,7 +1420,7 @@ function Pricing({ navigate }) {
           </div>
 
           {/* Growth Agent card */}
-          <div style={{
+          <div className="pricing-card" style={{
             background:C.accent, border:'none', borderRadius:18, padding:32, position:'relative',
             opacity:visible?1:0, transform:visible?'none':'translateY(20px)', transition:'all .55s ease .24s',
             boxShadow:'0 8px 40px rgba(42,92,69,0.25)',
@@ -1446,7 +1535,7 @@ function FinalCTA() {
 // ─── Footer ──────────────────────────────────────────────────────────────────
 function Footer({ navigate }) {
   return (
-    <footer style={{ borderTop:`1px solid ${C.border}`, padding:'24px 24px', background:C.bg }}>
+    <footer className="footer" style={{ borderTop:`1px solid ${C.border}`, padding:'24px 24px', background:C.bg }}>
       <div className="footer-inner" style={{ maxWidth:1060, margin:'0 auto', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <Logo size={20} />

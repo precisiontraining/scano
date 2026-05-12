@@ -82,6 +82,8 @@ const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body { background: #f5f2ec; color: #1a1916; font-family: 'DM Sans', sans-serif; font-weight: 400; -webkit-font-smoothing: antialiased; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  img, svg, video { max-width: 100%; }
   @keyframes spin    { to { transform: rotate(360deg); } }
   @keyframes pulse   { 0%,100%{opacity:1}50%{opacity:0.25} }
   @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none} }

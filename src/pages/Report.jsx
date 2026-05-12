@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react'
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400;500&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
   body { background: #f7f4ef; color: #1c1917; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  img, svg, video { max-width: 100%; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
   @keyframes spin   { to { transform:rotate(360deg); } }
   .unlock-blur { filter:blur(5px); user-select:none; pointer-events:none; opacity:0.45; }
@@ -16,7 +18,7 @@ const CSS = `
     .report-nav        { padding: 0 16px !important; }
     .report-footer     { padding: 20px 16px !important; }
     .score-hero        { flex-direction: column !important; align-items: center !important; gap: 20px !important; padding: 24px 16px !important; text-align: center; }
-    .score-hero-text   { min-width: unset !important; }
+    .score-hero-text   { min-width: 0 !important; width: 100% !important; }
     .section-card      { padding: 20px 16px !important; }
     .chips-row         { gap: 8px !important; }
     .chip              { padding: 10px 10px !important; min-width: 0 !important; flex: 1 1 calc(50% - 4px) !important; max-width: calc(50% - 4px) !important; }
@@ -24,7 +26,7 @@ const CSS = `
     .bm-row            { gap: 8px !important; }
     .bm-label          { font-size: 12px !important; }
     .email-capture     { flex-direction: column !important; gap: 16px !important; padding: 22px 16px !important; }
-    .email-right       { min-width: unset !important; width: 100% !important; }
+    .email-right       { min-width: 0 !important; width: 100% !important; }
     .unlock-card       { padding: 32px 20px !important; }
     .share-row         { flex-wrap: wrap !important; }
     .check-tags        { gap: 6px !important; }

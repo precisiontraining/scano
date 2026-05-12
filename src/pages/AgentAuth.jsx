@@ -20,7 +20,12 @@ const C = {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
   body { background: #f7f4ef; font-family: 'Jost', sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  img, svg, video { max-width: 100%; }
+  @media (max-width: 600px) {
+    .auth-card-inner { padding: 28px 22px !important; }
+  }
   @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
   .auth-card { animation: fadeUp .4s ease both; }
   .auth-inp {
@@ -112,7 +117,7 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
           </div>
 
           {/* Card */}
-          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
+          <div className="auth-card-inner" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
 
             {/* Tab switcher */}
             <div style={{ display: 'flex', background: 'rgba(28,25,23,0.05)', borderRadius: 10, padding: 4, marginBottom: 28 }}>
