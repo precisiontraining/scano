@@ -107,7 +107,7 @@ function RunCard({ run }) {
       )}
 
       {(run.screenshot_before || run.screenshot_after) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div className="ap-screenshot-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div>
             <p style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: C.textFaint, fontWeight: 500, marginBottom: 6 }}>Before</p>
             {run.screenshot_before
@@ -204,8 +204,17 @@ export default function AgentPublic({ navigate, slug }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Jost, sans-serif', color: C.text }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&family=Jost:wght@300;400;500&display=swap');`}</style>
+    <div className="ap-page-root" style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Jost, sans-serif', color: C.text }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:wght@300;400&family=Jost:wght@300;400;500&display=swap');
+        @media (max-width: 600px) {
+          .ap-page-root { overflow-x: hidden; }
+          .ap-hero-h1 { font-size: 30px !important; }
+          .ap-dna-grid { grid-template-columns: 1fr !important; }
+          .ap-footer-cta { padding: 28px 20px !important; flex-direction: column !important; align-items: flex-start !important; }
+          .ap-screenshot-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
       {/* Sticky nav */}
       <nav style={{
@@ -230,7 +239,7 @@ export default function AgentPublic({ navigate, slug }) {
           <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.accent, fontWeight: 500, marginBottom: 10 }}>
             Growth Agent · Public Timeline
           </p>
-          <h1 style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 44, fontWeight: 300, color: C.text, lineHeight: 1.1, letterSpacing: '-.02em', marginBottom: 8 }}>
+          <h1 className="ap-hero-h1" style={{ fontFamily: 'Cormorant Garant, serif', fontSize: 44, fontWeight: 300, color: C.text, lineHeight: 1.1, letterSpacing: '-.02em', marginBottom: 8 }}>
             {data?.website_url || ''}
           </h1>
           <p style={{ fontSize: 14, color: C.textLight, fontWeight: 300 }}>
@@ -258,7 +267,7 @@ export default function AgentPublic({ navigate, slug }) {
             <p style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: C.textFaint, fontWeight: 500, marginBottom: 16 }}>
               What this site has learned
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="ap-dna-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px 24px' }}>
                 <p style={{ fontSize: 12, fontWeight: 500, color: C.green, marginBottom: 12 }}>What works</p>
                 {data.business_dna.filter(d => d.success > 0).length === 0
@@ -286,7 +295,7 @@ export default function AgentPublic({ navigate, slug }) {
         )}
 
         {/* Footer CTA */}
-        <div style={{
+        <div className="ap-footer-cta" style={{
           background: C.text, color: '#fff', borderRadius: 16, padding: '40px 36px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap',
         }}>

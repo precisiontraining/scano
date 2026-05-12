@@ -106,6 +106,10 @@ const CSS = `
     .agent-flow { flex-direction: column !important; }
     .agent-flow-arrow { transform: rotate(90deg) !important; }
     .agent-bottom-grid { grid-template-columns: 1fr !important; }
+    .agent-features-grid { grid-template-columns: 1fr !important; }
+    .footer-links { flex-wrap: wrap !important; gap: 10px !important; }
+    .sample-bm-col-hide { display: none !important; }
+    .sample-bm-row { grid-template-columns: 1fr auto !important; gap: 6px !important; }
   }
 
   @media (max-width: 900px) {
@@ -455,7 +459,7 @@ function GrowthAgentSection({ navigate }) {
         </div>
 
         {/* Top 3 features always visible */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2, marginBottom:2 }}>
+        <div className="agent-features-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2, marginBottom:2 }}>
           {featuresTop.map((f, i) => (
             <div key={i} style={{
               background:'#fff',
@@ -475,7 +479,7 @@ function GrowthAgentSection({ navigate }) {
 
         {/* Expandable extra features */}
         <div style={{ maxHeight:featuresExpanded?400:0, overflow:'hidden', transition:'max-height .4s cubic-bezier(.4,0,.2,1)' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2, marginBottom:2 }}>
+          <div className="agent-features-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2, marginBottom:2 }}>
             {featuresExtra.map((f, i) => (
               <div key={i} style={{
                 background:'#fff',
@@ -607,7 +611,7 @@ function SampleMiniBar({ label, value, color }) {
 
 function SampleBmRow({ platform, metric, yours, benchmark, diff, up, note }) {
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:8, alignItems:'center', padding:'9px 0', borderBottom:'1px solid rgba(28,25,23,0.06)' }}>
+    <div className="sample-bm-row" style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:8, alignItems:'center', padding:'9px 0', borderBottom:'1px solid rgba(28,25,23,0.06)' }}>
       <div>
         <span style={{ fontSize:12, color:C.textMuted, fontWeight:300, display:'block' }}>{platform} · {metric}</span>
         {note && <span style={{ fontSize:10, color:up?C.accent:C.red, fontWeight:400 }}>{note}</span>}
@@ -616,10 +620,10 @@ function SampleBmRow({ platform, metric, yours, benchmark, diff, up, note }) {
         <div style={{ fontSize:14, fontWeight:500, fontFamily:'Cormorant Garant, serif', color:C.text }}>{yours}</div>
         <div style={{ fontSize:9, color:C.textLight, textTransform:'uppercase', letterSpacing:'.05em' }}>yours</div>
       </div>
-      <span style={{ fontSize:10, padding:'2px 7px', borderRadius:4, background:up?'rgba(42,92,69,0.1)':'rgba(192,57,43,0.08)', color:up?C.accent:C.red, fontWeight:500 }}>
+      <span className="sample-bm-col-hide" style={{ fontSize:10, padding:'2px 7px', borderRadius:4, background:up?'rgba(42,92,69,0.1)':'rgba(192,57,43,0.08)', color:up?C.accent:C.red, fontWeight:500 }}>
         {up?'↑':'↓'} {diff}
       </span>
-      <div style={{ textAlign:'right' }}>
+      <div className="sample-bm-col-hide" style={{ textAlign:'right' }}>
         <div style={{ fontSize:12, color:C.textLight, fontWeight:300 }}>{benchmark}</div>
         <div style={{ fontSize:9, color:C.textLight, textTransform:'uppercase', letterSpacing:'.05em' }}>avg</div>
       </div>
@@ -1465,7 +1469,7 @@ function Footer({ navigate }) {
           <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:16, color:C.text }}>Velyr</span>
         </div>
         <p style={{ fontSize:13, color:C.textLight, fontWeight:300 }}>© 2026 Velyr · <a href="mailto:info@velyr.io" style={{ color:C.textLight, textDecoration:'none' }}>info@velyr.io</a></p>
-        <div style={{ display:'flex', gap:20 }}>
+        <div className="footer-links" style={{ display:'flex', gap:20 }}>
           {[
             { label:'FAQ', path:'/faq' },
             { label:'Privacy Policy', path:'/privacy' },

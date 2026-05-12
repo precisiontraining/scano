@@ -73,6 +73,9 @@ const CSS = `
     text-decoration: none;
   }
   .tg-open-btn:hover { background: #1a8cbf; transform: translateY(-1px); }
+  @media (max-width: 600px) {
+    .ob-card-inner { padding: 24px 18px !important; }
+  }
 `
 
 function Logo({ size = 24, color = '#2a5c45' }) {
@@ -680,7 +683,7 @@ export default function AgentOnboarding({ navigate }) {
             <span style={{ fontSize: 11, color: C.textLight, fontWeight: 300 }}>/ Growth Agent Setup</span>
           </div>
 
-          <div className="ob-card" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
+          <div className="ob-card ob-card-inner" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
             <StepIndicator current={step} total={5} />
             {step === 0 && <Step0 onNext={handleStep0} />}
             {step === 1 && <Step1 onNext={handleStep1} onBack={() => setStep(0)} />}

@@ -18,7 +18,12 @@ const CSS = `
   }
   .pinp:focus { border-color:rgba(42,92,69,0.4); box-shadow:0 0 0 3px rgba(42,92,69,0.08); }
   .pinp::placeholder { color:#b0a89e; }
-  @media (max-width:600px) { .premium-grid { grid-template-columns: 1fr !important; } .pform-pad { padding: 24px 16px !important; } }
+  @media (max-width:600px) {
+    .premium-grid { grid-template-columns: 1fr !important; }
+    .pform-pad { padding: 24px 16px !important; }
+    .psf-nav { padding: 0 16px !important; }
+    .psf-form-card { padding: 20px 16px !important; }
+  }
 `
 
 function Logo({ size = 24, color = '#2a5c45' }) {
@@ -101,7 +106,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
       <style>{CSS}</style>
       <div style={{ minHeight: '100vh', background: C.bg }}>
         {/* Nav */}
-        <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <nav className="psf-nav" style={{ borderBottom: `1px solid ${C.border}`, padding: '0 40px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(247,244,239,0.95)', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9 }}>
             <Logo size={22}/>
             <span style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 500, fontSize: 20, color: C.text }}>Velyr</span>
@@ -144,7 +149,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
           </div>
 
           {/* Form */}
-          <div style={{ background: '#fff', border: '1px solid rgba(28,25,23,0.1)', borderRadius: 18, padding: 32, boxShadow: '0 4px 32px rgba(28,25,23,0.07)', animation: 'fadeUp .5s .16s ease both' }}>
+          <div className="psf-form-card" style={{ background: '#fff', border: '1px solid rgba(28,25,23,0.1)', borderRadius: 18, padding: 32, boxShadow: '0 4px 32px rgba(28,25,23,0.07)', animation: 'fadeUp .5s .16s ease both' }}>
 
             {/* Website URL */}
             <div style={{ marginBottom: 28 }}>

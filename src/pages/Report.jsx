@@ -30,6 +30,9 @@ const CSS = `
     .check-tags        { gap: 6px !important; }
     .action-card       { padding: 16px !important; }
     .data-table td, .data-table th { padding: 8px 10px !important; font-size: 12px !important; }
+    .bm-row            { grid-template-columns: 1fr auto !important; gap: 6px !important; }
+    .bm-col-hide       { display: none !important; }
+    .report-footer-links { flex-wrap: wrap !important; gap: 10px !important; }
   }
 `
 
@@ -152,12 +155,12 @@ function BenchmarkRow({ b }) {
         <div style={{ fontSize: 15, fontWeight: 500, color: C.text, fontFamily: 'Cormorant Garant, serif' }}>{b.yours}</div>
         <div style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', letterSpacing: '.06em' }}>yours</div>
       </div>
-      <div style={{ textAlign: 'center' }}>
+      <div className="bm-col-hide" style={{ textAlign: 'center' }}>
         <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, background: isAbove ? 'rgba(42,92,69,0.1)' : 'rgba(192,57,43,0.08)', color: isAbove ? C.accent : C.red, fontWeight: 500 }}>
           {isAbove ? '↑' : '↓'} {b.diff}
         </span>
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div className="bm-col-hide" style={{ textAlign: 'right' }}>
         <div style={{ fontSize: 13, fontWeight: 300, color: C.light }}>{b.benchmark}</div>
         <div style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', letterSpacing: '.06em' }}>avg</div>
       </div>
@@ -322,12 +325,12 @@ function BenchmarkBlock({ benchmarkData, website, visible, delay }) {
               <div style={{ fontSize: 15, fontWeight: 500, color: C.text, fontFamily: 'Cormorant Garant, serif' }}>{website.performanceScore}/100</div>
               <div style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', letterSpacing: '.06em' }}>yours</div>
             </div>
-            <div style={{ textAlign: 'center' }}>
+            <div className="bm-col-hide" style={{ textAlign: 'center' }}>
               <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, background: website.performanceScore >= 50 ? 'rgba(42,92,69,0.1)' : 'rgba(192,57,43,0.08)', color: website.performanceScore >= 50 ? C.accent : C.red, fontWeight: 500 }}>
                 {website.performanceScore >= 50 ? '↑' : '↓'} {Math.abs(website.performanceScore - 45)}pts
               </span>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div className="bm-col-hide" style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 13, fontWeight: 300, color: C.light }}>45/100</div>
               <div style={{ fontSize: 10, color: C.light, textTransform: 'uppercase', letterSpacing: '.06em' }}>avg</div>
             </div>
@@ -674,7 +677,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
 
         <div className="report-footer" style={{ borderTop: `1px solid ${C.border}`, padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: 13, color: C.light, fontWeight: 300 }}>© 2026 Velyr</span>
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div className="report-footer-links" style={{ display: 'flex', gap: 20 }}>
             <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
             <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
             <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>

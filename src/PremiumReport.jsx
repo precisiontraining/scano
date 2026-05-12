@@ -20,6 +20,10 @@ const CSS = `
     .effort-grid { grid-template-columns: 1fr !important; }
     .rewrite-grid { grid-template-columns: 1fr !important; }
     .hook-grid { grid-template-columns: 1fr !important; }
+    .pr-score-hero { flex-direction: column !important; align-items: center !important; gap: 16px !important; text-align: center !important; }
+    .pr-bm-row { grid-template-columns: 1fr auto !important; gap: 6px !important; }
+    .pr-bm-col-hide { display: none !important; }
+    .pr-nav-badge { display: none !important; }
   }
 `
 
@@ -220,7 +224,7 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
 
           {/* Score Hero */}
           <Card delay={0.08} visible={visible} accent>
-            <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="pr-score-hero" style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <ScoreRing score={score}/>
                 <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: scoreColor, fontWeight: 500 }}>{scoreLabel}</span>
@@ -358,7 +362,7 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
                   {benchmarkData.benchmarks.map((b, i) => {
                     const isAbove = b.direction === 'above'
                     return (
-                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid rgba(28,25,23,0.06)' }}>
+                      <div key={i} className="pr-bm-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid rgba(28,25,23,0.06)' }}>
                         <div>
                           <span style={{ fontSize: 12, color: C.muted, fontWeight: 300, display: 'block' }}>{b.platform} · {b.metric}</span>
                           {b.percentileLabel && <span style={{ fontSize: 11, color: isAbove ? C.accent : C.red, fontWeight: 400 }}>{b.percentileLabel}</span>}
@@ -367,10 +371,10 @@ export default function PremiumReport({ navigate, scanData, reportData, websiteU
                           <div style={{ fontSize: 14, fontWeight: 500, fontFamily: 'Cormorant Garant, serif', color: C.text }}>{b.yours}</div>
                           <div style={{ fontSize: 9, color: C.light, textTransform: 'uppercase' }}>yours</div>
                         </div>
-                        <div style={{ textAlign: 'center' }}>
+                        <div className="pr-bm-col-hide" style={{ textAlign: 'center' }}>
                           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: isAbove ? 'rgba(42,92,69,0.1)' : 'rgba(192,57,43,0.08)', color: isAbove ? C.accent : C.red, fontWeight: 500 }}>{isAbove ? '↑' : '↓'} {b.diff}</span>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div className="pr-bm-col-hide" style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 12, color: C.light, fontWeight: 300 }}>{b.benchmark}</div>
                           <div style={{ fontSize: 9, color: C.light, textTransform: 'uppercase' }}>avg</div>
                         </div>

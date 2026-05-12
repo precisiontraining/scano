@@ -10,7 +10,11 @@
       "Bash(node -e \"const { createCanvas } = require\\('canvas'\\); console.log\\('canvas ok'\\);\")",
       "Bash(node scripts/generate-og-image.js)",
       "Bash(node -e ' *)",
-      "Bash(npm i *)"
+      "Bash(npm i *)",
+      "Bash(Get-ChildItem -Path . -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "PowerShell(cd \"C:\\\\Users\\\\flori\\\\Desktop\\\\scano\"; Get-ChildItem -Path . -Recurse -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })"
     ]
   }
 }
