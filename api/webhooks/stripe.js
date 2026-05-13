@@ -116,6 +116,7 @@ export default async function handler(req, res) {
             console.log('[webhook/checkout] retrieved subscription id:', subscription.id, '| status:', subscription.status, '| items:', subscription.items?.data?.length)
             const payload = {
               user_id: userId,
+              auth_user_id: userId,
               email: session.customer_email || session.customer_details?.email,
               plan: 'growth',
               status: 'active',
