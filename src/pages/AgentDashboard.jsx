@@ -1947,6 +1947,11 @@ export default function AgentDashboard({ navigate }) {
 
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
   const [checkoutCancelled, setCheckoutCancelled] = useState(false)
+  // null = pending, true = Stripe confirms paid subscription, false = no/invalid
+  // session. When `true` and the DB row hasn't been created yet (webhook lag),
+  // we show a "Setting up" state instead of the "Unlock your Growth Agent"
+  // screen so freshly-paid users never see the subscribe page.
+  const [stripeVerified, setStripeVerified] = useState(null)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('checkout') === 'success') {
@@ -1957,6 +1962,38 @@ export default function AgentDashboard({ navigate }) {
       window.history.replaceState({}, '', '/agent/dashboard')
     }
   }, [])
+
+  // Parallel Stripe verify on mount. Uses the session_id stashed in
+  // localStorage during onboarding (mount gate of AgentOnboarding.jsx).
+  // Lets the dashboard treat a freshly-paid user as subscribed while the
+  // Stripe webhook is still writing the agent_subscriptions row.
+  useEffect(() => {
+    if (!user || isDemo) return
+    let cancelled = false
+    let sessionId = null
+    try { sessionId = localStorage.getItem('velyr_onboarding_session_id') } catch {}
+    if (!sessionId) {
+      setStripeVerified(false)
+      return
+    }
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`
+        )
+        const json = await res.json()
+        if (cancelled) return
+        const paid = json.paymentStatus === 'paid' && json.type === 'subscription'
+        setStripeVerified(paid)
+        if (paid) {
+          try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
+        }
+      } catch {
+        if (!cancelled) setStripeVerified(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user, isDemo])
 
   useEffect(() => {
     if (!checkoutSuccess || !user || isDemo) return
@@ -1987,6 +2024,22 @@ export default function AgentDashboard({ navigate }) {
     const interval=setInterval(fetchData,30000)
     return()=>clearInterval(interval)
   },[user, isDemo])
+
+  // Fast poll: if Stripe confirms payment but the agent_subscriptions row
+  // hasn't been written by the webhook yet, re-fetch every 2s for ~16s so
+  // the user sees the real dashboard the moment the row appears.
+  useEffect(() => {
+    if (!user || isDemo) return
+    if (stripeVerified !== true) return
+    if (subscription) return
+    let attempts = 0
+    const t = setInterval(() => {
+      attempts++
+      fetchData()
+      if (attempts >= 8) clearInterval(t)
+    }, 2000)
+    return () => clearInterval(t)
+  }, [user, isDemo, stripeVerified, subscription])
 
   async function fetchData() {
     const {data:subs}=await supabase.from('agent_subscriptions').select('*').eq('auth_user_id',user.id).single()
@@ -2211,7 +2264,15 @@ export default function AgentDashboard({ navigate }) {
 
           <div className="dash-content" style={{flex:1,padding:'24px',overflowY:'auto'}}>
 
-            {!loading&&!subscription&&(
+            {!loading&&!subscription&&stripeVerified===true&&(
+              <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
+                <Spinner size={28}/>
+                <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:24,margin:'18px 0 10px',color:C.text}}>Setting up your Growth Agent…</h2>
+                <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7}}>Payment confirmed. We're finalizing your account — this usually takes a few seconds.</p>
+              </div>
+            )}
+
+            {!loading&&!subscription&&stripeVerified!==true&&(
               <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
                 <p style={{fontSize:32,marginBottom:14}}>🤖</p>
                 <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:28,marginBottom:10,color:C.text}}>Unlock your Growth Agent</h2>
