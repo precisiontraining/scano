@@ -1,7 +1,9 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2026-04-22.dahlia',
+})
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,54 +11,37 @@ const supabase = createClient(
 )
 
 async function handleCheckout(req, res) {
-  const { type, userId } = req.body
+  const { type, userId, userEmail } = req.body
 
   if (type !== 'full_scan' && type !== 'subscription') {
     return res.status(400).json({ error: 'Invalid type. Must be full_scan or subscription' })
   }
 
-  const APP_URL = process.env.VITE_APP_URL || 'https://www.velyr.io'
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  const APP_URL = process.env.VITE_APP_URL
 
   try {
     let session
     if (type === 'full_scan') {
       session = await stripe.checkout.sessions.create({
         mode: 'payment',
-        line_items: [{
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: 'Velyr Full Scan Report',
-              description: 'Complete website & social audit with all 5 priority actions, deep social analysis, caption rewrites, and benchmarks.',
-            },
-            unit_amount: 900,
-          },
-          quantity: 1,
-        }],
-        success_url: `${APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}&type=full_scan`,
-        cancel_url: `${APP_URL}/pricing`,
-        client_reference_id: userId || null,
-        metadata: { type: 'full_scan' },
+        line_items: [{ price: process.env.STRIPE_PRICE_FULL_SCAN, quantity: 1 }],
+        success_url: `${APP_URL}/agent/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}&type=full_scan`,
+        cancel_url:  `${APP_URL}/agent/dashboard?checkout=cancelled`,
+        client_reference_id: userId,
+        customer_email: userEmail,
+        metadata: { type, user_id: userId },
       })
     } else {
       session = await stripe.checkout.sessions.create({
         mode: 'subscription',
-        line_items: [{
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: 'Velyr Growth Agent',
-              description: 'Autonomous weekly improvements — Claude opens a GitHub PR every Monday for your highest-impact fix.',
-            },
-            unit_amount: 2900,
-            recurring: { interval: 'month' },
-          },
-          quantity: 1,
-        }],
-        success_url: `${APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}&type=subscription`,
-        cancel_url: `${APP_URL}/pricing`,
-        client_reference_id: userId || null,
-        metadata: { type: 'subscription' },
+        line_items: [{ price: process.env.STRIPE_PRICE_GROWTH, quantity: 1 }],
+        success_url: `${APP_URL}/agent/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}&type=subscription`,
+        cancel_url:  `${APP_URL}/agent/dashboard?checkout=cancelled`,
+        client_reference_id: userId,
+        customer_email: userEmail,
+        metadata: { type, user_id: userId },
       })
     }
 
@@ -87,12 +72,12 @@ async function handlePortal(req, res) {
     return res.status(400).json({ error: 'No Stripe customer found for this user' })
   }
 
-  const APP_URL = process.env.VITE_APP_URL || 'https://www.velyr.io'
+  const APP_URL = process.env.VITE_APP_URL
 
   try {
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${APP_URL}/dashboard`,
+      return_url: `${APP_URL}/agent/dashboard`,
     })
     return res.status(200).json({ url: portalSession.url })
   } catch (err) {

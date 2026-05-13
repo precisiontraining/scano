@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import Home from './Home.jsx'
 import Report from './pages/Report.jsx'
 import Impressum from './pages/Impressum.jsx'
@@ -12,6 +13,18 @@ import ResetPassword from './pages/ResetPassword.jsx'
 import AGB from './pages/AGB.jsx'
 import AgentPublic from './pages/AgentPublic.jsx'
 import Faq from './pages/Faq.jsx'
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
+async function authHeaders() {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.access_token
+    ? { Authorization: `Bearer ${session.access_token}` }
+    : {}
+}
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
@@ -183,6 +196,8 @@ export default function App() {
   const [premiumLiveData, setPremiumLiveData]       = useState({})
   const [premiumError, setPremiumError]             = useState(null)
 
+  const [premiumAccess, setPremiumAccess]           = useState({ checked: false, allowed: false })
+
   // Auth redirect handler
   useEffect(() => {
     const hash = window.location.hash
@@ -200,6 +215,26 @@ export default function App() {
     window.addEventListener('popstate', handler)
     return () => window.removeEventListener('popstate', handler)
   }, [])
+
+  useEffect(() => {
+    if (path !== '/premium') return
+    let cancelled = false
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        if (!cancelled) setPremiumAccess({ checked: true, allowed: false })
+        return
+      }
+      const { data } = await supabase
+        .from('agent_subscriptions')
+        .select('full_scan_purchased, subscription_status')
+        .eq('user_id', session.user.id)
+        .single()
+      const allowed = data?.full_scan_purchased === true || data?.subscription_status === 'active'
+      if (!cancelled) setPremiumAccess({ checked: true, allowed })
+    })()
+    return () => { cancelled = true }
+  }, [path])
 
   useEffect(() => {
     const match = path.match(UUID_REGEX)
@@ -227,17 +262,19 @@ export default function App() {
     const id = match[1]
     if (premiumReportId === id) return
     setLoading(true)
-    fetch(`/api/get-report?id=${id}&type=premium`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) { navigate('/premium'); return }
-        setPremiumScanData(data.scan_data)
-        setPremiumReportData(data.report_data)
-        setPremiumWebsiteUrl(data.website_url)
-        setPremiumReportId(id)
-      })
-      .catch(() => navigate('/premium'))
-      .finally(() => setLoading(false))
+    authHeaders().then(headers =>
+      fetch(`/api/get-report?id=${id}&type=premium`, { headers })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) { navigate('/premium'); return }
+          setPremiumScanData(data.scan_data)
+          setPremiumReportData(data.report_data)
+          setPremiumWebsiteUrl(data.website_url)
+          setPremiumReportId(id)
+        })
+        .catch(() => navigate('/premium'))
+        .finally(() => setLoading(false))
+    )
   }, [path])
 
   const navigate = (to) => {
@@ -340,9 +377,10 @@ export default function App() {
     let scan = null, report = null
 
     try {
+      const auth = await authHeaders()
       const res = await fetch('/api/scan?type=premium', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...auth },
         body: JSON.stringify({ websiteUrl: fullUrl, handles, focusPlatform }),
       })
       const body = await res.json().catch(() => ({}))
@@ -365,9 +403,10 @@ export default function App() {
     }
 
     try {
+      const auth = await authHeaders()
       const res = await fetch('/api/report?type=premium', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...auth },
         body: JSON.stringify({ scanData: scan, websiteUrl: fullUrl }),
       })
       if (!res.ok) throw new Error('Report generation failed')
@@ -390,9 +429,10 @@ export default function App() {
     setPremiumScanning(false)
 
     try {
+      const auth = await authHeaders()
       const res = await fetch('/api/save-report?type=premium', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...auth },
         body: JSON.stringify({ scanData: scan, reportData: report, websiteUrl: fullUrl, handles }),
       })
       const data = await res.json()
@@ -479,8 +519,13 @@ export default function App() {
     )
   }
 
-  // ── FIX: /premium now renders PremiumScanForm instead of redirecting to / ───
+  // ── /premium is paywalled — only paid users or subscribers can access ───────
   if (path === '/premium') {
+    if (!premiumAccess.checked) return <Spinner />
+    if (!premiumAccess.allowed) {
+      navigate('/pricing')
+      return <Spinner />
+    }
     return (
       <PremiumScanForm
         navigate={navigate}

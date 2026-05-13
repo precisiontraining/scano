@@ -630,7 +630,7 @@ async function sendWeeklyEmail(opts: {
   if (!apiKey || !apiSecret || !opts.toEmail) {
     console.warn('Skipping weekly email — missing Mailjet creds or recipient'); return
   }
-  const baseUrl      = Deno.env.get('NEXT_PUBLIC_BASE_URL') || 'https://www.velyr.io'
+  const baseUrl      = Deno.env.get('VITE_APP_URL')
   const dashboardUrl = `${baseUrl}/agent/dashboard`
 
   const bounceBlock = (opts.bounceBefore != null && opts.bounceAfter != null)
@@ -1207,6 +1207,7 @@ async function handleFullRun() {
   const { data: connections } = await supabase
     .from('agent_connections').select('*, agent_subscriptions!inner(*)')
     .eq('agent_subscriptions.status', 'active')
+    .eq('agent_subscriptions.subscription_status', 'active')
 
   if (!connections || connections.length === 0) {
     return { success: true, message: 'No active connections' }

@@ -1,7 +1,9 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2026-04-22.dahlia',
+})
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,6 +11,17 @@ const supabase = createClient(
 )
 
 export const config = { api: { bodyParser: false } }
+
+const STATE_MAP = {
+  active:             'active',
+  trialing:           'active',
+  past_due:           'past_due',
+  unpaid:             'past_due',
+  canceled:           'cancelled',
+  incomplete:         'incomplete',
+  incomplete_expired: 'cancelled',
+  paused:             'paused',
+}
 
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -34,6 +47,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Webhook error: ${err.message}` })
   }
 
+  // Idempotency: reject duplicate event deliveries
+  const { error: dupErr } = await supabase
+    .from('stripe_events')
+    .insert({ id: event.id, type: event.type })
+
+  if (dupErr?.code === '23505') {
+    return res.status(200).json({ duplicate: true })
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -55,59 +77,80 @@ export default async function handler(req, res) {
           const subscriptionId = session.subscription
           const customerId = session.customer
 
-          if (userId) {
+          if (userId && subscriptionId) {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId)
             await supabase
               .from('agent_subscriptions')
               .upsert({
                 user_id: userId,
                 stripe_customer_id: customerId,
-                subscription_id: subscriptionId,
+                subscription_id: subscription.id,
                 subscription_status: 'active',
+                current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+                cancel_at_period_end: subscription.cancel_at_period_end === true,
               }, { onConflict: 'user_id' })
           }
         }
         break
       }
 
+      case 'customer.subscription.created': {
+        const s = event.data.object
+        await supabase.from('agent_subscriptions').update({
+          subscription_status:  STATE_MAP[s.status] ?? s.status,
+          subscription_id:      s.id,
+          current_period_end:   new Date(s.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: s.cancel_at_period_end === true,
+        }).eq('stripe_customer_id', s.customer)
+        break
+      }
+
+      case 'customer.subscription.updated': {
+        const s = event.data.object
+        await supabase.from('agent_subscriptions').update({
+          subscription_status:  STATE_MAP[s.status] ?? s.status,
+          subscription_id:      s.id,
+          current_period_end:   new Date(s.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: s.cancel_at_period_end === true,
+          canceled_at:          s.canceled_at
+            ? new Date(s.canceled_at * 1000).toISOString()
+            : null,
+        }).eq('stripe_customer_id', s.customer)
+        break
+      }
+
       case 'customer.subscription.deleted': {
         const subscription = event.data.object
-        const customerId = subscription.customer
-
         await supabase
           .from('agent_subscriptions')
-          .update({ subscription_status: 'cancelled' })
-          .eq('stripe_customer_id', customerId)
+          .update({
+            subscription_status: 'cancelled',
+            canceled_at: subscription.canceled_at
+              ? new Date(subscription.canceled_at * 1000).toISOString()
+              : new Date().toISOString(),
+          })
+          .eq('stripe_customer_id', subscription.customer)
         break
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object
-        const customerId = invoice.customer
-
         await supabase
           .from('agent_subscriptions')
           .update({ subscription_status: 'past_due' })
-          .eq('stripe_customer_id', customerId)
+          .eq('stripe_customer_id', invoice.customer)
         break
       }
 
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object
-        const customerId = subscription.customer
-        const status = subscription.status
-
-        const mappedStatus = status === 'active' ? 'active'
-          : status === 'past_due' ? 'past_due'
-          : status === 'canceled' ? 'cancelled'
-          : status
-
-        await supabase
-          .from('agent_subscriptions')
-          .update({
-            subscription_status: mappedStatus,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          })
-          .eq('stripe_customer_id', customerId)
+      case 'invoice.payment_succeeded': {
+        const inv = event.data.object
+        if (['subscription_cycle', 'subscription_create'].includes(inv.billing_reason)) {
+          await supabase
+            .from('agent_subscriptions')
+            .update({ subscription_status: 'active' })
+            .eq('stripe_customer_id', inv.customer)
+            .neq('subscription_status', 'cancelled')
+        }
         break
       }
 
@@ -115,9 +158,10 @@ export default async function handler(req, res) {
         break
     }
   } catch (err) {
-    console.error(`Error processing webhook event ${event.type}:`, err)
-    return res.status(500).json({ error: 'Webhook processing failed' })
+    console.error(`event ${event.id} ${event.type} failed:`, err)
+    await supabase.from('stripe_events').delete().eq('id', event.id)
+    return res.status(500).json({ error: 'processing failed' })
   }
 
-  return res.status(200).json({ received: true })
+  return res.status(200).json({ received: true, id: event.id })
 }

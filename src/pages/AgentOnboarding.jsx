@@ -613,39 +613,35 @@ export default function AgentOnboarding({ navigate }) {
     const allData = { ...formData, ...data }
 
     try {
-      // FIX 2: Duplicate-check — prevent double subscriptions for the same user
-      const { data: existingSub } = await supabase
+      // Payment gate — the Stripe webhook creates the agent_subscriptions row on
+      // checkout.session.completed. Onboarding must NOT activate the agent without
+      // a paid subscription, so require one before writing the connection.
+      const { data: sub } = await supabase
         .from('agent_subscriptions')
-        .select('id')
+        .select('id, subscription_status')
         .eq('user_id', user.id)
-        .maybeSingle()
+        .single()
 
-      if (existingSub) {
-        // Already has a subscription — just redirect to dashboard
-        navigate('/agent/dashboard')
+      if (!sub || sub.subscription_status !== 'active') {
+        navigate('/pricing')
         return
       }
 
-      // 1. Create subscription
-      const { data: sub, error: subError } = await supabase
-  .from('agent_subscriptions')
-  .insert({
-    user_id: user.id,
-    auth_user_id: user.id,
-    email: user.email,
-    plan: 'growth',
-    status: 'active',
-    telegram_chat_id: allData.telegramChatId,  // ← hinzufügen
-  })
-        .select()
-        .single()
+      // Update subscription row with onboarding-supplied details
+      await supabase
+        .from('agent_subscriptions')
+        .update({
+          auth_user_id: user.id,
+          email: user.email,
+          plan: 'growth',
+          telegram_chat_id: allData.telegramChatId,
+        })
+        .eq('id', sub.id)
 
-      if (subError) throw subError
-
-      // 2. Create connection
+      // Upsert connection (idempotent on subscription_id)
       const { error: connError } = await supabase
         .from('agent_connections')
-        .insert({
+        .upsert({
           subscription_id: sub.id,
           github_installation_id: parseInt(allData.installationId),
           github_repo_owner: allData.repoOwner,
@@ -656,11 +652,10 @@ export default function AgentOnboarding({ navigate }) {
           posthog_host: 'https://eu.posthog.com',
           posthog_snippet_token: null,
           telegram_chat_id: allData.telegramChatId,
-        })
+        }, { onConflict: 'subscription_id' })
 
       if (connError) throw connError
 
-      // 3. Mark verification code as used
       await supabase
         .from('telegram_verification_codes')
         .update({ used: true })

@@ -11,7 +11,7 @@ const LABELS = {
   subscription: 'Subscribe – 29€/month',
 }
 
-export default function SubscribeButton({ type, style = {}, className = '' }) {
+export default function SubscribeButton({ type, style = {}, className = '', navigate }) {
   const [loading, setLoading] = useState(false)
 
   const handleClick = async () => {
@@ -20,12 +20,19 @@ export default function SubscribeButton({ type, style = {}, className = '' }) {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const userId = session?.user?.id || null
+      if (!session?.user) {
+        sessionStorage.setItem('postLoginCheckout', type)
+        if (navigate) navigate('/agent/register?return=checkout')
+        else window.location.href = '/agent/register?return=checkout'
+        return
+      }
+      const userId = session.user.id
+      const userEmail = session.user.email
 
       const res = await fetch('/api/stripe?action=checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, userId }),
+        body: JSON.stringify({ type, userId, userEmail }),
       })
 
       const data = await res.json()

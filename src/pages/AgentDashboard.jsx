@@ -1508,6 +1508,8 @@ function StripeSubscriptionPanel({ navigate }) {
   const [subStatus, setSubStatus]         = useState(null)
   const [hasFullScan, setHasFullScan]     = useState(false)
   const [subLoading, setSubLoading]       = useState(true)
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false)
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -1515,12 +1517,14 @@ function StripeSubscriptionPanel({ navigate }) {
       if (!session?.user) { setSubLoading(false); return }
       const { data } = await supabase
         .from('agent_subscriptions')
-        .select('subscription_status, full_scan_purchased')
+        .select('subscription_status, full_scan_purchased, cancel_at_period_end, current_period_end')
         .eq('user_id', session.user.id)
         .single()
       if (data) {
         setSubStatus(data.subscription_status)
         setHasFullScan(data.full_scan_purchased === true)
+        setCancelAtPeriodEnd(data.cancel_at_period_end === true)
+        setCurrentPeriodEnd(data.current_period_end || null)
       }
       setSubLoading(false)
     }
@@ -1564,6 +1568,12 @@ function StripeSubscriptionPanel({ navigate }) {
               {portalLoading ? '…' : 'Manage subscription →'}
             </button>
           </div>
+        )}
+
+        {isActive && cancelAtPeriodEnd && currentPeriodEnd && (
+          <p style={{ fontSize: 12, color: '#f5a623', marginTop: 4 }}>
+            Cancels on {new Date(currentPeriodEnd).toLocaleDateString()} — you have full access until then.
+          </p>
         )}
 
         {isPastDue && (
@@ -1918,6 +1928,22 @@ export default function AgentDashboard({ navigate }) {
     })
     return()=>authSub.unsubscribe()
   },[isDemo])
+
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'success') {
+      setCheckoutSuccess(true)
+      window.history.replaceState({}, '', '/agent/dashboard')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!checkoutSuccess || !user || isDemo) return
+    fetchData()
+    const t = setTimeout(() => setCheckoutSuccess(false), 5000)
+    return () => clearTimeout(t)
+  }, [checkoutSuccess, user, isDemo])
 
   // data
   useEffect(()=>{

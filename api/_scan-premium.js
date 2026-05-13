@@ -1,6 +1,29 @@
+import { createClient } from '@supabase/supabase-js'
+
 export const config = { maxDuration: 60 }
 
 const APIFY_TOKEN = process.env.APIFY_TOKEN
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
+)
+
+async function checkPremiumAccess(req, res) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  const { data: { user } } = await supabase.auth.getUser(token)
+  if (!user) { res.status(401).json({ error: 'login required' }); return null }
+
+  const { data: row } = await supabase
+    .from('agent_subscriptions')
+    .select('full_scan_purchased, subscription_status')
+    .eq('user_id', user.id)
+    .single()
+
+  const allowed = row?.full_scan_purchased === true || row?.subscription_status === 'active'
+  if (!allowed) { res.status(402).json({ error: 'payment required' }); return null }
+  return user
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function withTimeout(promise, ms, fallback = null) {
@@ -589,6 +612,10 @@ function processLinkedIn(items) {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  const user = await checkPremiumAccess(req, res)
+  if (!user) return
+
   const { websiteUrl, handles = {}, focusPlatform = null } = req.body
   if (!websiteUrl) return res.status(400).json({ error: 'websiteUrl required' })
 

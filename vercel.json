@@ -20,6 +20,10 @@
     {
       "path": "/api/agent/run?mode=weekly_summary",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/agent/enforce-subscriptions",
+      "schedule": "0 * * * *"
     }
   ],
   "headers": [

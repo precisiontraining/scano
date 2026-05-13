@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: dbError.message })
   }
 
-  const BASE_URL   = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.velyr.io'
+  const BASE_URL   = process.env.VITE_APP_URL
   const reportUrl  = `${BASE_URL}/report/${reportId}`
   const websiteUrl = report?.website_url || 'your website'
   const score      = report?.scan_data?.score ?? '—'

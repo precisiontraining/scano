@@ -31,6 +31,21 @@ async function sendMessage(chatId, text, extra = {}) {
   })
 }
 
+async function getActiveSubId(chatId) {
+  const { data } = await supabase
+    .from('agent_connections')
+    .select('subscription_id, agent_subscriptions!inner(subscription_status, status)')
+    .eq('telegram_chat_id', chatId)
+    .eq('agent_subscriptions.subscription_status', 'active')
+    .eq('agent_subscriptions.status', 'active')
+    .single()
+  return data?.subscription_id ?? null
+}
+
+async function notifyInactive(chatId) {
+  await sendMessage(chatId, 'Your Velyr subscription is no longer active. Visit velyr.io to reactivate.')
+}
+
 // ─── HELPER: Generate unique verification code ────────────────────────────────
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (0/O, 1/I)
@@ -95,18 +110,13 @@ async function handleStart(message) {
 // Used by the simple YES/NO flow — locates the most recent waiting_approval run
 // belonging to the subscription that owns this Telegram chat.
 async function findPendingRunForChat(chatId) {
-  const { data: conn } = await supabase
-    .from('agent_connections')
-    .select('subscription_id')
-    .eq('telegram_chat_id', chatId)
-    .single()
-
-  if (!conn?.subscription_id) return null
+  const subscriptionId = await getActiveSubId(chatId)
+  if (!subscriptionId) return null
 
   const { data: run } = await supabase
     .from('agent_runs')
     .select('id')
-    .eq('subscription_id', conn.subscription_id)
+    .eq('subscription_id', subscriptionId)
     .eq('status', 'waiting_approval')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -117,10 +127,14 @@ async function findPendingRunForChat(chatId) {
 
 // ─── APPROVE ────────────────────────────────────────────────────────────────
 async function handleApprove(runId, chatId) {
+  const subscriptionId = await getActiveSubId(chatId)
+  if (!subscriptionId) return notifyInactive(chatId)
+
   const { data: run } = await supabase
     .from('agent_runs')
     .select('*')
     .eq('id', runId)
+    .eq('subscription_id', subscriptionId)
     .single()
 
   if (!run) return sendMessage(chatId, '❌ Run not found.')
@@ -160,10 +174,14 @@ async function handleApprove(runId, chatId) {
 
 // ─── REJECT ─────────────────────────────────────────────────────────────────
 async function handleReject(runId, chatId) {
+  const subscriptionId = await getActiveSubId(chatId)
+  if (!subscriptionId) return notifyInactive(chatId)
+
   const { data: run } = await supabase
     .from('agent_runs')
     .select('*')
     .eq('id', runId)
+    .eq('subscription_id', subscriptionId)
     .single()
 
   if (!run) return sendMessage(chatId, '❌ Run not found.')
@@ -191,24 +209,8 @@ async function handleReject(runId, chatId) {
 
 // ─── BUSINESS DNA ─────────────────────────────────────────────────────────────
 async function handleDNA(chatId) {
-  const { data: conn } = await supabase
-    .from('agent_connections')
-    .select('subscription_id')
-    .eq('telegram_chat_id', chatId)
-    .single()
-
-  const subId = conn?.subscription_id
-
-  if (!subId) {
-    // Fallback: first active subscription
-    const { data: sub } = await supabase
-      .from('agent_subscriptions')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
-  }
+  const subId = await getActiveSubId(chatId)
+  if (!subId) return notifyInactive(chatId)
 
   const { data: learnings } = await supabase
     .from('agent_learnings')
@@ -244,23 +246,8 @@ async function handleDNA(chatId) {
 
 // ─── STATUS ──────────────────────────────────────────────────────────────────
 async function handleStatus(chatId) {
-  const { data: conn } = await supabase
-    .from('agent_connections')
-    .select('subscription_id')
-    .eq('telegram_chat_id', chatId)
-    .single()
-
-  const subId = conn?.subscription_id
-
-  if (!subId) {
-    const { data: sub } = await supabase
-      .from('agent_subscriptions')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    if (!sub) return sendMessage(chatId, '❌ No active subscription found.')
-  }
+  const subId = await getActiveSubId(chatId)
+  if (!subId) return notifyInactive(chatId)
 
   const { data: runs } = await supabase
     .from('agent_runs')
@@ -315,10 +302,14 @@ async function handleStatus(chatId) {
 
 // ─── NOTE ─────────────────────────────────────────────────────────────────────
 async function handleNote(runId, reason, chatId) {
+  const subId = await getActiveSubId(chatId)
+  if (!subId) return notifyInactive(chatId)
+
   const { data: run } = await supabase
     .from('agent_runs')
     .select('subscription_id, analysis_result')
     .eq('id', runId)
+    .eq('subscription_id', subId)
     .single()
 
   if (!run) return sendMessage(chatId, '❌ Run not found.')
@@ -339,14 +330,8 @@ async function handleNote(runId, reason, chatId) {
 
 // ─── COMPETITOR ───────────────────────────────────────────────────────────────
 async function handleAddCompetitor(url, chatId) {
-  const { data: conn } = await supabase
-    .from('agent_connections')
-    .select('subscription_id')
-    .eq('telegram_chat_id', chatId)
-    .single()
-
-  const subId = conn?.subscription_id
-  if (!subId) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = await getActiveSubId(chatId)
+  if (!subId) return notifyInactive(chatId)
 
   try { new URL(url) } catch {
     return sendMessage(chatId, `❌ Invalid URL: \`${url}\`\n\nUsage: *competitor add https://example.com*`)
@@ -372,14 +357,8 @@ async function handleAddCompetitor(url, chatId) {
 }
 
 async function handleRemoveCompetitor(url, chatId) {
-  const { data: conn } = await supabase
-    .from('agent_connections')
-    .select('subscription_id')
-    .eq('telegram_chat_id', chatId)
-    .single()
-
-  const subId = conn?.subscription_id
-  if (!subId) return sendMessage(chatId, '❌ No active subscription found.')
+  const subId = await getActiveSubId(chatId)
+  if (!subId) return notifyInactive(chatId)
 
   await supabase
     .from('agent_competitor_urls')
