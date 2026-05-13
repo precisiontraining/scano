@@ -607,10 +607,14 @@ export default function AgentOnboarding({ navigate }) {
   // Subscription gate — block the onboarding form until the user has an active
   // subscription. Without this, users could fill out 4 forms before discovering
   // they need to pay. If they're not active, we send them straight to Stripe
-  // (success_url returns them to /agent/onboarding once paid). When the user
-  // returns from a successful checkout (?checkout=success), we briefly retry
-  // since the Stripe webhook that flips subscription_status may not have fired
-  // yet — without this, a freshly-paid user would loop back to Stripe.
+  // (success_url returns them to /agent/onboarding?session_id=... once paid).
+  //
+  // Race-condition guard: the Stripe webhook that flips subscription_status to
+  // 'active' can lag behind the user-facing redirect. To avoid bouncing a
+  // freshly-paid user back to Stripe, we verify the session_id with Stripe in
+  // parallel with polling the DB — if Stripe confirms payment, we let the user
+  // proceed even while the DB row is still being written. Only bounce when
+  // both the Stripe verify AND the DB poll have failed.
   useEffect(() => {
     if (!user) return
     let cancelled = false
@@ -618,34 +622,77 @@ export default function AgentOnboarding({ navigate }) {
 
     const params = new URLSearchParams(window.location.search)
     const fromCheckout = params.get('checkout') === 'success'
+    const sessionId = params.get('session_id')
+
+    // null = pending, true = confirmed paid subscription, false = no/invalid session
+    let stripeResult = null
+    let dbExhausted = false
+    let gatePassed = false
+
+    const passGate = () => {
+      if (gatePassed || cancelled) return
+      gatePassed = true
+      if (fromCheckout) window.history.replaceState({}, '', '/agent/onboarding')
+      setGateChecked(true)
+    }
+
+    const maybeBounceToStripe = async () => {
+      if (cancelled || gatePassed) return
+      // Wait until BOTH signals have settled before sending the user away.
+      if (stripeResult === null || !dbExhausted) return
+      if (stripeResult === true) return
+      await startCheckout('subscription', user.id, user.email)
+    }
+
+    const verifyStripeSession = async () => {
+      if (!fromCheckout || !sessionId) {
+        stripeResult = false
+        maybeBounceToStripe()
+        return
+      }
+      try {
+        const res = await fetch(
+          `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`
+        )
+        const json = await res.json()
+        if (cancelled) return
+        const paid = json.paymentStatus === 'paid' && json.type === 'subscription'
+        stripeResult = paid
+        if (paid) passGate()
+        else maybeBounceToStripe()
+      } catch {
+        if (cancelled) return
+        stripeResult = false
+        maybeBounceToStripe()
+      }
+    }
 
     const checkSubscription = async (attempt = 0) => {
+      if (cancelled || gatePassed) return
+
       const { data: sub } = await supabase
         .from('agent_subscriptions')
         .select('subscription_status')
         .eq('user_id', user.id)
         .single()
-      if (cancelled) return
+      if (cancelled || gatePassed) return
 
       if (sub?.subscription_status === 'active') {
-        if (fromCheckout) {
-          // Strip ?checkout=success once we've confirmed it landed.
-          window.history.replaceState({}, '', '/agent/onboarding')
-        }
-        setGateChecked(true)
+        passGate()
         return
       }
 
-      // Webhook hasn't caught up yet — retry up to ~8s before giving up.
-      if (fromCheckout && attempt < 8) {
-        retryTimer = setTimeout(() => checkSubscription(attempt + 1), 1000)
+      // Webhook hasn't caught up yet — retry every 2s for up to ~15s.
+      if (fromCheckout && attempt < 7) {
+        retryTimer = setTimeout(() => checkSubscription(attempt + 1), 2000)
         return
       }
 
-      // No active subscription — hand off to Stripe directly.
-      await startCheckout('subscription', user.id, user.email)
+      dbExhausted = true
+      maybeBounceToStripe()
     }
 
+    verifyStripeSession()
     checkSubscription()
     return () => {
       cancelled = true
