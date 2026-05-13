@@ -817,7 +817,6 @@ export default function AgentOnboarding({ navigate }) {
         telegram_chat_id: allData.telegramChatId,
       }
       console.log('[onboarding/step4] agent_connections upsert payload:', connPayload, '| parsed installationId:', connPayload.github_installation_id, '| isNaN:', Number.isNaN(connPayload.github_installation_id))
-      console.log('[onboarding/step4] agent_connections upsert payload FULL:', JSON.stringify(connPayload, null, 2))
       const connResult = await supabase
         .from('agent_connections')
         .upsert(connPayload, { onConflict: 'subscription_id' })
