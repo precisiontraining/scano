@@ -1952,6 +1952,10 @@ export default function AgentDashboard({ navigate }) {
   // we show a "Setting up" state instead of the "Unlock your Growth Agent"
   // screen so freshly-paid users never see the subscribe page.
   const [stripeVerified, setStripeVerified] = useState(null)
+  // false = verify effect still in flight (or skipped pre-mount), true = settled.
+  // Gates the "Unlock" render so we never flash the subscribe screen while the
+  // Stripe verify is still resolving (or before fetchData completes).
+  const [verifyDone,     setVerifyDone]     = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('checkout') === 'success') {
@@ -1964,35 +1968,58 @@ export default function AgentDashboard({ navigate }) {
   }, [])
 
   // Parallel Stripe verify on mount. Uses the session_id stashed in
-  // localStorage during onboarding (mount gate of AgentOnboarding.jsx).
-  // Lets the dashboard treat a freshly-paid user as subscribed while the
-  // Stripe webhook is still writing the agent_subscriptions row.
+  // localStorage during onboarding (mount gate of AgentOnboarding.jsx) with
+  // sessionStorage as a fallback. Lets the dashboard treat a freshly-paid
+  // user as subscribed while the Stripe webhook is still writing the
+  // agent_subscriptions row.
+  //
+  // Hard 3s timeout via AbortController: if Stripe verify hangs we settle the
+  // gate (stripeVerified=false, verifyDone=true) so users never stare at a
+  // spinner. The dashboard's regular DB polling will still catch the row
+  // when it arrives.
   useEffect(() => {
     if (!user || isDemo) return
     let cancelled = false
     let sessionId = null
     try { sessionId = localStorage.getItem('velyr_onboarding_session_id') } catch {}
     if (!sessionId) {
+      try { sessionId = sessionStorage.getItem('velyr_onboarding_session_id') } catch {}
+    }
+    if (!sessionId) {
       setStripeVerified(false)
+      setVerifyDone(true)
       return
     }
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 3000)
     ;(async () => {
       try {
         const res = await fetch(
-          `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`
+          `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`,
+          { signal: controller.signal }
         )
         const json = await res.json()
         if (cancelled) return
+        clearTimeout(timeoutId)
         const paid = json.paymentStatus === 'paid' && json.type === 'subscription'
         setStripeVerified(paid)
+        setVerifyDone(true)
         if (paid) {
           try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
+          try { sessionStorage.removeItem('velyr_onboarding_session_id') } catch {}
         }
       } catch {
-        if (!cancelled) setStripeVerified(false)
+        if (!cancelled) {
+          setStripeVerified(false)
+          setVerifyDone(true)
+        }
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [user, isDemo])
 
   useEffect(() => {
@@ -2272,7 +2299,7 @@ export default function AgentDashboard({ navigate }) {
               </div>
             )}
 
-            {!loading&&!subscription&&stripeVerified!==true&&(
+            {!loading&&verifyDone&&!subscription&&stripeVerified===false&&(
               <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
                 <p style={{fontSize:32,marginBottom:14}}>🤖</p>
                 <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:28,marginBottom:10,color:C.text}}>Unlock your Growth Agent</h2>

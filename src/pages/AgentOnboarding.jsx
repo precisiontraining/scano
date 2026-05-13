@@ -776,7 +776,17 @@ export default function AgentOnboarding({ navigate }) {
         console.log('[onboarding/step4] db exhausted, stripePaid =', stripePaid)
         if (stripePaid) {
           console.log('[onboarding/step4] Stripe confirms payment — routing to dashboard')
-          try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
+          // Fix 5 skipped: at this point `sub` is null (that's the entry
+          // condition for this branch), so we have no subscription row to
+          // UPDATE auth_user_id on. A UPSERT keyed on user_id would race the
+          // Stripe webhook's INSERT and could clobber columns it owns
+          // (stripe_customer_id, subscription_id, current_period_end, …).
+          // The dashboard's verify-session fallback handles the user-facing
+          // gap; setting auth_user_id when the webhook fires is a separate
+          // server-side fix.
+          //
+          // localStorage cleanup intentionally NOT done here — the dashboard's
+          // own verify effect owns cleanup after it confirms with Stripe.
           navigate('/agent/dashboard')
           return
         }
@@ -819,7 +829,10 @@ export default function AgentOnboarding({ navigate }) {
         .update({ used: true })
         .eq('code', allData.telegramCode)
 
-      try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
+      // localStorage cleanup intentionally NOT done here — the dashboard's
+      // verify effect owns cleanup after confirming with Stripe. Removing the
+      // key here would make the dashboard's fallback read null and bounce
+      // freshly-onboarded users to "Unlock your Growth Agent".
       navigate('/agent/dashboard')
     } catch (err) {
       console.error(err)
