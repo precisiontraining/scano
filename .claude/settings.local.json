@@ -27,7 +27,10 @@
       "Bash(cp premium-report.js _report-premium.js)",
       "Bash(cp save-report.js _save-free.js)",
       "Bash(cp save-premium-report.js _save-premium.js)",
-      "Read(//c/c/Users/flori/Desktop/scano/**)"
+      "Read(//c/c/Users/flori/Desktop/scano/**)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
