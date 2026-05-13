@@ -624,6 +624,13 @@ export default function AgentOnboarding({ navigate }) {
     const fromCheckout = params.get('checkout') === 'success'
     const sessionId = params.get('session_id')
 
+    // Persist session_id so later steps can re-verify with Stripe even after
+    // the URL is cleaned up by passGate(). Without this, handleStep4 finds no
+    // session_id and bounces freshly-paid users back to Stripe.
+    if (fromCheckout && sessionId) {
+      try { localStorage.setItem('velyr_onboarding_session_id', sessionId) } catch {}
+    }
+
     // null = pending, true = confirmed paid subscription, false = no/invalid session
     let stripeResult = null
     let dbExhausted = false
@@ -718,29 +725,42 @@ export default function AgentOnboarding({ navigate }) {
       // Same race-condition guard as the mount gate: the webhook can lag the
       // user-facing redirect, so poll the DB for up to ~15s and verify the
       // Stripe session in parallel. A paid user is never sent back to Stripe.
+      //
+      // session_id may have been stripped from the URL by the mount gate's
+      // passGate(), so fall back to localStorage where we stashed it on arrival.
       const params = new URLSearchParams(window.location.search)
-      const sessionId = params.get('session_id')
+      const urlSessionId = params.get('session_id')
+      let storedSessionId = null
+      try { storedSessionId = localStorage.getItem('velyr_onboarding_session_id') } catch {}
+      const sessionId = urlSessionId || storedSessionId
+      console.log('[onboarding/step4] session_id from URL:', urlSessionId, '| from localStorage:', storedSessionId, '| using:', sessionId)
 
       const stripePromise = (async () => {
-        if (!sessionId) return false
+        if (!sessionId) {
+          console.log('[onboarding/step4] no session_id available — stripe verify skipped')
+          return false
+        }
         try {
           const res = await fetch(
             `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`
           )
           const json = await res.json()
+          console.log('[onboarding/step4] verify_session response:', json)
           return json.paymentStatus === 'paid' && json.type === 'subscription'
-        } catch {
+        } catch (err) {
+          console.log('[onboarding/step4] verify_session error:', err)
           return false
         }
       })()
 
       let sub = null
       for (let attempt = 0; attempt < 8; attempt++) {
-        const { data: row } = await supabase
+        const { data: row, error: pollErr } = await supabase
           .from('agent_subscriptions')
           .select('id, subscription_status')
           .eq('user_id', user.id)
           .single()
+        console.log(`[onboarding/step4] db poll attempt ${attempt}:`, { row, error: pollErr })
         if (row?.subscription_status === 'active') {
           sub = row
           break
@@ -753,10 +773,14 @@ export default function AgentOnboarding({ navigate }) {
         // bouncing — if the user genuinely paid, send them to the dashboard
         // (the webhook will catch up on its own) instead of charging twice.
         const stripePaid = await stripePromise
+        console.log('[onboarding/step4] db exhausted, stripePaid =', stripePaid)
         if (stripePaid) {
+          console.log('[onboarding/step4] Stripe confirms payment — routing to dashboard')
+          try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
           navigate('/agent/dashboard')
           return
         }
+        console.log('[onboarding/step4] bouncing to Stripe checkout (no DB row + Stripe verify failed)')
         await startCheckout('subscription', user.id, user.email)
         return
       }
@@ -795,6 +819,7 @@ export default function AgentOnboarding({ navigate }) {
         .update({ used: true })
         .eq('code', allData.telegramCode)
 
+      try { localStorage.removeItem('velyr_onboarding_session_id') } catch {}
       navigate('/agent/dashboard')
     } catch (err) {
       console.error(err)
