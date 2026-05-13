@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from './lib/supabase.js'
 import { startCheckout } from './utils/startCheckout.js'
 import Home from './Home.jsx'
 import Report from './pages/Report.jsx'
@@ -14,11 +14,6 @@ import ResetPassword from './pages/ResetPassword.jsx'
 import AGB from './pages/AGB.jsx'
 import AgentPublic from './pages/AgentPublic.jsx'
 import Faq from './pages/Faq.jsx'
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
 
 async function authHeaders() {
   const headers = {}

@@ -1,12 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase.js'
 import { demoData } from '../data/demoData'
 import { startCheckout } from '../utils/startCheckout.js'
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
