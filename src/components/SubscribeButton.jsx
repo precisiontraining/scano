@@ -13,17 +13,27 @@ const LABELS = {
 
 export async function startCheckout(type, navigate) {
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
+
+  // Subscriptions require a real account (the Growth Agent system is keyed by user_id).
+  // Full scans allow guests — Stripe collects the email at checkout and access at /premium
+  // is granted via session_id verification.
+  if (type === 'subscription' && !session?.user) {
     sessionStorage.setItem('postLoginCheckout', type)
     if (navigate) navigate('/agent/register?return=checkout')
     else window.location.href = '/agent/register?return=checkout'
     return { redirected: true }
   }
 
+  const body = { type }
+  if (session?.user) {
+    body.userId    = session.user.id
+    body.userEmail = session.user.email
+  }
+
   const res = await fetch('/api/stripe?action=checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type, userId: session.user.id, userEmail: session.user.email }),
+    body: JSON.stringify(body),
   })
   const data = await res.json()
   if (!res.ok || !data.url) {

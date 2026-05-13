@@ -244,6 +244,9 @@ export default function App() {
             if (!cancelled) setPremiumAccess({ checked: true, allowed: true })
             return
           }
+          // verify_session returned valid:false (unpaid, wrong type, etc.) — leave the
+          // query string intact so a refresh can retry.
+          console.warn('verify_session returned invalid:', v)
         } catch (e) {
           console.error('verify_session failed:', e)
         }

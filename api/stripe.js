@@ -17,22 +17,28 @@ async function handleCheckout(req, res) {
     return res.status(400).json({ error: 'Invalid type. Must be full_scan or subscription' })
   }
 
-  if (!userId) return res.status(400).json({ error: 'userId required' })
+  // Subscriptions require an account (the Growth Agent system is keyed by Supabase user_id).
+  // Full-scan checkouts allow guests — Stripe collects the email and access is granted via
+  // session_id verification at /premium.
+  if (type === 'subscription' && !userId) {
+    return res.status(400).json({ error: 'userId required for subscription' })
+  }
 
   const APP_URL = process.env.VITE_APP_URL
 
   try {
     let session
     if (type === 'full_scan') {
-      session = await stripe.checkout.sessions.create({
+      const base = {
         mode: 'payment',
         line_items: [{ price: process.env.STRIPE_PRICE_FULL_SCAN, quantity: 1 }],
         success_url: `${APP_URL}/premium?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url:  `${APP_URL}/agent/dashboard?checkout=cancelled`,
-        client_reference_id: userId,
-        customer_email: userEmail,
-        metadata: { type, user_id: userId },
-      })
+        metadata: userId ? { type, user_id: userId } : { type },
+      }
+      if (userId)    base.client_reference_id = userId
+      if (userEmail) base.customer_email      = userEmail
+      session = await stripe.checkout.sessions.create(base)
     } else {
       session = await stripe.checkout.sessions.create({
         mode: 'subscription',
