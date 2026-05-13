@@ -32,6 +32,15 @@ async function getRawBody(req) {
   })
 }
 
+// As of Stripe API version 2025-04-30.basil, `current_period_end` was removed
+// from the Subscription object and lives on each SubscriptionItem instead.
+// We're pinned to 2026-04-22.dahlia, so always read from items.data[0]; the
+// top-level field is kept as a fallback only for legacy event replays.
+function periodEndIso(sub) {
+  const ts = sub?.items?.data?.[0]?.current_period_end ?? sub?.current_period_end
+  return ts ? new Date(ts * 1000).toISOString() : null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -86,7 +95,7 @@ export default async function handler(req, res) {
                 stripe_customer_id: customerId,
                 subscription_id: subscription.id,
                 subscription_status: 'active',
-                current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+                current_period_end: periodEndIso(subscription),
                 cancel_at_period_end: subscription.cancel_at_period_end === true,
               }, { onConflict: 'user_id' })
           }
@@ -96,10 +105,15 @@ export default async function handler(req, res) {
 
       case 'customer.subscription.created': {
         const s = event.data.object
+        // No user_id lookup here — this event has no metadata. The row was
+        // already created (or will be created) by checkout.session.completed,
+        // keyed on stripe_customer_id. If the row doesn't exist yet (event
+        // ordering can vary), this UPDATE is a no-op and the
+        // checkout.session.completed handler will fill in the rest.
         await supabase.from('agent_subscriptions').update({
           subscription_status:  STATE_MAP[s.status] ?? s.status,
           subscription_id:      s.id,
-          current_period_end:   new Date(s.current_period_end * 1000).toISOString(),
+          current_period_end:   periodEndIso(s),
           cancel_at_period_end: s.cancel_at_period_end === true,
         }).eq('stripe_customer_id', s.customer)
         break
@@ -110,7 +124,7 @@ export default async function handler(req, res) {
         await supabase.from('agent_subscriptions').update({
           subscription_status:  STATE_MAP[s.status] ?? s.status,
           subscription_id:      s.id,
-          current_period_end:   new Date(s.current_period_end * 1000).toISOString(),
+          current_period_end:   periodEndIso(s),
           cancel_at_period_end: s.cancel_at_period_end === true,
           canceled_at:          s.canceled_at
             ? new Date(s.canceled_at * 1000).toISOString()
@@ -158,7 +172,8 @@ export default async function handler(req, res) {
         break
     }
   } catch (err) {
-    console.error(`event ${event.id} ${event.type} failed:`, err)
+    console.error(`event ${event.id} ${event.type} failed:`, err?.message || String(err))
+    if (err?.stack) console.error(err.stack)
     await supabase.from('stripe_events').delete().eq('id', event.id)
     return res.status(500).json({ error: 'processing failed' })
   }
