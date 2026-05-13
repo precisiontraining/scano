@@ -714,15 +714,49 @@ export default function AgentOnboarding({ navigate }) {
       // Payment gate — the Stripe webhook creates the agent_subscriptions row on
       // checkout.session.completed. Onboarding must NOT activate the agent without
       // a paid subscription, so require one before writing the connection.
-      const { data: sub } = await supabase
-        .from('agent_subscriptions')
-        .select('id, subscription_status')
-        .eq('user_id', user.id)
-        .single()
+      //
+      // Same race-condition guard as the mount gate: the webhook can lag the
+      // user-facing redirect, so poll the DB for up to ~15s and verify the
+      // Stripe session in parallel. A paid user is never sent back to Stripe.
+      const params = new URLSearchParams(window.location.search)
+      const sessionId = params.get('session_id')
 
-      if (!sub || sub.subscription_status !== 'active') {
-        // Defense-in-depth — should be unreachable thanks to the mount gate,
-        // but if it ever fires, take the user straight to Stripe.
+      const stripePromise = (async () => {
+        if (!sessionId) return false
+        try {
+          const res = await fetch(
+            `/api/stripe?action=verify_session&session_id=${encodeURIComponent(sessionId)}`
+          )
+          const json = await res.json()
+          return json.paymentStatus === 'paid' && json.type === 'subscription'
+        } catch {
+          return false
+        }
+      })()
+
+      let sub = null
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { data: row } = await supabase
+          .from('agent_subscriptions')
+          .select('id, subscription_status')
+          .eq('user_id', user.id)
+          .single()
+        if (row?.subscription_status === 'active') {
+          sub = row
+          break
+        }
+        if (attempt < 7) await new Promise(r => setTimeout(r, 2000))
+      }
+
+      if (!sub) {
+        // DB never reflected an active subscription. Check Stripe before
+        // bouncing — if the user genuinely paid, send them to the dashboard
+        // (the webhook will catch up on its own) instead of charging twice.
+        const stripePaid = await stripePromise
+        if (stripePaid) {
+          navigate('/agent/dashboard')
+          return
+        }
         await startCheckout('subscription', user.id, user.email)
         return
       }
