@@ -674,12 +674,12 @@ export default function AgentOnboarding({ navigate }) {
 
       const { data: sub } = await supabase
         .from('agent_subscriptions')
-        .select('subscription_status')
+        .select('status')
         .eq('user_id', user.id)
         .single()
       if (cancelled || gatePassed) return
 
-      if (sub?.subscription_status === 'active') {
+      if (sub?.status === 'active') {
         passGate()
         return
       }
@@ -752,11 +752,11 @@ export default function AgentOnboarding({ navigate }) {
       for (let attempt = 0; attempt < 8; attempt++) {
         const { data: row, error: pollErr } = await supabase
           .from('agent_subscriptions')
-          .select('id, subscription_status')
+          .select('id, status')
           .eq('user_id', user.id)
           .single()
         console.log(`[onboarding/step4] db poll attempt ${attempt}:`, { row, error: pollErr })
-        if (row?.subscription_status === 'active') {
+        if (row?.status === 'active') {
           sub = row
           break
         }
