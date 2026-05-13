@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { demoData } from './data/demoData'
-import SubscribeButton, { startCheckout } from './components/SubscribeButton.jsx'
+import SubscribeButton, { beginCheckout } from './components/SubscribeButton.jsx'
 
 const C = {
   bg:          '#f7f4ef',
@@ -190,7 +190,7 @@ function Nav({ navigate }) {
     if (checkoutLoading) return
     setCheckoutLoading(true)
     try {
-      const result = await startCheckout('full_scan', navigate)
+      const result = await beginCheckout('full_scan', navigate)
       if (!result?.redirected) setCheckoutLoading(false)
     } catch (e) {
       console.error('Checkout error:', e)

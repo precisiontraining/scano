@@ -1,10 +1,28 @@
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { startCheckout } from '../utils/startCheckout.js'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
+
+function readPendingIntent() {
+  try {
+    return (
+      localStorage.getItem('postLoginCheckout') ||
+      sessionStorage.getItem('postLoginCheckout') ||
+      null
+    )
+  } catch {
+    return null
+  }
+}
+
+function clearPendingIntent() {
+  try { localStorage.removeItem('postLoginCheckout') } catch {}
+  try { sessionStorage.removeItem('postLoginCheckout') } catch {}
+}
 
 const C = {
   bg:        '#f7f4ef',
@@ -76,7 +94,23 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
     setLoading(true)
 
     if (tab === 'register') {
-      const { error: err } = await supabase.auth.signUp({ email, password })
+      // Prefer ?intent= from the URL (set by SubscribeButton when it redirected
+      // here), fall back to whatever's in localStorage/sessionStorage. We encode
+      // it into emailRedirectTo so the post-confirmation entry point can resume
+      // the checkout even when the email link opens in a different tab/device.
+      const urlIntent = (() => {
+        try { return new URLSearchParams(window.location.search).get('intent') } catch { return null }
+      })()
+      const intent = urlIntent || readPendingIntent()
+      const redirectTo = intent
+        ? `${window.location.origin}/agent/post-signup?next=${encodeURIComponent(intent)}`
+        : `${window.location.origin}/agent/post-signup`
+
+      const { error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectTo },
+      })
       if (err) { setError(err.message); setLoading(false); return }
       setSuccess('Check your email to confirm your account, then log in.')
       setLoading(false)
@@ -87,29 +121,14 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
       const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) { setError('Incorrect email or password.'); setLoading(false); return }
 
-      // Resume a pending Stripe checkout, if any (set by SubscribeButton before redirect to /agent/register)
-      const pending = sessionStorage.getItem('postLoginCheckout')
+      // Resume a pending Stripe checkout — check localStorage first (survives
+      // tab restarts), then sessionStorage as a fallback.
+      const pending = readPendingIntent()
       if (pending === 'full_scan' || pending === 'subscription') {
-        sessionStorage.removeItem('postLoginCheckout')
-        try {
-          const res = await fetch('/api/stripe?action=checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: pending,
-              userId: data?.user?.id,
-              userEmail: data?.user?.email,
-            }),
-          })
-          const body = await res.json()
-          if (res.ok && body.url) {
-            window.location.href = body.url
-            return
-          }
-          console.error('Resume checkout failed:', body.error)
-        } catch (e) {
-          console.error('Resume checkout error:', e)
-        }
+        clearPendingIntent()
+        const result = await startCheckout(pending, data?.user?.id, data?.user?.email)
+        if (result?.redirected) return
+        console.error('Resume checkout failed:', result?.error)
       }
 
       navigate('/agent/dashboard')

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { demoData } from '../data/demoData'
+import { startCheckout } from '../utils/startCheckout.js'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -1505,11 +1506,21 @@ function DNAPage({ subscriptionId }) {
 
 function StripeSubscriptionPanel({ navigate }) {
   const [portalLoading, setPortalLoading] = useState(false)
+  const [subscribeLoading, setSubscribeLoading] = useState(false)
   const [subStatus, setSubStatus]         = useState(null)
   const [hasFullScan, setHasFullScan]     = useState(false)
   const [subLoading, setSubLoading]       = useState(true)
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false)
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState(null)
+
+  async function subscribeNow() {
+    if (subscribeLoading) return
+    setSubscribeLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { setSubscribeLoading(false); return }
+    const result = await startCheckout('subscription', session.user.id, session.user.email)
+    if (!result?.redirected) setSubscribeLoading(false)
+  }
 
   useEffect(() => {
     async function load() {
@@ -1604,8 +1615,8 @@ function StripeSubscriptionPanel({ navigate }) {
           <div style={{ background:'rgba(26,25,22,0.03)', border:`1px solid ${C.border}`, borderRadius:9, padding:'14px', textAlign:'center' }}>
             <p style={{ fontSize:13, color:C.textMuted, fontWeight:300, marginBottom:12 }}>No active subscription. Unlock the Growth Agent to start getting weekly improvements.</p>
             <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-              <button onClick={() => navigate('/pricing')} className="btn" style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontFamily:'DM Sans,sans-serif', fontWeight:500 }}>
-                View plans →
+              <button onClick={subscribeNow} disabled={subscribeLoading} className="btn" style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontFamily:'DM Sans,sans-serif', fontWeight:500, opacity: subscribeLoading ? 0.7 : 1, cursor: subscribeLoading ? 'not-allowed' : 'pointer' }}>
+                {subscribeLoading ? 'Opening Stripe…' : 'Subscribe — €29/mo →'}
               </button>
             </div>
           </div>
@@ -2005,6 +2016,16 @@ export default function AgentDashboard({ navigate }) {
     return session?.access_token
   }
 
+  const [subscribeLoading, setSubscribeLoading] = useState(false)
+  async function handleSubscribe() {
+    if (subscribeLoading || isDemo) return
+    setSubscribeLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { navigate('/agent/login'); return }
+    const result = await startCheckout('subscription', session.user.id, session.user.email)
+    if (!result?.redirected) setSubscribeLoading(false)
+  }
+
   async function handleTogglePause() {
     setActionLoading(true)
     const token=await getToken()
@@ -2193,15 +2214,16 @@ export default function AgentDashboard({ navigate }) {
             {!loading&&!subscription&&(
               <div className="fade-up" style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:16,padding:'48px 32px',textAlign:'center',maxWidth:480,margin:'0 auto'}}>
                 <p style={{fontSize:32,marginBottom:14}}>🤖</p>
-                <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:28,marginBottom:10,color:C.text}}>Set up your Growth Agent</h2>
-                <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:24}}>Connect your website and GitHub repo to start optimizing automatically.</p>
-                <button className="btn" onClick={()=>navigate('/agent/onboarding')} style={{
-                  background:C.text,color:C.bg,border:'none',borderRadius:9,
-                  padding:'13px 26px',fontSize:14,fontFamily:'DM Sans,sans-serif',fontWeight:500,
+                <h2 style={{fontFamily:'Instrument Serif,serif',fontWeight:400,fontSize:28,marginBottom:10,color:C.text}}>Unlock your Growth Agent</h2>
+                <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7,marginBottom:24}}>Subscribe to start getting weekly improvements. You'll connect GitHub and Telegram right after checkout.</p>
+                <button className="btn" onClick={handleSubscribe} disabled={subscribeLoading} style={{
+                  background: subscribeLoading ? C.accent : C.text, color:C.bg, border:'none', borderRadius:9,
+                  padding:'13px 26px', fontSize:14, fontFamily:'DM Sans,sans-serif', fontWeight:500,
+                  opacity: subscribeLoading ? 0.85 : 1, cursor: subscribeLoading ? 'not-allowed' : 'pointer',
                 }}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.accent}
-                  onMouseLeave={e=>e.currentTarget.style.background=C.text}
-                >Start setup →</button>
+                  onMouseEnter={e=>{ if (!subscribeLoading) e.currentTarget.style.background=C.accent }}
+                  onMouseLeave={e=>{ if (!subscribeLoading) e.currentTarget.style.background=C.text }}
+                >{subscribeLoading ? 'Opening Stripe…' : 'Subscribe — €29/mo →'}</button>
               </div>
             )}
 

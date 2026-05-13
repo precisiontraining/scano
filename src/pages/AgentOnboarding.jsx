@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 
 import { createClient } from '@supabase/supabase-js'
+import { startCheckout } from '../utils/startCheckout.js'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -594,6 +595,7 @@ export default function AgentOnboarding({ navigate }) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [formData, setFormData] = useState({})
+  const [gateChecked, setGateChecked] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -601,6 +603,55 @@ export default function AgentOnboarding({ navigate }) {
       setUser(session.user)
     })
   }, [])
+
+  // Subscription gate — block the onboarding form until the user has an active
+  // subscription. Without this, users could fill out 4 forms before discovering
+  // they need to pay. If they're not active, we send them straight to Stripe
+  // (success_url returns them to /agent/onboarding once paid). When the user
+  // returns from a successful checkout (?checkout=success), we briefly retry
+  // since the Stripe webhook that flips subscription_status may not have fired
+  // yet — without this, a freshly-paid user would loop back to Stripe.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    let retryTimer = null
+
+    const params = new URLSearchParams(window.location.search)
+    const fromCheckout = params.get('checkout') === 'success'
+
+    const checkSubscription = async (attempt = 0) => {
+      const { data: sub } = await supabase
+        .from('agent_subscriptions')
+        .select('subscription_status')
+        .eq('user_id', user.id)
+        .single()
+      if (cancelled) return
+
+      if (sub?.subscription_status === 'active') {
+        if (fromCheckout) {
+          // Strip ?checkout=success once we've confirmed it landed.
+          window.history.replaceState({}, '', '/agent/onboarding')
+        }
+        setGateChecked(true)
+        return
+      }
+
+      // Webhook hasn't caught up yet — retry up to ~8s before giving up.
+      if (fromCheckout && attempt < 8) {
+        retryTimer = setTimeout(() => checkSubscription(attempt + 1), 1000)
+        return
+      }
+
+      // No active subscription — hand off to Stripe directly.
+      await startCheckout('subscription', user.id, user.email)
+    }
+
+    checkSubscription()
+    return () => {
+      cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [user])
 
   const handleStep0 = ()     => setStep(1)
   const handleStep1 = (data) => { setFormData(prev => ({ ...prev, ...data })); setStep(2) }
@@ -623,7 +674,9 @@ export default function AgentOnboarding({ navigate }) {
         .single()
 
       if (!sub || sub.subscription_status !== 'active') {
-        navigate('/pricing')
+        // Defense-in-depth — should be unreachable thanks to the mount gate,
+        // but if it ever fires, take the user straight to Stripe.
+        await startCheckout('subscription', user.id, user.email)
         return
       }
 
@@ -667,6 +720,21 @@ export default function AgentOnboarding({ navigate }) {
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
+  }
+
+  // Until the subscription gate clears (or sends the user to Stripe), show a
+  // simple spinner instead of the form so users never see steps they aren't
+  // entitled to.
+  if (!user || !gateChecked) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+          <div style={{ width: 32, height: 32, border: '2px solid rgba(28,25,23,0.15)', borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ fontSize: 13, color: C.textLight, fontWeight: 300 }}>Checking your subscription…</p>
+        </div>
+      </>
+    )
   }
 
   return (

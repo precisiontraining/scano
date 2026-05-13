@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { startCheckout } from './utils/startCheckout.js'
 import Home from './Home.jsx'
 import Report from './pages/Report.jsx'
 import Impressum from './pages/Impressum.jsx'
@@ -32,7 +33,7 @@ async function authHeaders() {
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
 const PREMIUM_UUID_REGEX = /^\/premium\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
-const RESERVED_AGENT_PATHS = new Set(['login', 'register', 'dashboard', 'onboarding', 'reset-password'])
+const RESERVED_AGENT_PATHS = new Set(['login', 'register', 'dashboard', 'onboarding', 'reset-password', 'post-signup'])
 const PUBLIC_AGENT_REGEX   = /^\/agent\/([a-z0-9][a-z0-9-]{1,28}[a-z0-9])$/
 
 const CSS_SCANNER = `
@@ -169,13 +170,82 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
   )
 }
 
-const Spinner = () => (
+const Spinner = ({ label = 'Loading report…' } = {}) => (
   <div style={{ minHeight: '100vh', background: '#f7f4ef', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: 'Jost, sans-serif' }}>
     <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     <div style={{ width: 32, height: 32, border: '2px solid rgba(28,25,23,0.15)', borderTopColor: '#2a5c45', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-    <p style={{ fontSize: 14, color: '#a09890', fontWeight: 300 }}>Loading report…</p>
+    <p style={{ fontSize: 14, color: '#a09890', fontWeight: 300 }}>{label}</p>
   </div>
 )
+
+// Renders after a Supabase email confirmation when the user originally clicked
+// "Subscribe" (or "Get Full Scan"). Waits for the Supabase session to be
+// established (the hash tokens are detected by supabase-js asynchronously),
+// then hands off to Stripe Checkout. Falls back to the dashboard if no
+// pending intent or the session never materialises.
+function PostSignup({ navigate }) {
+  useEffect(() => {
+    let cancelled = false
+    let fallbackTimer = null
+    let authSub = null
+
+    const params = new URLSearchParams(window.location.search)
+    const nextParam = params.get('next')
+    let pending = (nextParam === 'subscription' || nextParam === 'full_scan') ? nextParam : null
+    if (!pending) {
+      try {
+        pending = localStorage.getItem('postLoginCheckout')
+          || sessionStorage.getItem('postLoginCheckout')
+      } catch {}
+    }
+    if (pending !== 'subscription' && pending !== 'full_scan') {
+      navigate('/agent/dashboard')
+      return
+    }
+
+    const trigger = async (user) => {
+      if (cancelled) return
+      try { localStorage.removeItem('postLoginCheckout') } catch {}
+      try { sessionStorage.removeItem('postLoginCheckout') } catch {}
+      // Strip the hash/query before handing off so a back-button doesn't re-loop.
+      window.history.replaceState({}, '', '/agent/post-signup')
+      const result = await startCheckout(pending, user?.id || null, user?.email || null)
+      if (!result?.redirected && !cancelled) {
+        // Stripe didn't take over — bail to dashboard so the user isn't stranded.
+        navigate('/agent/dashboard')
+      }
+    }
+
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (cancelled) return
+      if (session?.user) { trigger(session.user); return }
+
+      // No session yet — listen for it and put a hard timeout in place.
+      const { data } = supabase.auth.onAuthStateChange((_event, s) => {
+        if (cancelled || !s?.user) return
+        if (authSub) authSub.unsubscribe()
+        if (fallbackTimer) clearTimeout(fallbackTimer)
+        trigger(s.user)
+      })
+      authSub = data?.subscription || null
+
+      fallbackTimer = setTimeout(() => {
+        if (cancelled) return
+        if (authSub) authSub.unsubscribe()
+        navigate('/agent/login')
+      }, 8000)
+    })()
+
+    return () => {
+      cancelled = true
+      if (authSub) authSub.unsubscribe()
+      if (fallbackTimer) clearTimeout(fallbackTimer)
+    }
+  }, [])
+
+  return <Spinner label="Opening Stripe checkout…" />
+}
 
 export default function App() {
   const [path, setPath]               = useState(window.location.pathname)
@@ -202,15 +272,34 @@ export default function App() {
 
   const [premiumAccess, setPremiumAccess]           = useState({ checked: false, allowed: false })
 
-  // Auth redirect handler
+  // Auth redirect handler. Supabase email links (confirmation, recovery, magic
+  // link) deposit the user at the configured Site URL with a `#access_token=…`
+  // or `#type=recovery` hash. We route those into the right place — and for a
+  // confirmed signup, honour any pending Stripe checkout intent persisted to
+  // localStorage by SubscribeButton.
   useEffect(() => {
     const hash = window.location.hash
     if (hash.includes('type=recovery')) {
       window.history.replaceState({}, '', '/agent/reset-password' + hash)
       setPath('/agent/reset-password')
-    } else if (hash.includes('access_token') || hash.includes('type=signup')) {
-      window.history.replaceState({}, '', '/agent/dashboard')
-      setPath('/agent/dashboard')
+      return
+    }
+    if (hash.includes('access_token') || hash.includes('type=signup')) {
+      let pending = null
+      try {
+        pending = localStorage.getItem('postLoginCheckout')
+          || sessionStorage.getItem('postLoginCheckout')
+      } catch {}
+      if (pending === 'subscription' || pending === 'full_scan') {
+        // Send the user through PostSignup which will wait for the Supabase
+        // session and then trigger Stripe. Keep the hash so supabase-js can
+        // still consume it if it hasn't already.
+        window.history.replaceState({}, '', `/agent/post-signup?next=${encodeURIComponent(pending)}` + hash)
+        setPath('/agent/post-signup')
+      } else {
+        window.history.replaceState({}, '', '/agent/dashboard')
+        setPath('/agent/dashboard')
+      }
     }
   }, [])
 
@@ -499,6 +588,7 @@ export default function App() {
   if (path === '/agent/login')            return <AgentAuth navigate={navigate} mode="login" />
   if (path === '/agent/register')         return <AgentAuth navigate={navigate} mode="register" />
   if (path === '/agent/reset-password')   return <ResetPassword navigate={navigate} />
+  if (path === '/agent/post-signup')      return <PostSignup navigate={navigate} />
   if (path === '/agent/onboarding')       return <AgentOnboarding navigate={navigate} />
   if (path === '/agent' || path === '/agent/dashboard') return <AgentDashboard navigate={navigate} />
 

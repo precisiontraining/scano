@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { startCheckout } from '../utils/startCheckout.js'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,37 +12,26 @@ const LABELS = {
   subscription: 'Subscribe – 29€/month',
 }
 
-export async function startCheckout(type, navigate) {
+// Higher-level checkout entry point used by CTAs. Handles the guest case:
+// - subscription + no session → persist intent (localStorage primary, sessionStorage
+//   fallback) and route to /agent/register?intent=subscription so the user can
+//   sign up; the intent is later honoured by App.jsx's post-signup handler and
+//   by AgentAuth after a manual login.
+// - full_scan or signed-in user → call the shared startCheckout util, which
+//   POSTs to /api/stripe and redirects to the Stripe Checkout URL.
+export async function beginCheckout(type, navigate) {
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Subscriptions require a real account (the Growth Agent system is keyed by user_id).
-  // Full scans allow guests — Stripe collects the email at checkout and access at /premium
-  // is granted via session_id verification.
   if (type === 'subscription' && !session?.user) {
-    sessionStorage.setItem('postLoginCheckout', type)
-    if (navigate) navigate('/agent/register?return=checkout')
-    else window.location.href = '/agent/register?return=checkout'
+    try { localStorage.setItem('postLoginCheckout', type) } catch {}
+    try { sessionStorage.setItem('postLoginCheckout', type) } catch {}
+    const target = `/agent/register?intent=${type}`
+    if (navigate) navigate(target)
+    else window.location.href = target
     return { redirected: true }
   }
 
-  const body = { type }
-  if (session?.user) {
-    body.userId    = session.user.id
-    body.userEmail = session.user.email
-  }
-
-  const res = await fetch('/api/stripe?action=checkout', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json()
-  if (!res.ok || !data.url) {
-    console.error('Checkout session error:', data.error)
-    return { redirected: false, error: data.error || 'checkout failed' }
-  }
-  window.location.href = data.url
-  return { redirected: true }
+  return startCheckout(type, session?.user?.id || null, session?.user?.email || null)
 }
 
 export default function SubscribeButton({ type, style = {}, className = '', navigate }) {
@@ -51,7 +41,7 @@ export default function SubscribeButton({ type, style = {}, className = '', navi
     if (loading) return
     setLoading(true)
     try {
-      const result = await startCheckout(type, navigate)
+      const result = await beginCheckout(type, navigate)
       if (!result?.redirected) setLoading(false)
     } catch (err) {
       console.error('Checkout error:', err)
