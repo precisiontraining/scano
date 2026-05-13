@@ -796,7 +796,7 @@ export default function AgentOnboarding({ navigate }) {
       }
 
       // Update subscription row with onboarding-supplied details
-      await supabase
+      const subUpdate = await supabase
         .from('agent_subscriptions')
         .update({
           auth_user_id: user.id,
@@ -805,29 +805,35 @@ export default function AgentOnboarding({ navigate }) {
           telegram_chat_id: allData.telegramChatId,
         })
         .eq('id', sub.id)
+      console.log('[onboarding/step4] agent_subscriptions update result:', { data: subUpdate.data, error: subUpdate.error, status: subUpdate.status })
+      if (subUpdate.error) throw subUpdate.error
 
       // Upsert connection (idempotent on subscription_id)
-      const { error: connError } = await supabase
+      const connPayload = {
+        subscription_id: sub.id,
+        github_installation_id: parseInt(allData.installationId),
+        github_repo_owner: allData.repoOwner,
+        github_repo_name: allData.repoName,
+        website_url: allData.websiteUrl,
+        posthog_api_key: null,
+        posthog_project_id: null,
+        posthog_host: 'https://eu.posthog.com',
+        posthog_snippet_token: null,
+        telegram_chat_id: allData.telegramChatId,
+      }
+      console.log('[onboarding/step4] agent_connections upsert payload:', connPayload, '| parsed installationId:', connPayload.github_installation_id, '| isNaN:', Number.isNaN(connPayload.github_installation_id))
+      const connResult = await supabase
         .from('agent_connections')
-        .upsert({
-          subscription_id: sub.id,
-          github_installation_id: parseInt(allData.installationId),
-          github_repo_owner: allData.repoOwner,
-          github_repo_name: allData.repoName,
-          website_url: allData.websiteUrl,
-          posthog_api_key: null,
-          posthog_project_id: null,
-          posthog_host: 'https://eu.posthog.com',
-          posthog_snippet_token: null,
-          telegram_chat_id: allData.telegramChatId,
-        }, { onConflict: 'subscription_id' })
+        .upsert(connPayload, { onConflict: 'subscription_id' })
+      console.log('[onboarding/step4] agent_connections upsert result:', { data: connResult.data, error: connResult.error, status: connResult.status })
 
-      if (connError) throw connError
+      if (connResult.error) throw connResult.error
 
-      await supabase
+      const tgUpdate = await supabase
         .from('telegram_verification_codes')
         .update({ used: true })
         .eq('code', allData.telegramCode)
+      console.log('[onboarding/step4] telegram_verification_codes update result:', { data: tgUpdate.data, error: tgUpdate.error, status: tgUpdate.status })
 
       // localStorage cleanup intentionally NOT done here — the dashboard's
       // verify effect owns cleanup after confirming with Stripe. Removing the
@@ -835,7 +841,13 @@ export default function AgentOnboarding({ navigate }) {
       // freshly-onboarded users to "Unlock your Growth Agent".
       navigate('/agent/dashboard')
     } catch (err) {
-      console.error(err)
+      console.error('[onboarding/step4] failed:', {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+        raw: err,
+      })
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
