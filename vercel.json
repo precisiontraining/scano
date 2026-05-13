@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/agent/enforce-subscriptions",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "headers": [
