@@ -69,18 +69,26 @@ export default async function handler(req, res) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
+        console.log('[webhook/checkout] event id:', event.id)
+        console.log('[webhook/checkout] session:', JSON.stringify(session))
+        console.log('[webhook/checkout] metadata:', session.metadata)
+        console.log('[webhook/checkout] client_reference_id:', session.client_reference_id, '| mode:', session.mode, '| customer:', session.customer, '| subscription:', session.subscription, '| customer_email:', session.customer_email)
+
         const userId = session.client_reference_id
         const type = session.metadata?.type
 
         if (session.mode === 'payment' || type === 'full_scan') {
           if (userId) {
-            await supabase
+            const result = await supabase
               .from('agent_subscriptions')
               .upsert({
                 user_id: userId,
                 full_scan_purchased: true,
                 full_scan_purchased_at: new Date().toISOString(),
               }, { onConflict: 'user_id' })
+            console.log('[webhook/checkout] full_scan upsert result:', { data: result.data, error: result.error, status: result.status })
+          } else {
+            console.log('[webhook/checkout] full_scan SKIPPED — client_reference_id is missing')
           }
         } else if (session.mode === 'subscription') {
           const subscriptionId = session.subscription
@@ -88,17 +96,25 @@ export default async function handler(req, res) {
 
           if (userId && subscriptionId) {
             const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-            await supabase
+            console.log('[webhook/checkout] retrieved subscription id:', subscription.id, '| status:', subscription.status, '| items:', subscription.items?.data?.length)
+            const payload = {
+              user_id: userId,
+              stripe_customer_id: customerId,
+              subscription_id: subscription.id,
+              subscription_status: 'active',
+              current_period_end: periodEndIso(subscription),
+              cancel_at_period_end: subscription.cancel_at_period_end === true,
+            }
+            console.log('[webhook/checkout] subscription upsert payload:', payload)
+            const result = await supabase
               .from('agent_subscriptions')
-              .upsert({
-                user_id: userId,
-                stripe_customer_id: customerId,
-                subscription_id: subscription.id,
-                subscription_status: 'active',
-                current_period_end: periodEndIso(subscription),
-                cancel_at_period_end: subscription.cancel_at_period_end === true,
-              }, { onConflict: 'user_id' })
+              .upsert(payload, { onConflict: 'user_id' })
+            console.log('[webhook/checkout] subscription upsert result:', { data: result.data, error: result.error, status: result.status })
+          } else {
+            console.log('[webhook/checkout] subscription SKIPPED — userId:', userId, '| subscriptionId:', subscriptionId)
           }
+        } else {
+          console.log('[webhook/checkout] no branch matched — mode:', session.mode, '| metadata.type:', type)
         }
         break
       }
