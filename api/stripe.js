@@ -27,7 +27,7 @@ async function handleCheckout(req, res) {
       session = await stripe.checkout.sessions.create({
         mode: 'payment',
         line_items: [{ price: process.env.STRIPE_PRICE_FULL_SCAN, quantity: 1 }],
-        success_url: `${APP_URL}/agent/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}&type=full_scan`,
+        success_url: `${APP_URL}/premium?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url:  `${APP_URL}/agent/dashboard?checkout=cancelled`,
         client_reference_id: userId,
         customer_email: userEmail,
@@ -49,6 +49,27 @@ async function handleCheckout(req, res) {
   } catch (err) {
     console.error('Stripe checkout error:', err)
     return res.status(500).json({ error: err.message })
+  }
+}
+
+async function handleVerifySession(req, res) {
+  const sessionId = req.query?.session_id || req.body?.session_id
+  if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
+    return res.status(400).json({ valid: false, error: 'session_id required' })
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    const valid = session.payment_status === 'paid'
+      && session.metadata?.type === 'full_scan'
+    return res.status(200).json({
+      valid,
+      type: session.metadata?.type || null,
+      paymentStatus: session.payment_status,
+    })
+  } catch (err) {
+    console.error('Stripe verify_session error:', err.message)
+    return res.status(400).json({ valid: false, error: 'invalid session' })
   }
 }
 
@@ -87,12 +108,18 @@ async function handlePortal(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
   const action = req.query?.action || req.body?.action
+
+  // verify_session is GET-friendly so the success-page redirect can read it
+  if (action === 'verify_session') {
+    if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+    return handleVerifySession(req, res)
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   if (action === 'checkout') return handleCheckout(req, res)
   if (action === 'portal')   return handlePortal(req, res)
 
-  return res.status(400).json({ error: 'Invalid action. Use ?action=checkout or ?action=portal' })
+  return res.status(400).json({ error: 'Invalid action. Use ?action=checkout, portal, or verify_session' })
 }

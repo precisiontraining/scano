@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 
 export const config = { maxDuration: 60 }
 
@@ -9,8 +10,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 )
 
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
+  : null
+
+async function verifyGuestSession(sessionId) {
+  if (!stripe || !sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) return false
+  try {
+    const s = await stripe.checkout.sessions.retrieve(sessionId)
+    return s.payment_status === 'paid' && s.metadata?.type === 'full_scan'
+  } catch (e) {
+    console.error('verifyGuestSession failed:', e.message)
+    return false
+  }
+}
+
 async function checkPremiumAccess(req, res) {
+  // Path A — guest with a paid Stripe session
+  const sessionId = req.headers['x-session-id']
+  if (sessionId) {
+    if (await verifyGuestSession(sessionId)) return { id: `guest:${sessionId}`, guest: true }
+  }
+
+  // Path B — logged-in user with full_scan_purchased or active subscription
   const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!token) { res.status(401).json({ error: 'login required' }); return null }
+
   const { data: { user } } = await supabase.auth.getUser(token)
   if (!user) { res.status(401).json({ error: 'login required' }); return null }
 

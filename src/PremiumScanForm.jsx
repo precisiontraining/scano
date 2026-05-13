@@ -266,7 +266,7 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
                   <span style={{ width: 14, height: 14, border: '2px solid rgba(247,244,239,0.35)', borderTopColor: '#f7f4ef', borderRadius: '50%', animation: 'spin .7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
                   Starting audit…
                 </>
-              ) : showSocialNudge ? 'Continue without social — website only' : 'Run full audit — €9'}
+              ) : showSocialNudge ? 'Continue without social — website only' : 'Run full audit'}
             </button>
             <p style={{ fontSize: 12, color: C.light, textAlign: 'center', marginTop: 10, fontWeight: 300 }}>
               One-time · No subscription · Results in ~60 seconds

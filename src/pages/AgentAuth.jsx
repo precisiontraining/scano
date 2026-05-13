@@ -84,8 +84,34 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
     }
 
     if (tab === 'login') {
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) { setError('Incorrect email or password.'); setLoading(false); return }
+
+      // Resume a pending Stripe checkout, if any (set by SubscribeButton before redirect to /agent/register)
+      const pending = sessionStorage.getItem('postLoginCheckout')
+      if (pending === 'full_scan' || pending === 'subscription') {
+        sessionStorage.removeItem('postLoginCheckout')
+        try {
+          const res = await fetch('/api/stripe?action=checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: pending,
+              userId: data?.user?.id,
+              userEmail: data?.user?.email,
+            }),
+          })
+          const body = await res.json()
+          if (res.ok && body.url) {
+            window.location.href = body.url
+            return
+          }
+          console.error('Resume checkout failed:', body.error)
+        } catch (e) {
+          console.error('Resume checkout error:', e)
+        }
+      }
+
       navigate('/agent/dashboard')
     }
   }

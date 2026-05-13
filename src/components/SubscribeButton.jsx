@@ -11,39 +11,38 @@ const LABELS = {
   subscription: 'Subscribe – 29€/month',
 }
 
+export async function startCheckout(type, navigate) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    sessionStorage.setItem('postLoginCheckout', type)
+    if (navigate) navigate('/agent/register?return=checkout')
+    else window.location.href = '/agent/register?return=checkout'
+    return { redirected: true }
+  }
+
+  const res = await fetch('/api/stripe?action=checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, userId: session.user.id, userEmail: session.user.email }),
+  })
+  const data = await res.json()
+  if (!res.ok || !data.url) {
+    console.error('Checkout session error:', data.error)
+    return { redirected: false, error: data.error || 'checkout failed' }
+  }
+  window.location.href = data.url
+  return { redirected: true }
+}
+
 export default function SubscribeButton({ type, style = {}, className = '', navigate }) {
   const [loading, setLoading] = useState(false)
 
   const handleClick = async () => {
     if (loading) return
     setLoading(true)
-
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        sessionStorage.setItem('postLoginCheckout', type)
-        if (navigate) navigate('/agent/register?return=checkout')
-        else window.location.href = '/agent/register?return=checkout'
-        return
-      }
-      const userId = session.user.id
-      const userEmail = session.user.email
-
-      const res = await fetch('/api/stripe?action=checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, userId, userEmail }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok || !data.url) {
-        console.error('Checkout session error:', data.error)
-        setLoading(false)
-        return
-      }
-
-      window.location.href = data.url
+      const result = await startCheckout(type, navigate)
+      if (!result?.redirected) setLoading(false)
     } catch (err) {
       console.error('Checkout error:', err)
       setLoading(false)

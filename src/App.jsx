@@ -20,10 +20,14 @@ const supabase = createClient(
 )
 
 async function authHeaders() {
+  const headers = {}
   const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {}
+  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`
+  if (typeof window !== 'undefined') {
+    const sid = sessionStorage.getItem('premiumSessionId')
+    if (sid) headers['X-Session-Id'] = sid
+  }
+  return headers
 }
 
 const UUID_REGEX         = /^\/report\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i
@@ -220,6 +224,36 @@ export default function App() {
     if (path !== '/premium') return
     let cancelled = false
     ;(async () => {
+      // Guest path: ?checkout=success&session_id=... or a previously-granted
+      // session_id stashed in sessionStorage after a paid checkout.
+      const params      = new URLSearchParams(window.location.search)
+      const urlSession  = params.get('session_id')
+      const isCheckout  = params.get('checkout') === 'success'
+      const storedAccess = sessionStorage.getItem('premiumAccessGranted') === 'true'
+      const storedSession = sessionStorage.getItem('premiumSessionId') || null
+
+      if (urlSession && isCheckout) {
+        try {
+          const r = await fetch(`/api/stripe?action=verify_session&session_id=${encodeURIComponent(urlSession)}`)
+          const v = await r.json()
+          if (v?.valid) {
+            sessionStorage.setItem('premiumAccessGranted', 'true')
+            sessionStorage.setItem('premiumSessionId', urlSession)
+            // Strip the query string but keep the route
+            window.history.replaceState({}, '', '/premium')
+            if (!cancelled) setPremiumAccess({ checked: true, allowed: true })
+            return
+          }
+        } catch (e) {
+          console.error('verify_session failed:', e)
+        }
+      }
+
+      if (storedAccess && storedSession) {
+        if (!cancelled) setPremiumAccess({ checked: true, allowed: true })
+        return
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
         if (!cancelled) setPremiumAccess({ checked: true, allowed: false })

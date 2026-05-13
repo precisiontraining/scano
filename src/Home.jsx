@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { demoData } from './data/demoData'
-import SubscribeButton from './components/SubscribeButton.jsx'
+import SubscribeButton, { startCheckout } from './components/SubscribeButton.jsx'
 
 const C = {
   bg:          '#f7f4ef',
@@ -174,6 +174,7 @@ function Logo({ size = 32, color = '#2a5c45' }) {
 function Nav({ navigate }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
   useEffect(() => { const fn = () => setScrolled(window.scrollY > 32); window.addEventListener('scroll', fn); return () => window.removeEventListener('scroll', fn) }, [])
   useEffect(() => {
     if (!menuOpen) return
@@ -184,6 +185,18 @@ function Nav({ navigate }) {
   }, [menuOpen])
 
   const goAndClose = (fn) => () => { setMenuOpen(false); fn() }
+
+  const handleFullScanCheckout = async () => {
+    if (checkoutLoading) return
+    setCheckoutLoading(true)
+    try {
+      const result = await startCheckout('full_scan', navigate)
+      if (!result?.redirected) setCheckoutLoading(false)
+    } catch (e) {
+      console.error('Checkout error:', e)
+      setCheckoutLoading(false)
+    }
+  }
 
   return (
     <>
@@ -222,11 +235,11 @@ function Nav({ navigate }) {
               onMouseEnter={e => { e.target.style.borderColor='rgba(28,25,23,0.3)'; e.target.style.background='rgba(28,25,23,0.04)' }}
               onMouseLeave={e => { e.target.style.borderColor='rgba(28,25,23,0.15)'; e.target.style.background='transparent' }}
             >Free scan</button>
-            <button onClick={() => navigate('/premium')}
-              style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor:'pointer', transition:'background .2s', letterSpacing:'.01em', whiteSpace:'nowrap' }}
-              onMouseEnter={e => e.target.style.background='#1e4433'}
-              onMouseLeave={e => e.target.style.background=C.accent}
-            >Full report</button>
+            <button onClick={handleFullScanCheckout} disabled={checkoutLoading}
+              style={{ background:C.accent, color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontFamily:'Jost,sans-serif', fontWeight:500, fontSize:13, cursor: checkoutLoading ? 'not-allowed' : 'pointer', opacity: checkoutLoading ? 0.7 : 1, transition:'background .2s', letterSpacing:'.01em', whiteSpace:'nowrap' }}
+              onMouseEnter={e => { if (!checkoutLoading) e.target.style.background='#1e4433' }}
+              onMouseLeave={e => { if (!checkoutLoading) e.target.style.background=C.accent }}
+            >{checkoutLoading ? 'Redirecting…' : 'Full report'}</button>
           </div>
           <button
             className="nav-burger"
@@ -278,9 +291,9 @@ function Nav({ navigate }) {
         <button onClick={goAndClose(() => document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth' }))}
           style={{ width:'100%', background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:400, cursor:'pointer', textAlign:'left', letterSpacing:'.01em' }}
         >Free scan</button>
-        <button onClick={goAndClose(() => navigate('/premium'))}
-          style={{ width:'100%', background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor:'pointer', textAlign:'left', letterSpacing:'.01em' }}
-        >Full report — €9</button>
+        <button onClick={goAndClose(handleFullScanCheckout)} disabled={checkoutLoading}
+          style={{ width:'100%', background:C.accent, color:'#fff', border:'none', borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:500, cursor: checkoutLoading ? 'not-allowed' : 'pointer', opacity: checkoutLoading ? 0.7 : 1, textAlign:'left', letterSpacing:'.01em' }}
+        >{checkoutLoading ? 'Redirecting…' : 'Full report — €9'}</button>
         <button onClick={goAndClose(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' }))}
           style={{ width:'100%', background:'transparent', color:C.accent, border:`1px solid rgba(42,92,69,0.35)`, borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:400, cursor:'pointer', textAlign:'left', letterSpacing:'.01em', display:'flex', alignItems:'center', gap:8 }}
         >

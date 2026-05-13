@@ -44,6 +44,15 @@ Routes (regex-matched in `App.jsx`):
 
 `/api/get-report?id={uuid}` is the read path used when a UUID URL is loaded fresh (no in-memory state). For premium reports, the same endpoint takes `&type=premium` (reads from the `premium_reports` table). Premium scan/save flow uses dedicated endpoints: `/api/premium-scan`, `/api/premium-report`, `/api/save-premium-report`.
 
+### /premium paywall and guest access
+
+`/premium` is gated in `App.jsx`. Access is granted in two ways:
+
+1. **Logged-in users** with `agent_subscriptions.full_scan_purchased = true` or `subscription_status = 'active'` (keyed by `user_id`).
+2. **Guests** who just paid: Stripe's `success_url` for `type=full_scan` is `/premium?checkout=success&session_id={CHECKOUT_SESSION_ID}`. The app calls `GET /api/stripe?action=verify_session&session_id=...`, and on `payment_status === 'paid'` stashes `premiumAccessGranted=true` and `premiumSessionId=<id>` in `sessionStorage`. Subsequent calls to `/api/premium-scan`, `/api/premium-report`, `/api/save-premium-report` from `App.jsx` send an `X-Session-Id` header; each premium endpoint re-verifies the session against Stripe and accepts it as proof of payment (no Supabase login required).
+
+Subscription checkouts still redirect to `/agent/dashboard?checkout=success&type=subscription`. Cancelled checkouts return to `/agent/dashboard?checkout=cancelled`, which renders a brief "no charge was made" banner.
+
 All scan/report functions set `export const config = { maxDuration: 60 }` — Vercel's 60s ceiling. PageSpeed itself is wrapped in a 25s `AbortSignal.timeout` plus a `withTimeout` race fallback.
 
 ### Scoring Model
@@ -84,7 +93,7 @@ Telegram bot commands (handled in `api/webhooks/telegram.js`):
 ### Supabase Tables
 
 Key tables used by the backend (all accessed via service-role key):
-- `agent_subscriptions` — one row per subscriber; holds `status`, `telegram_chat_id`, `public_slug`, `is_public`, `competitors[]`
+- `agent_subscriptions` — one row per subscriber; holds `status`, `telegram_chat_id`, `public_slug`, `is_public`, `competitors[]`, plus billing/full-scan columns: `user_id`, `auth_user_id`, `full_scan_purchased`, `full_scan_purchased_at`, `subscription_status`, `stripe_customer_id`, `subscription_id`, `current_period_end`, `cancel_at_period_end`, `canceled_at`. Note the column split: the Stripe webhook + premium endpoints key on `user_id`, while the agent system keys on `auth_user_id`; both columns hold a Supabase auth UUID.
 - `agent_connections` — GitHub + PostHog credentials per subscription
 - `agent_runs` — one row per weekly agent run; tracks status lifecycle (`pending` → `waiting_approval` → `deployed` / `rejected` / `rolled_back`)
 - `agent_ab_tests` — A/B test state; evaluated by `mode=evaluate_ab`
@@ -120,7 +129,7 @@ Required:
 - `PAGESPEED_API_KEY` (a.k.a. `GOOGLE_PAGESPEED_API_KEY`)
 - `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY_BASE64` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — agent
 - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` / `TELEGRAM_CHAT_ID` — default chat for notifications
-- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_SCALE`
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_PRICE_FULL_SCAN` (€9 one-time) / `STRIPE_PRICE_GROWTH` (€29/mo subscription)
 - `AGENT_TOKEN_ENCRYPTION_KEY` (AES-256, 64 hex), `AGENT_APPROVAL_TOKEN_SECRET` (HMAC, 32 hex), `AGENT_CRON_SECRET` (32 hex)
 - `SCREENSHOTONE_API_KEY` — screenshot capture for rollback comparison (optional; rollback skips screenshots if absent)
 - `POSTHOG_API_KEY` / `POSTHOG_PROJECT_ID` / `POSTHOG_HOST` — server-side analytics used by agent's midweek/weekly modes (falls back to these if not set per-subscription in `agent_connections`)

@@ -1589,9 +1589,14 @@ function StripeSubscriptionPanel({ navigate }) {
         )}
 
         {hasFullScan && (
-          <div style={{ display:'flex', alignItems:'center', gap:8, background:C.accentSoft, border:`1px solid ${C.accentMid}`, borderRadius:9, padding:'10px 14px' }}>
-            <span style={{ fontSize:14 }}>★</span>
-            <span style={{ fontSize:13, color:C.accent, fontWeight:500 }}>Full Scan unlocked</span>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, background:C.accentSoft, border:`1px solid ${C.accentMid}`, borderRadius:9, padding:'10px 14px', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:14 }}>★</span>
+              <span style={{ fontSize:13, color:C.accent, fontWeight:500 }}>Full Scan unlocked</span>
+            </div>
+            <button onClick={() => navigate('/premium')} className="btn" style={{ background:'transparent', border:`1px solid ${C.accent}`, color:C.accent, borderRadius:7, padding:'6px 13px', fontSize:12, fontFamily:'DM Sans,sans-serif', fontWeight:400 }}>
+              Run your scan →
+            </button>
           </div>
         )}
 
@@ -1930,10 +1935,14 @@ export default function AgentDashboard({ navigate }) {
   },[isDemo])
 
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
+  const [checkoutCancelled, setCheckoutCancelled] = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('checkout') === 'success') {
       setCheckoutSuccess(true)
+      window.history.replaceState({}, '', '/agent/dashboard')
+    } else if (params.get('checkout') === 'cancelled') {
+      setCheckoutCancelled(true)
       window.history.replaceState({}, '', '/agent/dashboard')
     }
   }, [])
@@ -1944,6 +1953,12 @@ export default function AgentDashboard({ navigate }) {
     const t = setTimeout(() => setCheckoutSuccess(false), 5000)
     return () => clearTimeout(t)
   }, [checkoutSuccess, user, isDemo])
+
+  useEffect(() => {
+    if (!checkoutCancelled) return
+    const t = setTimeout(() => setCheckoutCancelled(false), 5000)
+    return () => clearTimeout(t)
+  }, [checkoutCancelled])
 
   // data
   useEffect(()=>{
@@ -2056,6 +2071,18 @@ export default function AgentDashboard({ navigate }) {
           loading={actionLoading}
           error={deleteError}
         />
+      )}
+
+      {checkoutCancelled && (
+        <div style={{
+          position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:200,
+          background:C.bgCard, border:`1px solid ${C.border}`,
+          boxShadow:'0 4px 20px rgba(28,25,23,0.12)',
+          borderRadius:10, padding:'10px 16px',
+          fontSize:13, color:C.text, fontFamily:'DM Sans,sans-serif',
+        }}>
+          Checkout cancelled — no charge was made.
+        </div>
       )}
 
       <div className="dash-shell" style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
