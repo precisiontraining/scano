@@ -42,17 +42,28 @@ function periodEndIso(sub) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  console.log('[webhook] entry — method:', req.method, '| has-sig:', !!req.headers['stripe-signature'], '| webhook-secret-present:', !!process.env.STRIPE_WEBHOOK_SECRET)
+
+  if (req.method !== 'POST') {
+    console.log('[webhook] rejecting — wrong method:', req.method)
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
   const sig = req.headers['stripe-signature']
-  if (!sig) return res.status(400).json({ error: 'Missing stripe-signature header' })
+  if (!sig) {
+    console.log('[webhook] rejecting — missing stripe-signature header')
+    return res.status(400).json({ error: 'Missing stripe-signature header' })
+  }
 
   let event
   try {
     const rawBody = await getRawBody(req)
+    console.log('[webhook] raw body bytes:', rawBody.length, '| sig prefix:', String(sig).slice(0, 40))
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET)
+    console.log('[webhook] signature verified — event:', event.id, '| type:', event.type, '| livemode:', event.livemode, '| api_version:', event.api_version)
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message)
+    console.error('[webhook] signature verification failed — name:', err?.name, '| message:', err?.message)
+    if (err?.stack) console.error(err.stack)
     return res.status(400).json({ error: `Webhook error: ${err.message}` })
   }
 
@@ -62,7 +73,13 @@ export default async function handler(req, res) {
     .insert({ id: event.id, type: event.type })
 
   if (dupErr?.code === '23505') {
+    console.log('[webhook] DUPLICATE — event', event.id, 'was already processed; short-circuiting with 200. Delete the row from stripe_events to replay.')
     return res.status(200).json({ duplicate: true })
+  }
+  if (dupErr) {
+    console.error('[webhook] stripe_events insert failed (non-duplicate):', { code: dupErr.code, message: dupErr.message, details: dupErr.details, hint: dupErr.hint })
+  } else {
+    console.log('[webhook] stripe_events insert ok — proceeding to switch for', event.type)
   }
 
   try {
