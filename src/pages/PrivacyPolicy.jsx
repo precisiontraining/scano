@@ -155,7 +155,6 @@ export default function PrivacyPolicy({ navigate }) {
               <li><strong style={{ fontWeight: 500 }}>PostHog</strong> — used by the Growth Agent to read your site's analytics data (bounce rates, traffic sources, page views) to identify the highest-impact conversion fixes. Only data from your own PostHog project is accessed, with your explicit authorisation. <a href="https://posthog.com/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
               <li><strong style={{ fontWeight: 500 }}>Telegram</strong> — used by the Growth Agent to send you weekly notifications, Pull Request approval requests, and rollback alerts. Your Telegram chat ID is stored solely for this purpose and can be removed at any time. <a href="https://telegram.org/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
               <li><strong style={{ fontWeight: 500 }}>Mailjet</strong> — used to send transactional emails (report links and the Growth Agent's weekly summary + monthly roast emails). Your email address is transmitted to Mailjet solely for this purpose. <a href="https://www.mailjet.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
-              <li><strong style={{ fontWeight: 500 }}>ScreenshotOne</strong> — used by the Growth Agent to capture page snapshots for internal rollback comparison. Only the public URL of your page is sent. <a href="https://screenshotone.com/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy policy</a></li>
             </ul>
           </div>
 
@@ -172,7 +171,6 @@ export default function PrivacyPolicy({ navigate }) {
               <li><strong style={{ fontWeight: 500 }}>Growth Agent — €29/month.</strong> This is a recurring monthly subscription. You can cancel at any time from your dashboard. Cancellation takes effect at the end of the current billing period — no partial refunds are issued for unused days.</li>
             </ul>
             <p style={{ marginTop: 12 }}>All payments are processed by Stripe. Velyr never stores your payment card details. Invoices are issued by Stripe on behalf of Velyr.</p>
-            <p style={{ marginTop: 12 }}><strong style={{ fontWeight: 500 }}>Optional Stripe revenue attribution.</strong> The Growth Agent can optionally read your Stripe charge data (last 30 days) to compute revenue-per-visitor and prioritise your lowest-earning page. This feature is <strong style={{ fontWeight: 500 }}>opt-in only</strong> and is activated solely when you explicitly connect your Stripe account in the dashboard. No Stripe data is read until you opt in, and you can disconnect at any time.</p>
           </div>
 
           <div style={block}>
