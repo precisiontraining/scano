@@ -30,7 +30,8 @@
       "Read(//c/c/Users/flori/Desktop/scano/**)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\flori\\\\Desktop\\\\scano\" -File | Where-Object { $_.Extension -in '.md','.txt','.json' } | Select-Object Name)"
     ]
   }
 }

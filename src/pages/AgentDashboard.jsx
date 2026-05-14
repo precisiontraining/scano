@@ -1691,7 +1691,7 @@ function SettingsPage({subscription, user, onTogglePause, actionLoading, onDelet
       {/* Public Profile (Part 4d) */}
       <div style={{padding:'18px 20px',borderBottom:`1px solid ${C.border}`}}>
         <p style={{fontSize:13,fontWeight:500,color:C.text,marginBottom:4}}>Public Profile</p>
-        <p style={{fontSize:11,color:C.textMuted,fontWeight:300,marginBottom:14}}>Share a public timeline of your agent's work — runs, screenshots, results.</p>
+        <p style={{fontSize:11,color:C.textMuted,fontWeight:300,marginBottom:14}}>Share a public timeline of your agent's work — runs and results.</p>
 
         <label style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,cursor:'pointer'}}>
           <input type="checkbox" checked={isPublic} onChange={e=>setIsPublic(e.target.checked)} style={{width:14,height:14}} />
