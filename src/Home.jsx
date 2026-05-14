@@ -501,7 +501,6 @@ function GrowthAgentSection({ navigate }) {
   const [featuresExpanded, setFeaturesExpanded] = useState(false)
 
   const featuresTop = [
-    { icon:'📸', title:'Before/after screenshots', desc:'Every fix is captured visually. You see exactly what changed and how the page looked before and after — no guesswork.' },
     { icon:'💶', title:'Revenue attribution', desc:'Connect your Stripe and the agent reads real revenue per visitor. The lowest-earning page gets fixed first — not just the highest-bounce one.' },
     { icon:'📱', title:'YES or NO from Telegram', desc:'You get a Telegram message every Monday with the problem, the solution, and the PR link. Reply YES to deploy or NO to skip — done.' },
   ]
@@ -509,7 +508,7 @@ function GrowthAgentSection({ navigate }) {
   const featuresExtra = [
     { icon:'🔍', title:'Competitor weekly scan', desc:"Track up to 5 competitors. Every Monday the agent checks for hero, CTA, and pricing changes — and tells you what they shipped that you didn't." },
     { icon:'🔥', title:'Monthly roast report', desc:"Once a month, brutal honesty: what improved, what is still embarrassingly bad versus competitors, and what you keep ignoring that the agent can't fix for you." },
-    { icon:'🌐', title:'Public impact timeline', desc:'Optional public page at velyr.io/agent/your-slug showing every run, screenshots, and results. Use it as social proof or share with your team.' },
+    { icon:'🌐', title:'Public impact timeline', desc:'Optional public page at velyr.io/agent/your-slug showing every run and its results. Use it as social proof or share with your team.' },
   ]
 
   const timelinePhases = [
@@ -561,13 +560,13 @@ function GrowthAgentSection({ navigate }) {
           </p>
         </div>
 
-        {/* Top 3 features always visible */}
-        <div className="agent-features-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:2, marginBottom:2 }}>
+        {/* Top features always visible */}
+        <div className="agent-features-grid" style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:2, marginBottom:2 }}>
           {featuresTop.map((f, i) => (
             <div key={i} style={{
               background:'#fff',
               border:`1px solid ${C.border}`,
-              borderRadius: i===0 ? '14px 0 0 0' : i===2 ? '0 14px 0 0' : '0',
+              borderRadius: i===0 ? '14px 0 0 0' : '0 14px 0 0',
               padding:'32px 28px',
               opacity: visible ? 1 : 0,
               transform: visible ? 'none' : 'translateY(16px)',
@@ -819,7 +818,6 @@ function AgentDashboardPreview({ navigate }) {
     'Reading Business DNA',
     'Mapping funnel',
     'Finding biggest issue',
-    'Taking before screenshot',
     'Writing fix',
     'Opening pull request',
     'Sending notification',
@@ -1447,7 +1445,7 @@ function Pricing({ navigate }) {
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:'#fff' }}>€29</span>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:26, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
-              {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Before/after screenshots per fix','Revenue attribution (connect Stripe)','Competitor weekly scan','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','A/B testing automation','Public impact timeline (shareable)'].map((f,j) => (
+              {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Revenue attribution (connect Stripe)','Competitor weekly scan','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','A/B testing automation','Public impact timeline (shareable)'].map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
                   <span style={{ color:'rgba(247,244,239,0.7)', flexShrink:0, marginTop:1 }}>✓</span>
                   <span style={{ color:'rgba(247,244,239,0.85)', fontWeight:300 }}>{f}</span>
