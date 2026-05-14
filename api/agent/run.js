@@ -1,6 +1,11 @@
+import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { App } from '@octokit/app'
 import { Octokit } from '@octokit/rest'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2026-04-22.dahlia',
+})
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -96,7 +101,22 @@ export default async function handler(req, res) {
     }
 
     if (action === 'delete') {
-      const { data: subs } = await supabase.from('agent_subscriptions').select('id').eq('auth_user_id', user.id)
+      const { data: subs } = await supabase
+        .from('agent_subscriptions')
+        .select('id, subscription_id, subscription_status')
+        .eq('auth_user_id', user.id)
+
+      for (const s of subs || []) {
+        if (!s.subscription_id || s.subscription_status === 'cancelled') continue
+        try {
+          await stripe.subscriptions.cancel(s.subscription_id)
+        } catch (err) {
+          if (err?.code === 'resource_missing') continue
+          console.error('[account-delete] stripe cancel failed — aborting deletion:', { subscription_id: s.subscription_id, code: err?.code, message: err?.message })
+          return res.status(500).json({ error: 'Failed to cancel Stripe subscription. Account not deleted.' })
+        }
+      }
+
       const subIds = subs?.map(s => s.id) || []
       if (subIds.length > 0) {
         await supabase.from('agent_runs').delete().in('subscription_id', subIds)
