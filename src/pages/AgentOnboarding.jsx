@@ -49,10 +49,10 @@ const CSS = `
     padding: 14px; font-family: 'Jost', sans-serif; font-weight: 400; font-size: 15px;
     cursor: pointer; transition: all .2s; letter-spacing: .03em;
   }
-  .ob-btn-ghost:hover { border-color: rgba(28,25,23,0.3); background: rgba(28,25,23,0.03); }
+  .ob-btn-ghost:hover { border-color: rgba(28,25,23,git diff src/pages/AgentOnboarding.jsx0.3); background: rgba(28,25,23,0.03); }
   .req-item { transition: all .3s ease; }
   .code-display {
-    font-family: 'DM Mono', monospace;
+    font-family: 'DM Mono', monospace;git diff src/pages/AgentOnboarding.jsx
     font-size: 22px;
     letter-spacing: .15em;
     color: #2a5c45;
@@ -817,6 +817,7 @@ export default function AgentOnboarding({ navigate }) {
         telegram_chat_id: allData.telegramChatId,
       }
       console.log('[onboarding/step4] agent_connections upsert payload:', connPayload, '| parsed installationId:', connPayload.github_installation_id, '| isNaN:', Number.isNaN(connPayload.github_installation_id))
+      console.log('[onboarding/step4] agent_connections upsert payload FULL:', JSON.stringify(connPayload, null, 2))
       const connResult = await supabase
         .from('agent_connections')
         .upsert(connPayload, { onConflict: 'subscription_id' })
