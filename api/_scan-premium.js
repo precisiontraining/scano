@@ -64,17 +64,25 @@ function cleanHandle(handle) {
 }
 
 // ─── Apify runner ─────────────────────────────────────────────────────────────
-async function runApify(actorId, input) {
+async function runApify(actorId, input, errors = null) {
   const slug = actorId.replace('/', '~')
   try {
     const res = await fetch(
       `https://api.apify.com/v2/acts/${slug}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=50&memory=256`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: AbortSignal.timeout(52000) }
     )
-    if (!res.ok) { console.error(`Apify ${actorId} HTTP ${res.status}`); return null }
+    if (!res.ok) {
+      console.error(`Apify ${actorId} HTTP ${res.status}`)
+      if (errors) errors.push({ actorId, kind: 'http', status: res.status })
+      return null
+    }
     const data = await res.json()
     return Array.isArray(data) ? data : null
-  } catch (e) { console.error(`Apify ${actorId} failed:`, e.message); return null }
+  } catch (e) {
+    console.error(`Apify ${actorId} failed:`, e.message, e.stack)
+    if (errors) errors.push({ actorId, kind: 'error', message: e.message })
+    return null
+  }
 }
 
 // ─── Hook type classifier ─────────────────────────────────────────────────────
@@ -657,24 +665,58 @@ export default async function handler(req, res) {
 
   console.log('Premium scan:', url, { focusPlatform, tiktokHandle, igHandle, ytHandle, twitterHandle, fbHandle })
 
+  const apifyErrors = []
+  const guestSessionId = req.headers['x-session-id'] || null
+
   const [perf, content, tiktokRaw, igRaw, ytRaw, twitterRaw, fbPageRaw, fbPostsRaw, linkedinRaw] = await Promise.all([
     withTimeout(analyzeWebsite(url), 25000, null),
     withTimeout(analyzeContent(url), 12000, null),
     tiktokHandle  ? withTimeout(runApify('clockworks/tiktok-scraper',
-        { profiles:[tiktokHandle], resultsPerPage:limit('tiktok'), shouldDownloadVideos:false, shouldDownloadCovers:false }), 55000, null) : Promise.resolve(null),
+        { profiles:[tiktokHandle], resultsPerPage:limit('tiktok'), shouldDownloadVideos:false, shouldDownloadCovers:false }, apifyErrors), 55000, null) : Promise.resolve(null),
     igHandle      ? withTimeout(runApify('apify/instagram-scraper',
-        { usernames:[igHandle], resultsLimit:limit('instagram') }), 55000, null) : Promise.resolve(null),
+        { usernames:[igHandle], resultsLimit:limit('instagram') }, apifyErrors), 55000, null) : Promise.resolve(null),
     ytHandle      ? withTimeout(runApify('streamers/youtube-scraper',
-        { startUrls:[{url:`https://www.youtube.com/@${ytHandle}`}], maxResults:limit('youtube') }), 55000, null) : Promise.resolve(null),
+        { startUrls:[{url:`https://www.youtube.com/@${ytHandle}`}], maxResults:limit('youtube') }, apifyErrors), 55000, null) : Promise.resolve(null),
     twitterHandle ? withTimeout(runApify('apidojo/twitter-scraper-lite',
-        { twitterHandles:[twitterHandle], maxItems:limit('twitter') }), 55000, null) : Promise.resolve(null),
+        { twitterHandles:[twitterHandle], maxItems:limit('twitter') }, apifyErrors), 55000, null) : Promise.resolve(null),
     fbHandle      ? withTimeout(runApify('apify/facebook-pages-scraper',
-        { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}] }), 55000, null) : Promise.resolve(null),
+        { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}] }, apifyErrors), 55000, null) : Promise.resolve(null),
     fbHandle      ? withTimeout(runApify('apify/facebook-posts-scraper',
-        { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}], maxPosts:limit('facebook') }), 55000, null) : Promise.resolve(null),
+        { startUrls:[{url:`https://www.facebook.com/${fbHandle}`}], maxPosts:limit('facebook') }, apifyErrors), 55000, null) : Promise.resolve(null),
     linkedinHandle ? withTimeout(runApify('dev_fusion/Linkedin-Profile-Scraper',
-        { profileUrls:[`https://www.linkedin.com/in/${linkedinHandle}`] }), 55000, null) : Promise.resolve(null),
+        { profileUrls:[`https://www.linkedin.com/in/${linkedinHandle}`] }, apifyErrors), 55000, null) : Promise.resolve(null),
   ])
+
+  if (apifyErrors.length > 0) {
+    console.error('Apify failure(s) detected for premium scan:', JSON.stringify(apifyErrors))
+
+    let refundIssued = false
+    try {
+      if (stripe && guestSessionId) {
+        const session = await stripe.checkout.sessions.retrieve(guestSessionId)
+        const paymentIntentId = typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id
+        if (paymentIntentId) {
+          const refund = await stripe.refunds.create({ payment_intent: paymentIntentId })
+          refundIssued = true
+          console.log('Stripe refund issued for session', guestSessionId, 'refund id:', refund.id)
+        } else {
+          console.error('Apify refund: no payment_intent on session', guestSessionId)
+        }
+      } else {
+        console.error('Apify refund: no stripe client or session id available (logged-in user or missing config) — manual refund required')
+      }
+    } catch (refundErr) {
+      console.error('Apify refund failed:', refundErr.message, refundErr.stack)
+    }
+
+    return res.status(502).json({
+      error: 'scan_failed',
+      message: 'Something went wrong with your scan. You will receive a full refund within 3-5 business days. Contact us at info@velyr.io if you have questions.',
+      refundIssued,
+    })
+  }
 
   if (!perf && !content) return res.status(422).json({ error:'unreachable', message:"Couldn't reach this website." })
 
