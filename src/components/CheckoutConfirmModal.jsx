@@ -70,15 +70,17 @@ export default function CheckoutConfirmModal({ type, open, onCancel, onConfirm, 
         <div style={{ background: 'rgba(42,92,69,0.04)', border: '1px solid rgba(42,92,69,0.15)', borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
           {isFullScan ? (
             <>
-              <p style={{ fontSize: 14, color: C.text, fontWeight: 500, marginBottom: 4 }}>Full Report — €9 (inkl. MwSt.)</p>
+              <p style={{ fontSize: 14, color: C.text, fontWeight: 500, marginBottom: 4 }}>Full Report — €9</p>
               <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>One-time payment · Digital report delivered immediately after the scan completes.</p>
+              <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300, marginTop: 6 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
             </>
           ) : (
             <>
-              <p style={{ fontSize: 14, color: C.text, fontWeight: 500, marginBottom: 4 }}>Growth Agent — €29 / month (inkl. MwSt.)</p>
+              <p style={{ fontSize: 14, color: C.text, fontWeight: 500, marginBottom: 4 }}>Growth Agent — €29 / month</p>
               <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>
                 Recurring monthly charge, billed in advance via Stripe. You can cancel anytime from your dashboard — cancellation takes effect at the end of the current billing period.
               </p>
+              <p style={{ fontSize: 11, color: C.textLight, fontWeight: 300, marginTop: 6 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
             </>
           )}
         </div>
