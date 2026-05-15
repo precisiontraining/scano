@@ -142,6 +142,7 @@ const CSS = `
   }
   @media (max-width: 480px) {
     .dash-preview-shell .dp-kpis { grid-template-columns: 1fr !important; }
+    .dash-preview-shell .dp-insights-grid { grid-template-columns: 1fr !important; }
   }
 `
 
@@ -877,10 +878,11 @@ function AgentDashboardPreview({ navigate }) {
     <div className="dash-preview-shell" style={{
       display:'flex',
       width:'100%',
+      maxWidth:'100%',
       background:DC.bg,
       border:`1px solid ${DC.border}`,
       borderRadius:16,
-      overflow:'visible',
+      overflow:'hidden',
       fontFamily:'Jost,sans-serif',
       color:DC.text,
     }}>
@@ -1026,7 +1028,7 @@ function AgentDashboardPreview({ navigate }) {
               {/* Top Insights (2x2) */}
               <div style={{ flex:'0 0 55%', minWidth:0, display:'flex', flexDirection:'column', gap:8 }}>
                 <p style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, color:DC.textLight }}>Top Insights</p>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, width:'100%', overflow:'visible' }}>
+                <div className="dp-insights-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, width:'100%', overflow:'visible' }}>
                   {insights.map((ins,i) => (
                     <div key={i} style={{
                       minWidth:0, overflow:'hidden', wordBreak:'break-word',
