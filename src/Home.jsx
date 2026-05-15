@@ -1198,6 +1198,62 @@ function AgentDashboardPreview({ navigate }) {
   )
 }
 
+// ─── Agent Requirements ───────────────────────────────────────────────────────
+function AgentRequirements() {
+  const [ref, visible] = useReveal()
+
+  const requirements = [
+    { icon:'🐙',  title:'GitHub repo',             desc:'Your website code lives in a GitHub repository the agent can read and open PRs against.' },
+    { icon:'▲',  title:'Vercel deploy',           desc:'Your site is connected to Vercel so approved fixes auto-deploy after you reply YES.' },
+    { icon:'⚛️',  title:'React, Next.js or Vite',  desc:'The agent writes React/JSX code. Plain HTML or other frameworks are not supported.' },
+    { icon:'🔑',  title:'Admin access',             desc:'You can install GitHub Apps on the repo and merge Pull Requests.' },
+    { icon:'✈️',  title:'Telegram account',         desc:'Weekly approvals arrive on Telegram — reply YES or NO to deploy or skip each fix.' },
+  ]
+
+  return (
+    <section id="agent-requirements" className="section-pad" style={{ background:C.bg, padding:'96px 24px' }}>
+      <div style={{ maxWidth:1060, margin:'0 auto' }}>
+        <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:36 }}>
+          <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, marginBottom:14, fontWeight:400 }}>Before you subscribe</p>
+          <h2 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:'clamp(30px, 4vw, 52px)', letterSpacing:'-.02em', lineHeight:1.12 }}>Will the agent work for you?</h2>
+          <p style={{ fontSize:15, color:C.textMuted, fontWeight:300, marginTop:14, maxWidth:560, lineHeight:1.65 }}>
+            The Growth Agent reads your code, opens Pull Requests, and notifies you on Telegram. To do its job it needs five things — check you have them before you subscribe.
+          </p>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:10, marginBottom:18 }}>
+          {requirements.map((r, i) => (
+            <div key={i} style={{
+              background:'#fff', border:`1px solid ${C.border}`, borderRadius:14,
+              padding:'22px 20px',
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'none' : 'translateY(14px)',
+              transition: `all .5s ease ${0.05 + i * 0.06}s`,
+            }}>
+              <div style={{ fontSize:22, marginBottom:12 }}>{r.icon}</div>
+              <p style={{ fontSize:14, fontWeight:500, color:C.text, marginBottom:6, letterSpacing:'-.005em' }}>{r.title}</p>
+              <p style={{ fontSize:12.5, color:C.textMuted, fontWeight:300, lineHeight:1.6 }}>{r.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          background:'rgba(192,57,43,0.06)', border:'1px solid rgba(192,57,43,0.2)', borderRadius:12,
+          padding:'14px 18px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap',
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'none' : 'translateY(10px)',
+          transition: 'all .5s ease .42s',
+        }}>
+          <span style={{ fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', color:C.red, fontWeight:500, flexShrink:0 }}>✕ Not supported</span>
+          <span style={{ fontSize:13, color:C.textMuted, fontWeight:300, lineHeight:1.55, flex:1, minWidth:240 }}>
+            <strong style={{ color:C.text, fontWeight:500 }}>Shopify · Wix · Squarespace · Webflow</strong> — these site builders don't expose source code the agent can edit. If your site uses one of these, the Growth Agent isn't a fit yet.
+          </span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Sample Report ─────────────────────────────────────────────────────────────
 function SampleReport({ navigate, onScanStart }) {
   const [ref, visible] = useReveal()
@@ -1452,6 +1508,18 @@ function Pricing({ navigate }) {
                 </div>
               ))}
             </div>
+            <a
+              href="#agent-requirements"
+              onClick={(e) => { e.preventDefault(); document.getElementById('agent-requirements')?.scrollIntoView({ behavior:'smooth' }) }}
+              style={{
+                display:'block', textAlign:'center',
+                fontSize:11.5, color:'rgba(247,244,239,0.65)',
+                fontWeight:300, letterSpacing:'.03em',
+                textDecoration:'none', marginBottom:10,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#f7f4ef' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(247,244,239,0.65)' }}
+            >See requirements ↑</a>
             <SubscribeButton type="subscription" style={{ background:'#f7f4ef', color:C.text, fontSize:15 }} />
           </div>
 
@@ -1588,6 +1656,7 @@ export default function Home({ navigate, onScanStart, scrollToPricing }) {
       <Hero onScanStart={onScanStart} navigate={navigate} />
       <WhatWeCheck />
       <GrowthAgentSection navigate={navigate} />
+      <AgentRequirements />
       <SampleReport navigate={navigate} onScanStart={onScanStart} />
       <Pricing navigate={navigate} />
       <FAQ />

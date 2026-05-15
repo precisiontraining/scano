@@ -129,7 +129,7 @@ function StepIndicator({ current, total }) {
 
 // ─── STEP 0: Requirements ────────────────────────────────────────────────────
 function Step0({ onNext }) {
-  const [checks, setChecks] = useState({ github: null, vercel: null, react: null, admin: null })
+  const [checks, setChecks] = useState({ github: null, vercel: null, react: null, admin: null, telegram: null })
 
   const requirements = [
     {
@@ -151,6 +151,11 @@ function Step0({ onNext }) {
       key: 'admin', icon: '🔑', title: 'Admin access to the repo',
       desc: 'You need to be able to install GitHub Apps and merge Pull Requests.',
       fixText: null,
+    },
+    {
+      key: 'telegram', icon: '✈️', title: 'Telegram account',
+      desc: 'The agent sends weekly PR approvals via Telegram. You reply YES or NO to deploy each fix.',
+      fixText: 'Get Telegram (free)', fixUrl: 'https://telegram.org/',
     },
   ]
 
