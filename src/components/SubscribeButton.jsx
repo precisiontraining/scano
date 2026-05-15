@@ -102,7 +102,7 @@ export default function SubscribeButton({ type, style = {}, className = '', navi
         {loading ? 'Redirecting…' : label}
       </button>
       <p style={{ fontSize: 11, color: '#a09890', fontWeight: 300, textAlign: 'center', marginTop: 6 }}>
-        inkl. MwSt.
+        incl. VAT (inkl. MwSt.)
       </p>
 
       <CheckoutConfirmModal
