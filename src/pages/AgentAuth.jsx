@@ -101,12 +101,28 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
         ? `${window.location.origin}/agent/post-signup?next=${encodeURIComponent(intent)}`
         : `${window.location.origin}/agent/post-signup`
 
-      const { error: err } = await supabase.auth.signUp({
+      const { data, error: err } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: redirectTo },
       })
-      if (err) { setError(err.message); setLoading(false); return }
+      if (err) {
+        const msg = err.message || ''
+        if (err.code === 'user_already_exists' || err.status === 422 || /already (registered|exists|in use)/i.test(msg)) {
+          setError('This email is already registered. Please log in instead.')
+        } else {
+          setError(msg)
+        }
+        setLoading(false)
+        return
+      }
+      // When email confirmation is enabled, Supabase doesn't error on duplicate emails
+      // (to prevent enumeration). Instead it returns a user with an empty identities array.
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError('This email is already registered. Please log in instead.')
+        setLoading(false)
+        return
+      }
       setSuccess('Check your email to confirm your account, then log in.')
       setLoading(false)
       return
