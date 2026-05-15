@@ -91,7 +91,7 @@ export default function AGB({ navigate }) {
           <div style={block}>
             <h2>§ 3 — Prices & Payment</h2>
             <ul>
-              <li>All prices are in Euro (€) and include applicable VAT (inkl. MwSt.).</li>
+              <li>Die angegebenen Preise sind Endpreise. Gemäß § 19 UStG erheben wir keine Umsatzsteuer und weisen diese folglich auch nicht aus.</li>
               <li>The <strong style={{ fontWeight: 500 }}>Full Report</strong> costs €9 as a one-time payment. You are charged once at purchase. No recurring charges.</li>
               <li>The <strong style={{ fontWeight: 500 }}>Growth Agent</strong> costs €29 per month, billed monthly in advance via Stripe. The subscription renews automatically each month until cancelled.</li>
               <li>All payments are processed by Stripe Payments Europe, Ltd. Velyr never stores your card details.</li>

@@ -113,6 +113,11 @@ export default function Impressum({ navigate }) {
           </div>
 
           <div style={block}>
+            <span style={label}>Umsatzsteuer</span>
+            <p>Hinweis gemäß § 19 UStG: Als Kleinunternehmer im Sinne von § 19 UStG wird keine Umsatzsteuer erhoben und ausgewiesen.</p>
+          </div>
+
+          <div style={block}>
             <span style={label}>EU-Streitschlichtung</span>
             <p>
               Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:{' '}
