@@ -91,7 +91,7 @@ export default function AGB({ navigate }) {
           <div style={block}>
             <h2>§ 3 — Prices & Payment</h2>
             <ul>
-              <li>All prices are in Euro (€) and include applicable VAT where required by law.</li>
+              <li>All prices are in Euro (€) and include applicable VAT (inkl. MwSt.).</li>
               <li>The <strong style={{ fontWeight: 500 }}>Full Report</strong> costs €9 as a one-time payment. You are charged once at purchase. No recurring charges.</li>
               <li>The <strong style={{ fontWeight: 500 }}>Growth Agent</strong> costs €29 per month, billed monthly in advance via Stripe. The subscription renews automatically each month until cancelled.</li>
               <li>All payments are processed by Stripe Payments Europe, Ltd. Velyr never stores your card details.</li>
@@ -110,6 +110,84 @@ export default function AGB({ navigate }) {
               <li><strong style={{ fontWeight: 500 }}>Growth Agent:</strong> You have a 14-day right of withdrawal from the date of contract formation. If you expressly request that the service begin immediately, you acknowledge that your right of withdrawal expires once the service has been fully performed. If you withdraw before the first agent run, you will receive a full refund. If the agent has already run at least once, a proportional fee for the service rendered may be retained.</li>
             </ul>
             <p style={{ marginTop: 12 }}>To exercise your right of withdrawal, contact us at <a href="mailto:info@velyr.io">info@velyr.io</a> within 14 days of contract formation. No specific form is required.</p>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(28,25,23,0.09)', margin: '8px 0 36px' }} />
+
+          {/* § 4a — Statutory Widerrufsbelehrung */}
+          <div style={block}>
+            <h2>§ 4a — Widerrufsbelehrung (Muster gemäß Anlage 1 zu Art. 246a § 1 Abs. 2 Satz 2 EGBGB)</h2>
+
+            <p style={{ marginTop: 4, marginBottom: 12, fontWeight: 500, color: '#1c1917' }}>Widerrufsrecht</p>
+            <p style={{ marginBottom: 12 }}>
+              Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
+            </p>
+            <p style={{ marginBottom: 12 }}>
+              Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.
+            </p>
+            <p style={{ marginBottom: 12 }}>
+              Um Ihr Widerrufsrecht auszuüben, müssen Sie uns
+            </p>
+            <p style={{ marginBottom: 12, paddingLeft: 16 }}>
+              Florian Rappold<br />
+              Maikäferstraße 3f<br />
+              85551 Kirchheim bei München<br />
+              Deutschland<br />
+              Telefon: +49 151 61893139<br />
+              E-Mail: <a href="mailto:info@velyr.io">info@velyr.io</a>
+            </p>
+            <p style={{ marginBottom: 12 }}>
+              mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+            </p>
+            <p style={{ marginBottom: 12 }}>
+              Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
+            </p>
+
+            <p style={{ marginTop: 18, marginBottom: 12, fontWeight: 500, color: '#1c1917' }}>Folgen des Widerrufs</p>
+            <p style={{ marginBottom: 12 }}>
+              Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.
+            </p>
+            <p style={{ marginBottom: 12 }}>
+              Haben Sie verlangt, dass die Dienstleistungen während der Widerrufsfrist beginnen sollen, so haben Sie uns einen angemessenen Betrag zu zahlen, der dem Anteil der bis zu dem Zeitpunkt, zu dem Sie uns von der Ausübung des Widerrufsrechts hinsichtlich dieses Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der im Vertrag vorgesehenen Dienstleistungen entspricht.
+            </p>
+
+            <p style={{ marginTop: 18, marginBottom: 12, fontWeight: 500, color: '#1c1917' }}>Vorzeitiges Erlöschen des Widerrufsrechts bei digitalen Inhalten</p>
+            <p style={{ marginBottom: 12 }}>
+              Bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten (Full Report, €9) erlischt das Widerrufsrecht auch dann, wenn der Unternehmer mit der Ausführung des Vertrags begonnen hat, nachdem Sie
+            </p>
+            <ul>
+              <li>ausdrücklich zugestimmt haben, dass der Unternehmer mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnt, und</li>
+              <li>Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung des Vertrags Ihr Widerrufsrecht verlieren (§ 356 Abs. 5 BGB).</li>
+            </ul>
+            <p style={{ marginTop: 12 }}>
+              Diese Zustimmung und Kenntnisbestätigung holen wir vor jeder kostenpflichtigen Bestellung des Full Reports per Checkbox ausdrücklich ein.
+            </p>
+
+            <p style={{ marginTop: 24, marginBottom: 12, fontWeight: 500, color: '#1c1917' }}>Muster-Widerrufsformular (Anlage 2 zu Art. 246a § 1 Abs. 2 Satz 1 Nr. 1 EGBGB)</p>
+            <p style={{ marginBottom: 12, fontStyle: 'italic' }}>
+              Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.
+            </p>
+            <div style={{ border: '1px solid rgba(28,25,23,0.12)', borderRadius: 10, padding: '16px 18px', background: 'rgba(28,25,23,0.02)' }}>
+              <p style={{ marginBottom: 10 }}>An<br />
+                Florian Rappold<br />
+                Maikäferstraße 3f<br />
+                85551 Kirchheim bei München<br />
+                Deutschland<br />
+                E-Mail: <a href="mailto:info@velyr.io">info@velyr.io</a>
+              </p>
+              <p style={{ marginBottom: 10 }}>
+                Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*):
+              </p>
+              <p style={{ marginBottom: 10 }}>
+                _______________________________________________________
+              </p>
+              <p style={{ marginBottom: 6 }}>Bestellt am (*) / erhalten am (*): ____________________</p>
+              <p style={{ marginBottom: 6 }}>Name des/der Verbraucher(s): ____________________</p>
+              <p style={{ marginBottom: 6 }}>Anschrift des/der Verbraucher(s): ____________________</p>
+              <p style={{ marginBottom: 6 }}>Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier): ____________________</p>
+              <p style={{ marginBottom: 0 }}>Datum: ____________________</p>
+              <p style={{ marginTop: 12, fontSize: 13, color: '#a09890' }}>(*) Unzutreffendes streichen.</p>
+            </div>
           </div>
 
           <hr style={{ border: 'none', borderTop: '1px solid rgba(28,25,23,0.09)', margin: '8px 0 36px' }} />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { startCheckout } from '../utils/startCheckout.js'
+import CheckoutConfirmModal from './CheckoutConfirmModal.jsx'
 
 const LABELS = {
   full_scan: 'Get Full Scan – 9€',
@@ -31,8 +32,12 @@ export async function beginCheckout(type, navigate) {
 
 export default function SubscribeButton({ type, style = {}, className = '', navigate }) {
   const [loading, setLoading] = useState(false)
+  // Pre-checkout consent gate (Widerrufsverzicht for full_scan,
+  // recurring-charge acknowledgment for subscription). Existing checkout
+  // logic below is unchanged — it only runs after the user actively confirms.
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const handleClick = async () => {
+  const startActualCheckout = async () => {
     if (loading) return
     setLoading(true)
     try {
@@ -44,46 +49,69 @@ export default function SubscribeButton({ type, style = {}, className = '', navi
     }
   }
 
+  const handleClick = () => {
+    if (loading) return
+    setConfirmOpen(true)
+  }
+
+  const handleConfirm = async () => {
+    setConfirmOpen(false)
+    await startActualCheckout()
+  }
+
   const label = LABELS[type] || 'Buy Now'
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={className}
-      style={{
-        background: '#1c1917',
-        color: '#f7f4ef',
-        border: 'none',
-        borderRadius: 10,
-        padding: '14px 28px',
-        fontFamily: 'Jost, sans-serif',
-        fontWeight: 500,
-        fontSize: 15,
-        cursor: loading ? 'not-allowed' : 'pointer',
-        opacity: loading ? 0.6 : 1,
-        letterSpacing: '.02em',
-        transition: 'background .2s, transform .15s',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        width: '100%',
-        ...style,
-      }}
-    >
-      {loading && (
-        <span style={{
-          width: 14,
-          height: 14,
-          border: '1.5px solid rgba(247,244,239,0.35)',
-          borderTopColor: '#f7f4ef',
-          borderRadius: '50%',
-          display: 'inline-block',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-      )}
-      {loading ? 'Redirecting…' : label}
-    </button>
+    <>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className={className}
+        style={{
+          background: '#1c1917',
+          color: '#f7f4ef',
+          border: 'none',
+          borderRadius: 10,
+          padding: '14px 28px',
+          fontFamily: 'Jost, sans-serif',
+          fontWeight: 500,
+          fontSize: 15,
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.6 : 1,
+          letterSpacing: '.02em',
+          transition: 'background .2s, transform .15s',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          width: '100%',
+          ...style,
+        }}
+      >
+        {loading && (
+          <span style={{
+            width: 14,
+            height: 14,
+            border: '1.5px solid rgba(247,244,239,0.35)',
+            borderTopColor: '#f7f4ef',
+            borderRadius: '50%',
+            display: 'inline-block',
+            animation: 'spin 0.7s linear infinite',
+          }} />
+        )}
+        {loading ? 'Redirecting…' : label}
+      </button>
+      <p style={{ fontSize: 11, color: '#a09890', fontWeight: 300, textAlign: 'center', marginTop: 6 }}>
+        inkl. MwSt.
+      </p>
+
+      <CheckoutConfirmModal
+        type={type}
+        open={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleConfirm}
+        loading={loading}
+      />
+    </>
   )
 }

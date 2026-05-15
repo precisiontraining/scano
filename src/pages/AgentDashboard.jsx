@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { demoData } from '../data/demoData'
 import { startCheckout } from '../utils/startCheckout.js'
+import CheckoutConfirmModal from '../components/CheckoutConfirmModal.jsx'
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
@@ -1507,14 +1508,21 @@ function StripeSubscriptionPanel({ navigate }) {
   const [subLoading, setSubLoading]       = useState(true)
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false)
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState(null)
+  // Pre-checkout consent modal (§312j BGB pre-purchase summary + recurring acknowledgment)
+  const [subConfirmOpen, setSubConfirmOpen] = useState(false)
 
-  async function subscribeNow() {
+  async function doSubscribeNow() {
     if (subscribeLoading) return
     setSubscribeLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { setSubscribeLoading(false); return }
     const result = await startCheckout('subscription', session.user.id, session.user.email)
     if (!result?.redirected) setSubscribeLoading(false)
+  }
+
+  function subscribeNow() {
+    if (subscribeLoading) return
+    setSubConfirmOpen(true)
   }
 
   useEffect(() => {
@@ -1576,6 +1584,26 @@ function StripeSubscriptionPanel({ navigate }) {
           </div>
         )}
 
+        {/* Kündigungsbutton (BGB §312k) — explicit cancellation entry point.
+            Routes to the same Stripe Billing Portal as "Manage subscription",
+            where the cancellation step is confirmed and a receipt is issued. */}
+        {isActive && !cancelAtPeriodEnd && (
+          <button
+            onClick={openPortal}
+            disabled={portalLoading}
+            className="btn"
+            style={{
+              background: 'transparent', border: `1px solid ${C.red}`, color: C.red,
+              borderRadius: 7, padding: '8px 14px', fontSize: 12,
+              fontFamily: 'DM Sans,sans-serif', fontWeight: 500,
+              alignSelf: 'flex-start',
+              opacity: portalLoading ? 0.6 : 1,
+            }}
+          >
+            {portalLoading ? '…' : 'Verträge hier kündigen'}
+          </button>
+        )}
+
         {isActive && cancelAtPeriodEnd && currentPeriodEnd && (
           <p style={{ fontSize: 12, color: '#f5a623', marginTop: 4 }}>
             Cancels on {new Date(currentPeriodEnd).toLocaleDateString()} — you have full access until then.
@@ -1617,6 +1645,14 @@ function StripeSubscriptionPanel({ navigate }) {
           </div>
         )}
       </div>
+
+      <CheckoutConfirmModal
+        type="subscription"
+        open={subConfirmOpen}
+        onCancel={() => setSubConfirmOpen(false)}
+        onConfirm={() => { setSubConfirmOpen(false); doSubscribeNow() }}
+        loading={subscribeLoading}
+      />
     </div>
   )
 }
@@ -2092,13 +2128,21 @@ export default function AgentDashboard({ navigate }) {
   }
 
   const [subscribeLoading, setSubscribeLoading] = useState(false)
-  async function handleSubscribe() {
+  // Pre-checkout consent modal for the dashboard "Unlock your Growth Agent" CTA.
+  // Existing handleSubscribe logic preserved as doHandleSubscribe and only runs
+  // after the user explicitly confirms in the modal.
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false)
+  async function doHandleSubscribe() {
     if (subscribeLoading || isDemo) return
     setSubscribeLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { navigate('/agent/login'); return }
     const result = await startCheckout('subscription', session.user.id, session.user.email)
     if (!result?.redirected) setSubscribeLoading(false)
+  }
+  function handleSubscribe() {
+    if (subscribeLoading || isDemo) return
+    setUnlockConfirmOpen(true)
   }
 
   async function handleTogglePause() {
@@ -2180,6 +2224,14 @@ export default function AgentDashboard({ navigate }) {
           Checkout cancelled — no charge was made.
         </div>
       )}
+
+      <CheckoutConfirmModal
+        type="subscription"
+        open={unlockConfirmOpen}
+        onCancel={() => setUnlockConfirmOpen(false)}
+        onConfirm={() => { setUnlockConfirmOpen(false); doHandleSubscribe() }}
+        loading={subscribeLoading}
+      />
 
       <div className="dash-shell" style={{minHeight:'100vh',background:C.bg,display:'flex'}}>
 
@@ -2383,6 +2435,16 @@ export default function AgentDashboard({ navigate }) {
                 )}
               </>
             )}
+          </div>
+
+          {/* Legal footer (§5 TMG — Impressum must be reachable from every page) */}
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: C.bg }}>
+            <span style={{ fontSize: 12, color: C.textLight, fontWeight: 300, fontFamily: 'DM Sans, sans-serif' }}>© 2026 Velyr</span>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+              <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.textLight, fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+              <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.textLight, fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>Impressum</button>
+              <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.textLight, fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>AGB</button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { demoData } from './data/demoData'
 import SubscribeButton, { beginCheckout } from './components/SubscribeButton.jsx'
+import CheckoutConfirmModal from './components/CheckoutConfirmModal.jsx'
 
 const C = {
   bg:          '#f7f4ef',
@@ -181,6 +182,8 @@ function Nav({ navigate }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  // Pre-checkout Widerrufsverzicht gate (§356 Abs. 5 BGB) for the Nav "Full report" button.
+  const [navConfirmOpen, setNavConfirmOpen] = useState(false)
   useEffect(() => { const fn = () => setScrolled(window.scrollY > 32); window.addEventListener('scroll', fn); return () => window.removeEventListener('scroll', fn) }, [])
   useEffect(() => {
     if (!menuOpen) return
@@ -192,7 +195,7 @@ function Nav({ navigate }) {
 
   const goAndClose = (fn) => () => { setMenuOpen(false); fn() }
 
-  const handleFullScanCheckout = async () => {
+  const doFullScanCheckout = async () => {
     if (checkoutLoading) return
     setCheckoutLoading(true)
     try {
@@ -204,8 +207,20 @@ function Nav({ navigate }) {
     }
   }
 
+  const handleFullScanCheckout = () => {
+    if (checkoutLoading) return
+    setNavConfirmOpen(true)
+  }
+
   return (
     <>
+      <CheckoutConfirmModal
+        type="full_scan"
+        open={navConfirmOpen}
+        onCancel={() => setNavConfirmOpen(false)}
+        onConfirm={() => { setNavConfirmOpen(false); doFullScanCheckout() }}
+        loading={checkoutLoading}
+      />
       <nav style={{
         position:'fixed', top:0, left:0, right:0, zIndex:100, height:60,
         padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between',
@@ -450,6 +465,13 @@ function Hero({ onScanStart, navigate }) {
               Scan my business — it's free →
             </button>
             <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>Takes 60 seconds · No account needed</p>
+            <p style={{ fontSize:11, color:C.textLight, fontWeight:300, textAlign:'center', marginTop:6, lineHeight:1.55 }}>
+              By scanning you agree to our{' '}
+              <button
+                onClick={() => navigate('/privacy')}
+                style={{ background:'none', border:'none', padding:0, color:C.accent, fontSize:11, fontFamily:'Jost, sans-serif', fontWeight:300, cursor:'pointer', textDecoration:'underline', textDecorationColor:'rgba(42,92,69,0.35)' }}
+              >Privacy Policy</button>.
+            </p>
           </div>
         </div>
       </div>
@@ -1457,7 +1479,8 @@ function Pricing({ navigate }) {
             <p style={{ fontWeight:500, fontSize:15, marginBottom:5, color:C.text }}>Full report</p>
             <p style={{ color:C.textLight, fontSize:13, fontWeight:300, marginBottom:20 }}>Everything you need to actually improve.</p>
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:C.text }}>€9</span>
-            <p style={{ color:C.textLight, fontSize:12, marginBottom:26, fontWeight:300, marginTop:4 }}>one-time · no subscription</p>
+            <p style={{ color:C.textLight, fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>one-time · no subscription</p>
+            <p style={{ color:C.textLight, fontSize:11, marginBottom:26, fontWeight:300 }}>inkl. MwSt.</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
               {[
                 'Everything in the free scan',
@@ -1506,7 +1529,8 @@ function Pricing({ navigate }) {
             <p style={{ fontWeight:500, fontSize:15, marginBottom:5, color:'rgba(247,244,239,0.9)' }}>Growth Agent</p>
             <p style={{ color:'rgba(247,244,239,0.6)', fontSize:13, fontWeight:300, marginBottom:20 }}>Autonomous weekly improvements.</p>
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:'#fff' }}>€29</span>
-            <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:26, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
+            <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
+            <p style={{ color:'rgba(247,244,239,0.5)', fontSize:11, marginBottom:26, fontWeight:300 }}>inkl. MwSt.</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
               {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Revenue attribution (connect Stripe)','Competitor weekly scan','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','A/B testing automation','Public impact timeline (shareable)'].map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>

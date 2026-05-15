@@ -162,6 +162,12 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
                 <input className="pinp" value={url} onChange={e => setUrl(e.target.value)}
                   placeholder="yourwebsite.com" onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
               </div>
+              <p style={{ fontSize: 11, color: C.light, fontWeight: 300, marginTop: 8, lineHeight: 1.55 }}>
+                The URL and any social handles you enter are used only to run your audit. See our{' '}
+                <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontSize: 11, fontFamily: 'Jost, sans-serif', fontWeight: 300, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}>
+                  Privacy Policy
+                </button>.
+              </p>
             </div>
 
             {/* Social platforms */}
@@ -271,6 +277,16 @@ export default function PremiumScanForm({ navigate, onScanStart }) {
             <p style={{ fontSize: 12, color: C.light, textAlign: 'center', marginTop: 10, fontWeight: 300 }}>
               One-time · No subscription · Results in ~60 seconds
             </p>
+          </div>
+        </div>
+
+        {/* Legal footer (§5 TMG — Impressum must be reachable from every page) */}
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: C.bg }}>
+          <span style={{ fontSize: 13, color: C.light, fontWeight: 300, fontFamily: 'Jost, sans-serif' }}>© 2026 Velyr</span>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+            <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+            <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.light, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
           </div>
         </div>
       </div>

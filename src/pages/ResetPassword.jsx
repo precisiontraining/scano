@@ -92,6 +92,19 @@ export default function ResetPassword({ navigate }) {
     setTimeout(() => navigate('/agent/login'), 2000)
   }
 
+  // Legal footer (§5 TMG — Impressum must be reachable from every page).
+  // Reused across all three render branches below.
+  const LegalFooter = (
+    <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: C.bg }}>
+      <span style={{ fontSize: 13, color: C.textLight, fontWeight: 300, fontFamily: 'Jost, sans-serif' }}>© 2026 Velyr</span>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+        <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+        <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
+      </div>
+    </div>
+  )
+
   // ── Loading state (Token wird geprüft) ──────────────────────
   if (tokenValid === null) {
     return (
@@ -100,6 +113,7 @@ export default function ResetPassword({ navigate }) {
         <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontSize: 14, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Checking reset link…</p>
         </div>
+        {LegalFooter}
       </>
     )
   }
@@ -126,6 +140,7 @@ export default function ResetPassword({ navigate }) {
             </div>
           </div>
         </div>
+        {LegalFooter}
       </>
     )
   }
@@ -146,6 +161,7 @@ export default function ResetPassword({ navigate }) {
             </div>
           </div>
         </div>
+        {LegalFooter}
       </>
     )
   }
@@ -210,6 +226,7 @@ export default function ResetPassword({ navigate }) {
 
         </div>
       </div>
+      {LegalFooter}
     </>
   )
 }

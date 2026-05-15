@@ -101,12 +101,24 @@ export default function Impressum({ navigate }) {
 
           <div style={block}>
             <span style={label}>Kontakt</span>
-            <p>E-Mail: <a href="mailto:info@velyr.io">info@velyr.io</a></p>
+            <p>
+              Telefon: <a href="tel:+4915161893139">+49 151 61893139</a><br />
+              E-Mail: <a href="mailto:info@velyr.io">info@velyr.io</a>
+            </p>
           </div>
 
           <div style={block}>
-            <span style={label}>Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV</span>
+            <span style={label}>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</span>
             <p>Florian Rappold<br />Maikäferstraße 3f<br />85551 Kirchheim bei München</p>
+          </div>
+
+          <div style={block}>
+            <span style={label}>EU-Streitschlichtung</span>
+            <p>
+              Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:{' '}
+              <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer">ec.europa.eu/consumers/odr</a>.{' '}
+              Wir sind nicht verpflichtet und nicht bereit, an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen. Bitte kontaktieren Sie uns zur außergerichtlichen Lösung zunächst per E-Mail an <a href="mailto:info@velyr.io">info@velyr.io</a>.
+            </p>
           </div>
 
           <div style={block}>

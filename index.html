@@ -67,10 +67,109 @@
     }
     </script>
 
-    <!-- PostHog -->
+    <!-- PostHog (consent-gated, §25 TTDSG / GDPR) -->
     <script>
-      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-      posthog.init('phc_kfqurzaEB9iZBg4Wc7wm7AV6amEKrgmLmz5jn5K5EtJ8', {api_host:'https://eu.posthog.com'})
+      // Defer PostHog initialization until the visitor has accepted analytics
+      // cookies via the consent banner below. Decision is persisted in
+      // localStorage under "velyr_consent" with values "accepted" | "declined".
+      (function () {
+        function initPostHog() {
+          if (window.__velyrPostHogInitialized) return;
+          window.__velyrPostHogInitialized = true;
+          !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+          posthog.init('phc_kfqurzaEB9iZBg4Wc7wm7AV6amEKrgmLmz5jn5K5EtJ8', {api_host:'https://eu.posthog.com'});
+        }
+        window.__velyrInitPostHog = initPostHog;
+
+        var consent = null;
+        try { consent = localStorage.getItem('velyr_consent'); } catch (e) {}
+        if (consent === 'accepted') initPostHog();
+        // If "declined" or null, do nothing; the banner (below) handles null.
+      })();
+    </script>
+
+    <!-- Cookie consent banner (vanilla — runs before React, applies to every route) -->
+    <style>
+      #velyr-cookie-banner {
+        position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+        z-index: 99999; max-width: 560px; width: calc(100% - 32px);
+        background: #f7f4ef; color: #1c1917;
+        border: 1px solid rgba(28,25,23,0.12); border-radius: 14px;
+        box-shadow: 0 8px 32px rgba(28,25,23,0.18);
+        padding: 18px 20px; font-family: 'Jost', sans-serif; font-weight: 300;
+        opacity: 0; transform: translateX(-50%) translateY(8px);
+        transition: opacity .25s ease, transform .25s ease;
+      }
+      #velyr-cookie-banner.in { opacity: 1; transform: translateX(-50%) translateY(0); }
+      #velyr-cookie-banner p { font-size: 13px; line-height: 1.55; color: #6b6460; margin: 0 0 12px; }
+      #velyr-cookie-banner strong { color: #1c1917; font-weight: 500; }
+      #velyr-cookie-banner a { color: #2a5c45; text-decoration: underline; text-decoration-color: rgba(42,92,69,0.35); }
+      #velyr-cookie-banner .vc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      #velyr-cookie-banner button {
+        flex: 1 1 130px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 13px;
+        border-radius: 8px; padding: 10px 14px; cursor: pointer; letter-spacing: .02em;
+        transition: background .2s, transform .15s, border-color .2s;
+      }
+      #velyr-cookie-banner .vc-decline {
+        background: transparent; color: #1c1917;
+        border: 1px solid rgba(28,25,23,0.18);
+      }
+      #velyr-cookie-banner .vc-decline:hover { border-color: rgba(28,25,23,0.35); background: rgba(28,25,23,0.03); }
+      #velyr-cookie-banner .vc-accept {
+        background: #2a5c45; color: #f7f4ef; border: none;
+      }
+      #velyr-cookie-banner .vc-accept:hover { background: #1e4433; transform: translateY(-1px); }
+      @media (max-width: 480px) {
+        #velyr-cookie-banner { padding: 16px; bottom: 12px; width: calc(100% - 24px); }
+        #velyr-cookie-banner p { font-size: 12.5px; }
+      }
+    </style>
+    <script>
+      (function () {
+        function readConsent() {
+          try { return localStorage.getItem('velyr_consent'); } catch (e) { return null; }
+        }
+        function writeConsent(v) {
+          try { localStorage.setItem('velyr_consent', v); } catch (e) {}
+        }
+        function showBanner() {
+          if (document.getElementById('velyr-cookie-banner')) return;
+          var div = document.createElement('div');
+          div.id = 'velyr-cookie-banner';
+          div.setAttribute('role', 'dialog');
+          div.setAttribute('aria-label', 'Cookie consent');
+          div.innerHTML =
+            '<p><strong>Cookies &amp; analytics.</strong> We use PostHog (EU-hosted) to understand how visitors use velyr.io. ' +
+            'No tracking cookies are set without your consent. ' +
+            'See our <a href="/privacy">Privacy Policy</a> for details.</p>' +
+            '<div class="vc-actions">' +
+            '<button class="vc-decline" id="velyr-cookie-decline" type="button">Decline</button>' +
+            '<button class="vc-accept" id="velyr-cookie-accept" type="button">Accept</button>' +
+            '</div>';
+          document.body.appendChild(div);
+          // Trigger transition
+          requestAnimationFrame(function () { div.classList.add('in'); });
+          document.getElementById('velyr-cookie-accept').addEventListener('click', function () {
+            writeConsent('accepted');
+            if (typeof window.__velyrInitPostHog === 'function') window.__velyrInitPostHog();
+            div.classList.remove('in');
+            setTimeout(function () { div.remove(); }, 250);
+          });
+          document.getElementById('velyr-cookie-decline').addEventListener('click', function () {
+            writeConsent('declined');
+            div.classList.remove('in');
+            setTimeout(function () { div.remove(); }, 250);
+          });
+        }
+        function maybeShow() {
+          if (readConsent() === null) showBanner();
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', maybeShow);
+        } else {
+          maybeShow();
+        }
+      })();
     </script>
 
     <style>

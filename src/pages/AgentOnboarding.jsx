@@ -241,7 +241,7 @@ function Step0({ onNext }) {
 }
 
 // ─── STEP 1: Website ─────────────────────────────────────────────────────────
-function Step1({ onNext, onBack }) {
+function Step1({ onNext, onBack, navigate }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
 
@@ -257,9 +257,25 @@ function Step1({ onNext, onBack }) {
       <h2 style={{ fontFamily: 'Cormorant Garant, serif', fontWeight: 400, fontSize: 28, letterSpacing: '-.015em', marginBottom: 8, color: C.text }}>
         Your website
       </h2>
-      <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 24 }}>
+      <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 300, lineHeight: 1.7, marginBottom: 16 }}>
         The agent will analyze your website every week and find conversion improvements.
       </p>
+
+      {/* Data-processing notice (GDPR Art. 13/14 informed consent) */}
+      <div style={{ background: 'rgba(42,92,69,0.05)', border: '1px solid rgba(42,92,69,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 22 }}>
+        <p style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 300, lineHeight: 1.6 }}>
+          By connecting your GitHub repository, website, and analytics, you authorize Velyr to access and process this data to run the Growth Agent. See our{' '}
+          {navigate ? (
+            <button onClick={() => navigate('/privacy')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontSize: 12.5, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}>
+              Privacy Policy
+            </button>
+          ) : (
+            <a href="/privacy" style={{ color: C.accent, fontWeight: 400, textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}>Privacy Policy</a>
+          )}
+          {' '}for details.
+        </p>
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
           <label style={{ fontSize: 12, color: C.textLight, display: 'block', marginBottom: 6, letterSpacing: '.03em' }}>Website URL</label>
@@ -883,7 +899,7 @@ export default function AgentOnboarding({ navigate }) {
           <div className="ob-card ob-card-inner" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 18, padding: '36px 32px', boxShadow: '0 4px 32px rgba(28,25,23,0.07)' }}>
             <StepIndicator current={step} total={5} />
             {step === 0 && <Step0 onNext={handleStep0} />}
-            {step === 1 && <Step1 onNext={handleStep1} onBack={() => setStep(0)} />}
+            {step === 1 && <Step1 onNext={handleStep1} onBack={() => setStep(0)} navigate={navigate} />}
             {step === 2 && <Step2 onNext={handleStep2} onBack={() => setStep(1)} />}
             {step === 3 && <Step3 onNext={handleStep3} onBack={() => setStep(2)} />}
             {step === 4 && <Step4 onNext={handleStep4} onBack={() => setStep(3)} loading={loading} />}
@@ -897,6 +913,16 @@ export default function AgentOnboarding({ navigate }) {
           <p style={{ textAlign: 'center', fontSize: 12, color: C.textLight, marginTop: 20, fontWeight: 300 }}>
             Takes about 5 minutes · You can change everything later
           </p>
+        </div>
+      </div>
+
+      {/* Legal footer (§5 TMG — Impressum must be reachable from every page) */}
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: C.bg }}>
+        <span style={{ fontSize: 13, color: C.textLight, fontWeight: 300, fontFamily: 'Jost, sans-serif' }}>© 2026 Velyr</span>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+          <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+          <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
         </div>
       </div>
     </>

@@ -249,6 +249,21 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
 
               <div style={{ height: 4 }} />
 
+              {tab === 'register' && (
+                <p style={{ fontSize: 12, color: C.textLight, fontWeight: 300, lineHeight: 1.55, textAlign: 'center', marginBottom: 4 }}>
+                  By creating an account you agree to our{' '}
+                  <button
+                    onClick={() => navigate('/agb')}
+                    style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontSize: 12, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}
+                  >Terms of Service</button>
+                  {' '}and{' '}
+                  <button
+                    onClick={() => navigate('/privacy')}
+                    style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontSize: 12, fontFamily: 'Jost, sans-serif', fontWeight: 400, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}
+                  >Privacy Policy</button>.
+                </p>
+              )}
+
               <button className="auth-btn" onClick={handleSubmit} disabled={loading}>
                 {loading ? 'Please wait…' : tab === 'login' ? 'Log in →' : 'Create account →'}
               </button>
@@ -262,6 +277,16 @@ export default function AgentAuth({ navigate, mode = 'login' }) {
             </button>
           </p>
 
+        </div>
+      </div>
+
+      {/* Legal footer (§5 TMG — Impressum must be reachable from every page) */}
+      <div style={{ borderTop: '1px solid rgba(28,25,23,0.08)', padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: C.bg }}>
+        <span style={{ fontSize: 13, color: C.textLight, fontWeight: 300, fontFamily: 'Jost, sans-serif' }}>© 2026 Velyr</span>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <button onClick={() => navigate('/privacy')}   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Privacy Policy</button>
+          <button onClick={() => navigate('/impressum')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>Impressum</button>
+          <button onClick={() => navigate('/agb')}       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.textLight, fontFamily: 'Jost, sans-serif', fontWeight: 300 }}>AGB</button>
         </div>
       </div>
     </>

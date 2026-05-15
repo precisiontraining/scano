@@ -377,7 +377,7 @@ function ErrorScreen({ navigate, error, onRetry }) {
   )
 }
 
-function EmailCapture({ reportId, visible }) {
+function EmailCapture({ reportId, visible, navigate }) {
   const [email, setEmail]               = useState('')
   const [emailSent, setEmailSent]       = useState(false)
   const [emailLoading, setEmailLoading] = useState(false)
@@ -420,6 +420,17 @@ function EmailCapture({ reportId, visible }) {
             </div>
             {emailError && <p style={{ fontSize: 12, color: C.red, fontWeight: 300, margin: 0 }}>{emailError}</p>}
             <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0 }}>No spam. Just your report, saved.</p>
+            <p style={{ fontSize: 11, color: C.light, fontWeight: 300, margin: 0, lineHeight: 1.55 }}>
+              Your email is used only to send your report. See our{' '}
+              {navigate ? (
+                <button
+                  onClick={() => navigate('/privacy')}
+                  style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontSize: 11, fontFamily: 'Jost, sans-serif', fontWeight: 300, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}
+                >Privacy Policy</button>
+              ) : (
+                <a href="/privacy" style={{ color: C.accent, textDecoration: 'underline', textDecorationColor: 'rgba(42,92,69,0.35)' }}>Privacy Policy</a>
+              )}.
+            </p>
           </>
         )}
       </div>
@@ -508,7 +519,7 @@ export default function Report({ navigate, scanData, reportData, websiteUrl, rep
             visible={visible}
           />
 
-          <EmailCapture reportId={reportId} visible={visible} />
+          <EmailCapture reportId={reportId} visible={visible} navigate={navigate} />
 
           {hasBenchmarkBlock && (
             <BenchmarkBlock
