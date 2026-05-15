@@ -2359,6 +2359,16 @@ export default function AgentDashboard({ navigate }) {
                   onMouseEnter={e=>{ if (!subscribeLoading) e.currentTarget.style.background=C.accent }}
                   onMouseLeave={e=>{ if (!subscribeLoading) e.currentTarget.style.background=C.text }}
                 >{subscribeLoading ? 'Opening Stripe…' : 'Subscribe — €29/mo →'}</button>
+                <div style={{ marginTop: 22 }}>
+                  <button
+                    onClick={() => { setDeleteError(null); setShowDeleteConfirm(true) }}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 12, color: C.textLight, fontFamily: 'DM Sans, sans-serif', fontWeight: 300,
+                      textDecoration: 'underline', textDecorationColor: 'rgba(160,152,144,0.35)',
+                    }}
+                  >Delete account</button>
+                </div>
               </div>
             )}
 
