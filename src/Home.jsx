@@ -143,6 +143,11 @@ const CSS = `
   @media (max-width: 480px) {
     .dash-preview-shell .dp-kpis { grid-template-columns: 1fr !important; }
     .dash-preview-shell .dp-insights-grid { grid-template-columns: 1fr !important; }
+    .dash-preview-shell .dp-activity-text { white-space: normal !important; word-break: break-word !important; overflow-wrap: anywhere !important; overflow: visible !important; text-overflow: clip !important; }
+    .dash-preview-shell .dp-activity-time { display: none !important; }
+    .dash-preview-shell .dp-pages-row { width: 100% !important; max-width: 100% !important; overflow: hidden !important; }
+    .dash-preview-shell .dp-page-chip { max-width: 100% !important; min-width: 0 !important; font-size: 9px !important; }
+    .dash-preview-shell .dp-page-chip > span:first-child { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; min-width: 0 !important; }
   }
 `
 
@@ -1009,8 +1014,8 @@ function AgentDashboardPreview({ navigate }) {
                         <div style={{ width:8, height:8, borderRadius:'50%', background:s.dot, marginTop:5, flexShrink:0 }}/>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-                            <p style={{ fontSize:11.5, color:DC.text, lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{a.problem}</p>
-                            <span style={{ fontSize:10, color:DC.textLight, flexShrink:0 }}>{timeAgo(run.created_at)}</span>
+                            <p className="dp-activity-text" style={{ fontSize:11.5, color:DC.text, lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{a.problem}</p>
+                            <span className="dp-activity-time" style={{ fontSize:10, color:DC.textLight, flexShrink:0 }}>{timeAgo(run.created_at)}</span>
                           </div>
                           {a.expected_improvement && (
                             <p style={{ fontSize:10, color:DC.green, marginTop:2 }}>Expected: {a.expected_improvement}</p>
@@ -1059,12 +1064,12 @@ function AgentDashboardPreview({ navigate }) {
                 </div>
                 <span style={{ fontSize:11, color:DC.accent }}>Funnel ↗</span>
               </div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              <div className="dp-pages-row" style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 {funnelPages.map(p => {
                   const isHigh = p.drop_off_score > 50
                   const isMed  = !isHigh && p.drop_off_score > 30
                   return (
-                    <div key={p.id} style={{
+                    <div key={p.id} className="dp-page-chip" style={{
                       background: isHigh ? DC.redSoft  : isMed ? DC.yellowSoft : DC.accentSoft,
                       border: `1px solid ${isHigh ? DC.redMid : isMed ? DC.yellowMid : DC.accentMid}`,
                       borderRadius:6, padding:'5px 9px',
