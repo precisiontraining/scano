@@ -33,7 +33,10 @@
       "Bash(git push *)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\flori\\\\Desktop\\\\scano\" -File | Where-Object { $_.Extension -in '.md','.txt','.json' } | Select-Object Name)",
       "Bash(node *)",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(magick --version)",
+      "Bash(convert --version)",
+      "Bash(magick -version)"
     ]
   }
 }
