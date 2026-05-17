@@ -366,9 +366,9 @@ function Hero({ onScanStart, navigate }) {
   const buildManualSocial = () => {
     const m = {}
     if (activePlatforms.includes('tiktok') && social.tiktokFollowers)
-      m.tiktok = { followers:parseInt(social.tiktokFollowers)||0, avgViews:parseInt(social.tiktokAvgViews)||0, engagementRate:social.tiktokEngagement||'0', hasLink:true, bio:'', videoCount:0, topVideos:[] }
+      m.tiktok = { followers:parseInt(social.tiktokFollowers)||0, avgViews:parseInt(social.tiktokAvgViews)||0, engagementRate:(social.tiktokEngagement||'0').replace(',', '.'), hasLink:true, bio:'', videoCount:0, topVideos:[] }
     if (activePlatforms.includes('instagram') && social.igFollowers)
-      m.instagram = { followers:parseInt(social.igFollowers)||0, avgLikes:parseInt(social.igAvgLikes)||0, engagementRate:social.igEngagement||'0', hasLink:true, bio:'', postsCount:0 }
+      m.instagram = { followers:parseInt(social.igFollowers)||0, avgLikes:parseInt(social.igAvgLikes)||0, engagementRate:(social.igEngagement||'0').replace(',', '.'), hasLink:true, bio:'', postsCount:0 }
     if (activePlatforms.includes('youtube') && social.ytSubscribers)
       m.youtube = { subscribers:parseInt(social.ytSubscribers)||0, totalViews:parseInt(social.ytAvgViews)||0, videoCount:0 }
     if (activePlatforms.includes('twitter') && social.twFollowers)

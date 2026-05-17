@@ -102,7 +102,7 @@ async function analyzeWebsiteContent(url) {
     const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi) || []
     const h2s = h2Match.map(h => decodeHTMLEntities(h.replace(/<[^>]+>/g, '').trim())).filter(Boolean).slice(0, 5)
     const imgTags = html.match(/<img[^>]+>/gi) || []
-    const imgsWithoutAlt = imgTags.filter(t => !t.match(/alt=["'][^"']+["']/i)).length
+    const imgsWithoutAlt = imgTags.filter(t => !t.match(/alt=["'][^"']*["']/i)).length
     const imgAltScore = imgTags.length > 0 ? Math.round(((imgTags.length - imgsWithoutAlt) / imgTags.length) * 100) : 100
     const canonicalPresent = /<link[^>]*rel=["']canonical["']/i.test(html)
     const ogTitlePresent = /<meta[^>]*property=["']og:title["']/i.test(html)
@@ -323,6 +323,29 @@ function calcScore(perf, content, social) {
   return factors > 0 ? Math.round(score / factors) : 0
 }
 
+// ─── SSRF GUARD ──────────────────────────────────────────────────────────────
+function isPrivateOrLocalUrl(rawUrl) {
+  let host
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase()
+  } catch {
+    return true
+  }
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0') return true
+  const v6 = host.replace(/^\[|\]$/g, '')
+  if (v6 === '::1') return true
+  if (/^fe80:/i.test(v6) || /^fc[0-9a-f]{2}:/i.test(v6) || /^fd[0-9a-f]{2}:/i.test(v6)) return true
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (m) {
+    const a = parseInt(m[1], 10), b = parseInt(m[2], 10)
+    if (a === 127 || a === 10 || a === 0) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    if (a === 169 && b === 254) return true
+  }
+  return false
+}
+
 // ─── HANDLER ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -330,6 +353,14 @@ export default async function handler(req, res) {
   if (!websiteUrl) return res.status(400).json({ error: 'Website URL is required' })
 
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
+
+  if (isPrivateOrLocalUrl(url)) {
+    return res.status(400).json({
+      error: 'invalid_url',
+      message: 'This URL points to a private or local network address and cannot be scanned.',
+    })
+  }
+
   console.log('Scan starting:', url)
 
   const [perf, content] = await Promise.all([
