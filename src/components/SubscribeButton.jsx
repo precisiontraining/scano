@@ -4,8 +4,8 @@ import { startCheckout } from '../utils/startCheckout.js'
 import CheckoutConfirmModal from './CheckoutConfirmModal.jsx'
 
 const LABELS = {
-  full_scan: 'Get Full Scan – 9€',
-  subscription: 'Subscribe – 29€/month',
+  full_scan: 'Get Full Report – €9',
+  subscription: 'Subscribe – €29/month',
 }
 
 // Higher-level checkout entry point used by CTAs. Handles the guest case:

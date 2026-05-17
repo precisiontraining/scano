@@ -158,7 +158,7 @@ function ScanningScreen({ url, liveData, isPremium = false }) {
               <p style={{ fontSize: 13, color: '#a09890', fontWeight: 300, animation: 'ringPulse1 1.8s ease infinite' }}>Connecting to your website…</p>
             </div>
           )}
-          <p style={{ fontSize: 11, color: '#a09890', marginTop: 20, fontWeight: 300, letterSpacing: '.04em' }}>{isPremium ? 'Usually 30–60 seconds' : 'Usually 15–25 seconds'}</p>
+          <p style={{ fontSize: 11, color: '#a09890', marginTop: 20, fontWeight: 300, letterSpacing: '.04em' }}>Usually under a minute</p>
         </div>
       </div>
     </>

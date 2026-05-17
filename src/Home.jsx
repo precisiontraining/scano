@@ -239,7 +239,6 @@ function Nav({ navigate }) {
             onMouseEnter={e => { e.currentTarget.style.background='rgba(42,92,69,0.08)'; e.currentTarget.style.borderColor='rgba(42,92,69,0.6)' }}
             onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='rgba(42,92,69,0.35)' }}
           >
-            <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
             Growth Agent
           </button>
           <button className="nav-agent-link" onClick={() => navigate('/agent/login')}
@@ -318,7 +317,6 @@ function Nav({ navigate }) {
         <button onClick={goAndClose(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior:'smooth' }))}
           style={{ width:'100%', background:'transparent', color:C.accent, border:`1px solid rgba(42,92,69,0.35)`, borderRadius:10, padding:'13px 16px', fontSize:14, fontFamily:'Jost,sans-serif', fontWeight:400, cursor:'pointer', textAlign:'left', letterSpacing:'.01em', display:'flex', alignItems:'center', gap:8 }}
         >
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 6px #22c55e', display:'inline-block' }} />
           Growth Agent — €29/mo
         </button>
         <button onClick={goAndClose(() => navigate('/agent/login'))}
@@ -380,6 +378,10 @@ function Hero({ onScanStart, navigate }) {
 
   const handleScan = () => {
     if (!url.trim()) { setError('Please enter your website URL.'); return }
+    if (!/^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}/i.test(url.trim())) {
+      setError("That doesn't look like a valid URL. Try yourbusiness.com")
+      return
+    }
     setError('')
     onScanStart({ url: normalizeUrl(url), manualSocial: buildManualSocial() })
   }
@@ -394,11 +396,15 @@ function Hero({ onScanStart, navigate }) {
         </div>
 
         <h1 style={{ fontFamily:'Cormorant Garant, serif', fontSize:'clamp(40px, 7vw, 70px)', fontWeight:300, lineHeight:1.06, letterSpacing:'-.025em', color:C.text, marginBottom:14, animation:'fadeUp .6s .08s ease both' }}>
-          Find out what's <em style={{ fontStyle:'italic', color:C.warm }}>actually</em><br />holding your business back.
+          Score your website and socials <em style={{ fontStyle:'italic', color:C.warm }}>in under a minute.</em>
         </h1>
 
+        <p style={{ fontFamily:'Cormorant Garant, serif', fontStyle:'italic', fontSize:'clamp(18px, 2.4vw, 24px)', fontWeight:300, color:C.textMuted, lineHeight:1.3, letterSpacing:'-.01em', marginBottom:14, animation:'fadeUp .6s .11s ease both' }}>
+          Find out what's actually holding your business back.
+        </p>
+
         <p style={{ fontSize:15, color:C.textMuted, lineHeight:1.55, marginBottom:28, animation:'fadeUp .6s .14s ease both', fontWeight:300 }}>
-          Your website score, benchmark comparisons, and the 2 biggest issues holding you back — in 60 seconds.
+          Your website score, benchmark comparisons, and the 2 biggest issues holding you back — in under a minute.
         </p>
 
         <div id="scan-form" className="scan-form" style={{ background:'#fff', border:'1px solid rgba(28,25,23,0.1)', borderRadius:18, padding:28, animation:'fadeUp .6s .2s ease both', boxShadow:'0 4px 32px rgba(28,25,23,0.07)' }}>
@@ -458,13 +464,16 @@ function Hero({ onScanStart, navigate }) {
                   </div>
                 ))}
                 {activePlatforms.length===0 && <p style={{ fontSize:13, color:C.textLight, fontStyle:'italic', textAlign:'center', padding:'4px 0 8px' }}>Select the platforms you're active on.</p>}
+                <p style={{ fontSize:12, color:C.textLight, fontWeight:300, lineHeight:1.5, textAlign:'center', padding:'2px 0 4px' }}>
+                  Don't have these handy? The Full Report pulls your social data automatically.
+                </p>
               </div>
             </div>
 
             <button className="btn-primary" onClick={handleScan}>
               Scan my business — it's free →
             </button>
-            <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>Takes 60 seconds · No account needed</p>
+            <p style={{ fontSize:12, color:C.textLight, textAlign:'center', marginTop:2 }}>Takes under a minute · No account needed</p>
             <p style={{ fontSize:11, color:C.textLight, fontWeight:300, textAlign:'center', marginTop:6, lineHeight:1.55 }}>
               By scanning you agree to our{' '}
               <button
@@ -473,6 +482,41 @@ function Hero({ onScanStart, navigate }) {
               >Privacy Policy</button>.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── How it works ─────────────────────────────────────────────────────────────
+function HowItWorks() {
+  const [ref, visible] = useReveal()
+  const steps = [
+    { n:'01', title:'Paste your URL',                            desc:'Drop your website link into the scan form above.' },
+    { n:'02', title:'We scan your website & socials',            desc:'Performance, SEO, copy, and engagement — analysed in parallel.' },
+    { n:'03', title:'Get your scored report in under a minute',  desc:'Plain-English findings, real benchmarks, and the fixes that matter most.' },
+  ]
+  return (
+    <section className="section-pad" style={{ background:C.bg, padding:'24px 24px 80px' }}>
+      <div style={{ maxWidth:1060, margin:'0 auto' }}>
+        <div ref={ref} className={`reveal ${visible?'in':''}`} style={{ marginBottom:24 }}>
+          <p style={{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:C.accent, fontWeight:400 }}>How it works</p>
+        </div>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+          {steps.map((s, i) => (
+            <div key={s.n} style={{
+              flex:'1 1 240px',
+              display:'flex', flexDirection:'column', gap:8,
+              padding:'22px 24px',
+              background:'#fff', border:`1px solid ${C.border}`, borderRadius:14,
+              opacity:visible?1:0, transform:visible?'none':'translateY(14px)',
+              transition:`all .5s ease ${0.06 + i*0.08}s`,
+            }}>
+              <span style={{ fontFamily:'DM Mono, monospace', fontSize:11, color:C.textLight, letterSpacing:'.08em' }}>{s.n}</span>
+              <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:400, fontSize:20, letterSpacing:'-.015em', color:C.text }}>{s.title}</h3>
+              <p style={{ fontSize:13.5, color:C.textMuted, fontWeight:300, lineHeight:1.6 }}>{s.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -584,6 +628,9 @@ function GrowthAgentSection({ navigate }) {
           </h2>
           <p style={{ fontSize:17, color:C.textMuted, lineHeight:1.72, fontWeight:300, maxWidth:520 }}>
             A semi-autonomous AI agent that analyses your analytics, writes conversion fixes, and deploys them — with your approval. Every week, automatically.
+          </p>
+          <p style={{ fontSize:12, color:C.textLight, fontWeight:300, marginTop:12, letterSpacing:'.01em' }}>
+            Requires a React, Next.js, or Vite site hosted on GitHub + Vercel.
           </p>
         </div>
 
@@ -1405,7 +1452,7 @@ function SampleReport({ navigate, onScanStart }) {
             <h3 style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:32, letterSpacing:'-.02em', marginBottom:12, color:C.text }}>Full report includes everything.</h3>
             <p style={{ fontSize:15, color:C.textMuted, fontWeight:300, maxWidth:480, margin:'0 auto 32px', lineHeight:1.7 }}>All 5 priority actions with exact copy-paste fixes, deep social dive, hook analysis on every post, caption rewrites, brand clarity score, and an action plan by time required.</p>
             <SubscribeButton type="full_scan" style={{ background:C.accent, width:'auto', display:'inline-flex', padding:'14px 28px', fontSize:14 }} />
-            <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>No account · Results in ~60 seconds</p>
+            <p style={{ fontSize:12, color:C.textLight, marginTop:10, fontWeight:300 }}>No account · Results in under a minute</p>
           </div>
         )}
 
@@ -1474,7 +1521,6 @@ function Pricing({ navigate }) {
             opacity:visible?1:0, transform:visible?'none':'translateY(20px)', transition:'all .55s ease .12s',
             boxShadow:'0 8px 40px rgba(42,92,69,0.1)',
           }}>
-            <div style={{ position:'absolute', top:18, right:18, background:C.accent, color:'#fff', borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:500, letterSpacing:'.05em' }}>Most popular</div>
             <p style={{ fontWeight:500, fontSize:15, marginBottom:5, color:C.text }}>Full report</p>
             <p style={{ color:C.textLight, fontSize:13, fontWeight:300, marginBottom:20 }}>Everything you need to actually improve.</p>
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:C.text }}>€9</span>
@@ -1512,7 +1558,7 @@ function Pricing({ navigate }) {
                 No manual numbers needed. We scrape your real data.
               </p>
               <SubscribeButton type="full_scan" style={{ borderRadius:9, padding:'13px', fontSize:14 }} />
-              <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:8, fontWeight:300 }}>No account · Results in ~60 seconds</p>
+              <p style={{ fontSize:11, color:C.textLight, textAlign:'center', marginTop:8, fontWeight:300 }}>No account · Results in under a minute</p>
             </div>
           </div>
 
@@ -1533,7 +1579,7 @@ function Pricing({ navigate }) {
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:11, marginBottom:26, fontWeight:300 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
-              {['AI analyses your repo + analytics weekly','Identifies #1 conversion problem','Writes the code fix automatically','Opens a GitHub Pull Request','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Competitor weekly scan','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','A/B testing automation','Public impact timeline (shareable)'].map((f,j) => (
+              {['AI analyses your repo + analytics weekly','Writes the code fix automatically','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Competitor weekly scan','A/B testing automation'].map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
                   <span style={{ color:'rgba(247,244,239,0.7)', flexShrink:0, marginTop:1 }}>✓</span>
                   <span style={{ color:'rgba(247,244,239,0.85)', fontWeight:300 }}>{f}</span>
@@ -1686,6 +1732,7 @@ export default function Home({ navigate, onScanStart, scrollToPricing }) {
       <style>{CSS}</style>
       <Nav navigate={navigate} />
       <Hero onScanStart={onScanStart} navigate={navigate} />
+      <HowItWorks />
       <WhatWeCheck />
       <GrowthAgentSection navigate={navigate} />
       <AgentRequirements />
