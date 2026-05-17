@@ -1478,10 +1478,14 @@ function SampleReport({ navigate, onScanStart }) {
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 function Pricing({ navigate }) {
   const [ref, visible] = useReveal()
+  const [allFeaturesOpen, setAllFeaturesOpen] = useState(false)
 
   const scrollToScan = () => {
     document.getElementById('scan-form')?.scrollIntoView({ behavior:'smooth', block:'center' })
   }
+
+  const agentFeaturesTop = ['AI analyses your repo + analytics weekly','Writes the code fix automatically','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Competitor weekly scan','A/B testing automation']
+  const agentFeaturesExtra = ['Identifies #1 conversion problem','Opens a GitHub Pull Request','Brand Guardrails — your rules enforced','Full funnel analysis (all pages)','Multi-page sprint when root cause is shared','Weekly email summary','Monthly roast report — brutal honesty','Business DNA — learns over time','Public impact timeline (shareable)']
 
   return (
     <section id="pricing-section" className="section-pad" style={{ background:C.bgSecond, borderTop:`1px solid ${C.border}`, padding:'96px 24px' }}>
@@ -1578,14 +1582,39 @@ function Pricing({ navigate }) {
             <sup style={{ fontSize:14, color:'rgba(247,244,239,0.5)', fontWeight:300, marginLeft:2 }}>*</sup>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:11, marginBottom:26, fontWeight:300 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
-              {['AI analyses your repo + analytics weekly','Writes the code fix automatically','Reply YES or NO via Telegram','Auto-rollback if metrics drop','Competitor weekly scan','A/B testing automation'].map((f,j) => (
+            <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:0 }}>
+              {agentFeaturesTop.map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
                   <span style={{ color:'rgba(247,244,239,0.7)', flexShrink:0, marginTop:1 }}>✓</span>
                   <span style={{ color:'rgba(247,244,239,0.85)', fontWeight:300 }}>{f}</span>
                 </div>
               ))}
             </div>
+            <div style={{ maxHeight: allFeaturesOpen ? 600 : 0, overflow: 'hidden', transition: 'max-height .4s cubic-bezier(.4,0,.2,1)' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:9, paddingTop:9 }}>
+                {agentFeaturesExtra.map((f,j) => (
+                  <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
+                    <span style={{ color:'rgba(247,244,239,0.7)', flexShrink:0, marginTop:1 }}>✓</span>
+                    <span style={{ color:'rgba(247,244,239,0.85)', fontWeight:300 }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => setAllFeaturesOpen(o => !o)}
+              style={{
+                display:'block', width:'100%',
+                background:'transparent', border:'none', cursor:'pointer',
+                padding:0, marginTop:14, marginBottom:18,
+                textAlign:'center',
+                fontSize:11.5, color:'rgba(247,244,239,0.65)',
+                fontWeight:300, letterSpacing:'.03em',
+                fontFamily:'Jost,sans-serif',
+                transition:'color .2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#f7f4ef' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(247,244,239,0.65)' }}
+            >{allFeaturesOpen ? 'Hide ↑' : 'Show all features ↓'}</button>
             <a
               href="#agent-requirements"
               onClick={(e) => { e.preventDefault(); document.getElementById('agent-requirements')?.scrollIntoView({ behavior:'smooth' }) }}
