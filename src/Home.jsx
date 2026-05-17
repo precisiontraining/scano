@@ -1530,7 +1530,6 @@ function Pricing({ navigate }) {
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:C.text }}>€9</span>
             <sup style={{ fontSize:14, color:C.textLight, fontWeight:300, marginLeft:2 }}>*</sup>
             <p style={{ color:C.textLight, fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>one-time · no subscription</p>
-            <p style={{ color:C.textLight, fontSize:11, marginBottom:26, fontWeight:300 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:28 }}>
               {[
                 'Everything in the free scan',
@@ -1581,7 +1580,6 @@ function Pricing({ navigate }) {
             <span style={{ fontFamily:'Cormorant Garant, serif', fontWeight:300, fontSize:52, letterSpacing:'-.03em', color:'#fff' }}>€29</span>
             <sup style={{ fontSize:14, color:'rgba(247,244,239,0.5)', fontWeight:300, marginLeft:2 }}>*</sup>
             <p style={{ color:'rgba(247,244,239,0.5)', fontSize:12, marginBottom:4, fontWeight:300, marginTop:4 }}>per month · cancel anytime</p>
-            <p style={{ color:'rgba(247,244,239,0.5)', fontSize:11, marginBottom:26, fontWeight:300 }}>* Endpreis gem. § 19 UStG — no VAT charged</p>
             <div style={{ display:'flex', flexDirection:'column', gap:9, marginBottom:0 }}>
               {agentFeaturesTop.map((f,j) => (
                 <div key={j} style={{ display:'flex', alignItems:'flex-start', gap:9, fontSize:13 }}>
